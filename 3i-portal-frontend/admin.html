@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin — 3i Fund Portal</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <div class="page-container">
+
+        <!-- Navigation Bar -->
+        <nav class="navbar">
+            <div class="navbar-brand">
+                <img src="assets/logo.png" alt="3i Fund" class="navbar-logo" id="navbar-logo">
+                <span class="navbar-title">3i Fund Portal</span>
+            </div>
+            <div class="navbar-user">
+                <span class="navbar-company" id="admin-user-id">Admin</span>
+                <button class="navbar-logout" id="change-password-btn">Change Password</button>
+                <button class="navbar-logout" id="logout-btn">Sign Out</button>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <div class="main-content">
+
+            <div class="page-header">
+                <h1>Admin Dashboard</h1>
+                <p>View all companies, ELOCs, and purchase notices</p>
+            </div>
+
+            <!-- Tabs -->
+            <div class="tabs">
+                <button class="tab active" data-tab="companies">Companies</button>
+                <button class="tab" data-tab="elocs">All ELOCs</button>
+                <button class="tab" data-tab="notices">Purchase Notices</button>
+                <button class="tab" data-tab="users">Users</button>
+                <button class="tab" data-tab="templates">Notice Templates</button>
+            </div>
+
+            <!-- Companies Panel -->
+            <div id="companies-panel">
+                <div class="loading-container" id="companies-loading">
+                    <div class="loading-spinner"></div>
+                    <span>Loading companies...</span>
+                </div>
+                <table class="admin-table" id="companies-table" style="display:none;">
+                    <thead>
+                        <tr>
+                            <th>Company</th>
+                            <th>Active ELOCs</th>
+                            <th>Total ELOCs</th>
+                            <th>Last Activity</th>
+                        </tr>
+                    </thead>
+                    <tbody id="companies-tbody"></tbody>
+                </table>
+                <div class="empty-state" id="companies-empty" style="display:none;">
+                    <p>No companies found.</p>
+                </div>
+            </div>
+
+            <!-- All ELOCs Panel -->
+            <div id="elocs-panel" style="display:none;">
+                <div class="loading-container" id="elocs-loading">
+                    <div class="loading-spinner"></div>
+                    <span>Loading ELOCs...</span>
+                </div>
+                <table class="admin-table" id="elocs-table" style="display:none;">
+                    <thead>
+                        <tr>
+                            <th>ELOC ID</th>
+                            <th>Company</th>
+                            <th>Type</th>
+                            <th>Status</th>
+                            <th>Workflow Step</th>
+                            <th>Created</th>
+                        </tr>
+                    </thead>
+                    <tbody id="elocs-tbody"></tbody>
+                </table>
+                <div class="empty-state" id="elocs-empty" style="display:none;">
+                    <p>No ELOCs found.</p>
+                </div>
+            </div>
+
+            <!-- Purchase Notices Panel -->
+            <div id="notices-panel" style="display:none;">
+                <div class="loading-container" id="notices-loading">
+                    <div class="loading-spinner"></div>
+                    <span>Loading purchase notices...</span>
+                </div>
+                <table class="admin-table" id="notices-table" style="display:none;">
+                    <thead>
+                        <tr>
+                            <th>Notice ID</th>
+                            <th>Company</th>
+                            <th>ELOC ID</th>
+                            <th>Shares</th>
+                            <th>Est. Value</th>
+                            <th>Status</th>
+                            <th>Submitted</th>
+                        </tr>
+                    </thead>
+                    <tbody id="notices-tbody"></tbody>
+                </table>
+                <div class="empty-state" id="notices-empty" style="display:none;">
+                    <p>No purchase notices found.</p>
+                </div>
+            </div>
+
+            <!-- Users Panel -->
+            <div id="users-panel" style="display:none;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+                    <h2 style="font-size:1.15rem; font-weight:600; margin:0;">Manage Users</h2>
+                    <button class="btn btn-primary" id="create-user-btn">+ Create User</button>
+                </div>
+                <div class="loading-container" id="users-loading">
+                    <div class="loading-spinner"></div>
+                    <span>Loading users...</span>
+                </div>
+                <table class="admin-table" id="users-table" style="display:none;">
+                    <thead>
+                        <tr>
+                            <th>User ID</th>
+                            <th>Role</th>
+                            <th>Company</th>
+                            <th>Status</th>
+                            <th>Must Change Pwd</th>
+                            <th>Created</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="users-tbody"></tbody>
+                </table>
+                <div class="empty-state" id="users-empty" style="display:none;">
+                    <p>No users found.</p>
+                </div>
+            </div>
+
+            <!-- Notice Templates Panel -->
+            <div id="templates-panel" style="display:none;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+                    <h2 style="font-size:1.15rem; font-weight:600; margin:0;">Purchase Notice Templates</h2>
+                    <button class="btn btn-primary" id="add-template-btn">+ Add Template</button>
+                </div>
+                <div class="loading-container" id="templates-loading">
+                    <div class="loading-spinner"></div>
+                    <span>Loading templates...</span>
+                </div>
+                <table class="admin-table" id="templates-table" style="display:none;">
+                    <thead>
+                        <tr>
+                            <th>Period Type</th>
+                            <th>Body Text (preview)</th>
+                            <th>Agreed & Accepted Entity</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="templates-tbody"></tbody>
+                </table>
+                <div class="empty-state" id="templates-empty" style="display:none;">
+                    <p>No templates configured. Click "+ Add Template" to create one.</p>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Template Edit Modal -->
+    <div class="modal-overlay" id="template-modal-overlay">
+        <div class="modal" style="max-width:650px;">
+            <div class="modal-header">
+                <h2 class="modal-title" id="template-modal-title">Edit Template</h2>
+                <button class="modal-close" id="template-modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label" for="template-period-type">Period Type</label>
+                    <select id="template-period-type" class="form-input">
+                        <option value="">-- Select Period Type --</option>
+                        <option value="OneDay">OneDay</option>
+                        <option value="ThreeDay">ThreeDay</option>
+                        <option value="FiveDay">FiveDay</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="template-body-text">Body Text</label>
+                    <textarea id="template-body-text" class="form-input" rows="12" placeholder="Enter the main body text for this purchase notice template..."></textarea>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="template-entity">Agreed & Accepted Entity Name</label>
+                    <input type="text" id="template-entity" class="form-input" placeholder="e.g., TUMIM STONE CAPITAL, LLC">
+                </div>
+                <div class="modal-status" id="template-modal-status"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="template-modal-cancel">Cancel</button>
+                <button class="btn btn-primary" id="template-modal-submit">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Password Change Modal -->
+    <div class="modal-overlay" id="password-modal-overlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h2 class="modal-title">Change Password</h2>
+                <button class="modal-close" id="password-modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label" for="current-password">Current Password</label>
+                    <input type="password" id="current-password" class="form-input" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="new-password">New Password</label>
+                    <input type="password" id="new-password" class="form-input" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="confirm-password">Confirm New Password</label>
+                    <input type="password" id="confirm-password" class="form-input" required>
+                </div>
+                <div class="modal-status" id="password-modal-status"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="password-modal-cancel">Cancel</button>
+                <button class="btn btn-primary" id="password-modal-submit">Change Password</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create/Edit User Modal -->
+    <div class="modal-overlay" id="user-modal-overlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h2 class="modal-title" id="user-modal-title">Create User</h2>
+                <button class="modal-close" id="user-modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label" for="user-modal-id">User ID (email)</label>
+                    <input type="text" id="user-modal-id" class="form-input" placeholder="user@company.com">
+                </div>
+                <div class="form-group" id="user-modal-password-group">
+                    <label class="form-label" for="user-modal-password">Temporary Password</label>
+                    <input type="password" id="user-modal-password" class="form-input">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="user-modal-role">Role</label>
+                    <select id="user-modal-role" class="form-input">
+                        <option value="user">User</option>
+                        <option value="admin">Admin</option>
+                    </select>
+                </div>
+                <div class="form-group" id="user-modal-company-group">
+                    <label class="form-label" for="user-modal-company">Company</label>
+                    <select id="user-modal-company" class="form-input">
+                        <option value="">-- Select Company --</option>
+                    </select>
+                </div>
+                <div class="form-group" id="user-modal-active-group" style="display:none;">
+                    <label class="form-label" for="user-modal-active">Active</label>
+                    <select id="user-modal-active" class="form-input">
+                        <option value="true">Active</option>
+                        <option value="false">Inactive</option>
+                    </select>
+                </div>
+                <div class="modal-status" id="user-modal-status"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="user-modal-cancel">Cancel</button>
+                <button class="btn btn-primary" id="user-modal-submit">Create</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Reset Password Modal -->
+    <div class="modal-overlay" id="reset-password-modal-overlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h2 class="modal-title">Reset Password</h2>
+                <button class="modal-close" id="reset-modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p style="color:var(--text-secondary); margin-bottom:1rem;">
+                    Set a new temporary password for <strong id="reset-modal-user-id"></strong>
+                </p>
+                <div class="form-group">
+                    <label class="form-label" for="reset-modal-password">New Temporary Password</label>
+                    <input type="password" id="reset-modal-password" class="form-input">
+                </div>
+                <div class="modal-status" id="reset-modal-status"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="reset-modal-cancel">Cancel</button>
+                <button class="btn btn-primary" id="reset-modal-submit">Reset Password</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/api.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/password-modal.js"></script>
+    <script src="js/admin.js"></script>
+</body>
+</html>

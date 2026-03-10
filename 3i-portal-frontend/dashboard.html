@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard — 3i Fund Portal</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <div class="page-container">
+
+        <!-- Navigation Bar -->
+        <nav class="navbar">
+            <div class="navbar-brand">
+                <img src="assets/logo.png" alt="3i Fund" class="navbar-logo" id="navbar-logo">
+            </div>
+            <span class="navbar-title">3i Fund Portal</span>
+            <div class="navbar-user">
+                <span class="navbar-company" id="company-name">—</span>
+                <button class="navbar-logout" id="manage-signatories-btn">Manage Signatories</button>
+                <button class="navbar-logout" id="change-password-btn">Change Password</button>
+                <button class="navbar-logout" id="logout-btn">Sign Out</button>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <div class="main-content">
+
+            <!-- Real-time Quote Bar -->
+            <div class="quote-bar" id="quote-bar" style="display:none;">
+                <span class="quote-symbol" id="quote-symbol">&mdash;</span>
+                <div class="quote-fields">
+                    <span class="quote-field"><span class="quote-size" id="quote-bid-size">&mdash;</span> Bid: <span class="quote-price" id="quote-bid">&mdash;</span></span>
+                    <span class="quote-field">Ask: <span class="quote-price" id="quote-ask">&mdash;</span> <span class="quote-size" id="quote-ask-size">&mdash;</span></span>
+                    <span class="quote-field">Last: <strong id="quote-last">&mdash;</strong></span>
+                </div>
+            </div>
+
+            <div class="page-header">
+                <h1>Your ELOCs</h1>
+            </div>
+
+            <!-- Tabs: Active / History / Action Items -->
+            <div class="tabs">
+                <button class="tab active" data-tab="active">Active ELOCs</button>
+                <button class="tab" data-tab="history">ELOC History</button>
+                <button class="tab" data-tab="actions" id="actions-tab">Action Items</button>
+            </div>
+
+            <!-- Active ELOCs Grid -->
+            <div id="active-elocs-panel">
+                <div class="loading-container" id="active-loading">
+                    <div class="loading-spinner"></div>
+                    <span>Loading ELOCs...</span>
+                </div>
+                <div class="eloc-grid" id="active-elocs-grid"></div>
+                <div class="empty-state" id="active-empty" style="display:none;">
+                    <p>No active ELOCs at this time.</p>
+                </div>
+
+                <!-- ELOCs Currently Pricing -->
+                <hr class="section-divider">
+                <div class="section-header">
+                    <h2>ELOCs Currently Pricing</h2>
+                </div>
+                <div id="pricing-elocs-container">
+                    <div class="empty-state" id="pricing-empty">
+                        <p>No ELOCs currently pricing.</p>
+                    </div>
+                    <!-- Workflow cards rendered dynamically by JS -->
+                </div>
+            </div>
+
+            <!-- Action Items Panel -->
+            <div id="actions-panel" style="display:none;">
+                <div class="loading-container" id="actions-loading" style="display:none;">
+                    <div class="loading-spinner"></div>
+                    <span>Loading action items...</span>
+                </div>
+                <div class="eloc-grid" id="actions-grid"></div>
+                <div class="empty-state" id="actions-empty">
+                    <p>No pending action items.</p>
+                </div>
+            </div>
+
+            <!-- ELOC History Grid -->
+            <div id="history-elocs-panel" style="display:none;">
+                <div class="loading-container" id="history-loading">
+                    <div class="loading-spinner"></div>
+                    <span>Loading history...</span>
+                </div>
+                <div class="eloc-grid" id="history-elocs-grid"></div>
+                <div class="empty-state" id="history-empty" style="display:none;">
+                    <p>No ELOC history available.</p>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Password Change Modal -->
+    <div class="modal-overlay" id="password-modal-overlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h2 class="modal-title">Change Password</h2>
+                <button class="modal-close" id="password-modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label" for="current-password">Current Password</label>
+                    <input type="password" id="current-password" class="form-input" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="new-password">New Password</label>
+                    <input type="password" id="new-password" class="form-input" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="confirm-password">Confirm New Password</label>
+                    <input type="password" id="confirm-password" class="form-input" required>
+                </div>
+                <div class="modal-status" id="password-modal-status"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="password-modal-cancel">Cancel</button>
+                <button class="btn btn-primary" id="password-modal-submit">Change Password</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Manage Signatories Modal -->
+    <div class="modal-overlay" id="signatory-modal-overlay">
+        <div class="modal" style="max-width:600px;">
+            <div class="modal-header">
+                <h2 class="modal-title">Manage Signatories</h2>
+                <button class="modal-close" id="signatory-modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="signatories-list"></div>
+                <div class="empty-state" id="signatories-empty" style="display:none;">
+                    <p>No signatories added yet.</p>
+                </div>
+                <hr style="border:none; border-top:1px solid var(--input-border); margin:1rem 0;">
+                <h3 style="font-size:1rem; font-weight:600; margin-bottom:0.75rem;" id="signatory-form-title">Add Signatory</h3>
+                <div class="form-group">
+                    <label class="form-label" for="sig-name">Name</label>
+                    <input type="text" id="sig-name" class="form-input" placeholder="Full name">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="sig-title">Title</label>
+                    <input type="text" id="sig-title" class="form-input" placeholder="e.g., CEO">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="sig-address">Address</label>
+                    <input type="text" id="sig-address" class="form-input" placeholder="Mailing address">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="sig-email">Email</label>
+                    <input type="email" id="sig-email" class="form-input" placeholder="email@company.com">
+                </div>
+                <input type="hidden" id="sig-editing-id" value="">
+                <div class="modal-status" id="signatory-modal-status"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="signatory-modal-cancel">Close</button>
+                <button class="btn btn-primary" id="signatory-modal-submit">Add</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Shares Input Modal -->
+    <div class="modal-overlay" id="shares-modal-overlay">
+        <div class="modal" style="max-width:400px;">
+            <div class="modal-header">
+                <h2 class="modal-title">Enter Share Amount</h2>
+                <button class="modal-close" id="shares-modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p style="color:var(--text-secondary); margin-bottom:1rem;">
+                    Available: <strong id="shares-modal-available">—</strong> shares
+                </p>
+                <div class="form-group">
+                    <label class="form-label" for="shares-modal-input">Shares to Purchase</label>
+                    <input type="number" id="shares-modal-input" class="form-input" min="1">
+                </div>
+                <div class="modal-status" id="shares-modal-status"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="shares-modal-cancel">Cancel</button>
+                <button class="btn btn-primary" id="shares-modal-submit">Continue</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/api.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/password-modal.js"></script>
+    <script src="js/dashboard.js"></script>
+</body>
+</html>

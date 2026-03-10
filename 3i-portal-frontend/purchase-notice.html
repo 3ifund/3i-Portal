@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Purchase Notice — 3i Fund Portal</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <div class="page-container">
+
+        <!-- Navigation Bar -->
+        <nav class="navbar">
+            <div class="navbar-brand">
+                <img src="assets/logo.png" alt="3i Fund" class="navbar-logo">
+            </div>
+            <span class="navbar-title">3i Fund Portal</span>
+            <div class="navbar-user">
+                <span class="navbar-company" id="company-name">&mdash;</span>
+                <button class="navbar-logout" id="logout-btn">Sign Out</button>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <div class="main-content">
+
+            <!-- Loading State -->
+            <div class="pn-loading" id="pn-loading">
+                <div class="spinner"></div>
+                <p>Loading purchase notice...</p>
+            </div>
+
+            <!-- Error State -->
+            <div class="pn-error" id="pn-error" style="display:none;">
+                <p id="pn-error-message">Unable to load purchase notice.</p>
+                <button class="btn btn-secondary" onclick="window.location.href='dashboard.html'">Return to Dashboard</button>
+            </div>
+
+            <!-- Purchase Notice Document -->
+            <div class="pn-document" id="pn-document" style="display:none;">
+
+                <!-- To / CC Block -->
+                <div class="pn-section pn-header-block">
+                    <div class="pn-field-row">
+                        <span class="pn-label">To:</span>
+                        <span class="pn-value" id="pn-to-name"></span>
+                    </div>
+                    <div class="pn-field-row">
+                        <span class="pn-label">Email:</span>
+                        <span class="pn-value" id="pn-to-email"></span>
+                    </div>
+                    <div class="pn-field-row" id="pn-cc-row" style="display:none;">
+                        <span class="pn-label">CC:</span>
+                        <span class="pn-value" id="pn-cc-email"></span>
+                    </div>
+                </div>
+
+                <!-- Title -->
+                <h2 class="pn-title">VWAP Purchase Notice</h2>
+
+                <!-- Body Text -->
+                <div class="pn-section pn-body-text" id="pn-body-text"></div>
+
+                <!-- Dynamic Fields Table -->
+                <div class="pn-section">
+                    <table class="pn-fields-table">
+                        <tbody>
+                            <tr>
+                                <td class="pn-field-label">Company:</td>
+                                <td class="pn-field-value" id="pn-company-name"></td>
+                            </tr>
+                            <tr>
+                                <td class="pn-field-label">Symbol:</td>
+                                <td class="pn-field-value" id="pn-symbol"></td>
+                            </tr>
+                            <tr>
+                                <td class="pn-field-label">Period Type:</td>
+                                <td class="pn-field-value" id="pn-period-type"></td>
+                            </tr>
+                            <tr>
+                                <td class="pn-field-label">Shares:</td>
+                                <td class="pn-field-value" id="pn-shares"></td>
+                            </tr>
+                            <tr>
+                                <td class="pn-field-label">Exercise Date:</td>
+                                <td class="pn-field-value" id="pn-exercise-date"></td>
+                            </tr>
+                            <tr>
+                                <td class="pn-field-label">Valuation Period:</td>
+                                <td class="pn-field-value" id="pn-valuation-period"></td>
+                            </tr>
+                            <tr>
+                                <td class="pn-field-label">Trading Days:</td>
+                                <td class="pn-field-value" id="pn-trading-days"></td>
+                            </tr>
+                            <tr>
+                                <td class="pn-field-label">Settlement Date:</td>
+                                <td class="pn-field-value" id="pn-settlement-date"></td>
+                            </tr>
+                            <tr>
+                                <td class="pn-field-label">Commitment Remaining:</td>
+                                <td class="pn-field-value" id="pn-commitment-remaining"></td>
+                            </tr>
+                            <tr>
+                                <td class="pn-field-label">Dollar Cap Per Notice:</td>
+                                <td class="pn-field-value" id="pn-dollar-cap"></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Company Signature Block -->
+                <div class="pn-section pn-signature-block">
+                    <h3 class="pn-block-title" id="pn-company-name-upper"></h3>
+                    <div class="pn-field-row">
+                        <span class="pn-label">By:</span>
+                        <span class="pn-signature-line"></span>
+                    </div>
+                    <div class="pn-field-row pn-signatory-select-row">
+                        <label class="pn-label" for="pn-signatory-select">Signatory:</label>
+                        <select id="pn-signatory-select" class="form-input pn-select">
+                            <option value="">— Select signatory —</option>
+                        </select>
+                    </div>
+                    <div class="pn-field-row">
+                        <span class="pn-label">Name:</span>
+                        <span class="pn-value" id="pn-signatory-name">&mdash;</span>
+                    </div>
+                    <div class="pn-field-row">
+                        <span class="pn-label">Title:</span>
+                        <span class="pn-value" id="pn-signatory-title">&mdash;</span>
+                    </div>
+                </div>
+
+                <!-- Agreed and Accepted Block -->
+                <div class="pn-section pn-accepted-block">
+                    <h3 class="pn-block-title">Agreed and Accepted by:</h3>
+                    <p class="pn-entity-name" id="pn-agreed-entity"></p>
+                    <div class="pn-field-row">
+                        <span class="pn-label">By:</span>
+                        <span class="pn-signature-line"></span>
+                    </div>
+                    <div class="pn-field-row">
+                        <span class="pn-label">Name:</span>
+                        <span class="pn-value" id="pn-firm-signer-name"></span>
+                    </div>
+                    <div class="pn-field-row">
+                        <span class="pn-label">Title:</span>
+                        <span class="pn-value" id="pn-firm-signer-title"></span>
+                    </div>
+                </div>
+
+                <!-- Dated Line -->
+                <div class="pn-section pn-dated-line">
+                    <span class="pn-label">Dated:</span>
+                    <span class="pn-value" id="pn-dated"></span>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="pn-actions">
+                    <button class="btn btn-secondary" id="pn-back-btn">Back to Dashboard</button>
+                    <button class="btn btn-primary" id="pn-send-btn" disabled>Send Purchase Notice</button>
+                </div>
+            </div>
+
+        </div><!-- /main-content -->
+
+    </div><!-- /page-container -->
+
+    <!-- Alert Dialog (shares gone / window closed) -->
+    <div class="modal-overlay" id="pn-alert-overlay" style="display:none;">
+        <div class="modal" style="max-width:460px;">
+            <div class="modal-header">
+                <h2 class="modal-title" id="pn-alert-title">Notice</h2>
+            </div>
+            <div class="modal-body">
+                <p id="pn-alert-message"></p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" id="pn-alert-btn">Return to Dashboard</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/api.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/purchase-notice.js"></script>
+</body>
+</html>

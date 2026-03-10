@@ -1,0 +1,310 @@
+"""
+3i Fund Portal — ELOC Service Layer
+Orchestrates data from DealTermsServer REST API (workflow state, pricing,
+shares available, purchase notices).
+"""
+
+import logging
+
+from app.onprem import client as onprem
+
+logger = logging.getLogger("portal.elocs.service")
+
+
+# ---- Step-to-field mapping for ElocData (DealTermsServer camelCase JSON) ----
+_STEP_EVENT_MAP = {
+    "SignedContractToCompany": {
+        "timestamp_field": "receivedAt",
+        "document_field": "purchaseNoticeBytes",
+    },
+    "FinalVwapPricingCalculated": {
+        "timestamp_field": "contractualTermsValidatedAt",
+        "document_field": None,
+    },
+    "VwapNotificationToCompany": {
+        "timestamp_field": "purchaseConfirmationSentAt",
+        "document_field": "purchaseConfirmationBytes",
+    },
+    "ReceivedCountersignedVwapNotification": {
+        "timestamp_field": "countersignedPurchaseConfirmationReceivedAt",
+        "document_field": "countersignedPurchaseConfirmationBytes",
+    },
+}
+
+
+async def get_company_elocs(
+    company_id: int,
+    company_symbol: str,
+    status_filter: str | None = None,
+) -> list[dict]:
+    """
+    Build ELOC listing from DealTermsServer workflow states and shares-available data.
+    The frontend only uses eloc_id and pricing_period_types from this response.
+    """
+    logger.info("Fetching ELOCs for company_id=%s symbol=%s filter=%s",
+                company_id, company_symbol, status_filter)
+
+    # No historical data available without direct DB access
+    if status_filter == "history":
+        logger.info("  History filter — returning empty (no direct DB)")
+        return []
+
+    # Get included ELOC states from DealTermsServer
+    all_states = await onprem.get_included_eloc_states()
+    company_states = [s for s in all_states if s.get("companyId") == company_id]
+    logger.debug("  DealTermsServer returned %d included states for company", len(company_states))
+
+    if not company_states:
+        return []
+
+    # Get pricing period types from shares-available
+    try:
+        shares_data = await onprem.get_shares_available(company_symbol)
+        period_types = [p.get("periodType", "") for p in shares_data.get("pricingPeriods", [])]
+        company_name = shares_data.get("companyName", "")
+    except Exception as exc:
+        logger.warning("  Shares-available failed for %s: %s", company_symbol, exc)
+        period_types = []
+        company_name = ""
+
+    enriched = []
+    for state in company_states:
+        eloc_id = str(state.get("elocId", ""))
+        logger.debug("  ELOC %s: step=%s status=%s periods=%s",
+                      eloc_id, state.get("workflowStep"), state.get("status"), period_types)
+
+        enriched.append({
+            "eloc_id": eloc_id,
+            "company_id": company_id,
+            "company_symbol": company_symbol,
+            "company_name": company_name,
+            "total_commitment": 0,
+            "total_commitment_remaining": 0,
+            "registered_shares_available": 0,
+            "expiration_date": None,
+            "status": "active",
+            "pricing_period_types": period_types,
+            "pricing_periods_count": len(period_types),
+        })
+
+    logger.info("  Returning %d ELOCs", len(enriched))
+    return enriched
+
+
+async def get_eloc_detail(eloc_id: int, company_id: int, company_symbol: str = "") -> dict:
+    """
+    Fetch ELOC detail from DealTermsServer.
+    Note: this endpoint is not currently called by the frontend.
+    """
+    logger.info("Fetching ELOC detail eloc_id=%s company_id=%s", eloc_id, company_id)
+
+    state = await onprem.get_eloc_state_by_id(str(eloc_id))
+    if not state:
+        logger.warning("  ELOC %s not found in DealTermsServer", eloc_id)
+        return {}
+
+    # Get pricing period info from shares-available
+    pricing_periods = []
+    company_name = ""
+    if company_symbol:
+        try:
+            shares_data = await onprem.get_shares_available(company_symbol)
+            company_name = shares_data.get("companyName", "")
+            for p in shares_data.get("pricingPeriods", []):
+                pricing_periods.append({
+                    "pricing_period_id": p.get("pricingPeriodId", 0),
+                    "period_type": p.get("periodType", ""),
+                    "dollar_cap_per_notice": float(p.get("dollarCapPerNotice", 0)),
+                    "discount_multiplier": 0,
+                    "volume_pct_cap": None,
+                    "acceptance_window_start": p.get("acceptanceWindowStart"),
+                    "acceptance_window_end": p.get("acceptanceWindowEnd"),
+                    "use_half_days": False,
+                })
+        except Exception as exc:
+            logger.warning("  Shares-available failed: %s", exc)
+
+    return {
+        "eloc_id": eloc_id,
+        "company_id": company_id,
+        "company_symbol": company_symbol,
+        "company_name": company_name,
+        "total_commitment": 0,
+        "total_commitment_used": 0,
+        "total_commitment_remaining": 0,
+        "registered_shares": 0,
+        "registered_shares_used": 0,
+        "registered_shares_available": 0,
+        "expiration_date": None,
+        "min_trading_days_between_notices": 1,
+        "threshold_price": None,
+        "beneficial_ownership_limit_pct": None,
+        "current_shares_outstanding": None,
+        "status": "active",
+        "pricing_periods": pricing_periods,
+    }
+
+
+async def get_eloc_workflow(eloc_id: str) -> dict:
+    """
+    Fetch workflow state from DealTermsServer and map to step statuses and events.
+    Note: this endpoint is not currently called by the frontend.
+    """
+    from app.elocs.models import build_workflow_steps
+
+    logger.info("Fetching workflow for eloc_id=%s", eloc_id)
+
+    # Get workflow state
+    state = await onprem.get_eloc_state_by_id(eloc_id)
+    if not state:
+        return {"eloc_id": eloc_id, "steps": {}, "events": {}}
+
+    workflow_step = state.get("workflowStep", "")
+    status = state.get("status", "Pending")
+
+    # Build steps dict from current step + status
+    step_list, _ = build_workflow_steps(workflow_step, status)
+    steps = {s["key"]: s["status"] for s in step_list}
+    logger.debug("  Workflow steps: %s", steps)
+
+    # Get event data from DealTermsServer
+    events = {}
+    data = await onprem.get_eloc_data(eloc_id)
+    if data:
+        for step_key, mapping in _STEP_EVENT_MAP.items():
+            ts = data.get(mapping["timestamp_field"])
+            doc_field = mapping["document_field"]
+            has_doc = bool(data.get(doc_field)) if doc_field else False
+            if ts or has_doc:
+                events[step_key] = {
+                    "event_datetime": ts,
+                    "has_document": has_doc,
+                }
+
+    logger.debug("  Events: %s", list(events.keys()))
+    return {
+        "eloc_id": eloc_id,
+        "steps": steps,
+        "events": events,
+    }
+
+
+async def get_eloc_document(eloc_id: str, step: str) -> dict | None:
+    """
+    Fetch document data for a specific workflow step from DealTermsServer.
+    Note: this endpoint is not currently called by the frontend.
+    """
+    logger.info("Fetching document eloc_id=%s step=%s", eloc_id, step)
+
+    data = await onprem.get_eloc_data(eloc_id)
+    if not data:
+        logger.warning("  No data found for eloc_id=%s", eloc_id)
+        return None
+
+    mapping = _STEP_EVENT_MAP.get(step)
+    if not mapping:
+        logger.warning("  Unknown step=%s", step)
+        return None
+
+    doc_field = mapping["document_field"]
+    ts_field = mapping["timestamp_field"]
+
+    has_doc = bool(data.get(doc_field)) if doc_field else False
+    if not has_doc:
+        logger.warning("  Document not found for step=%s", step)
+        return None
+
+    result = {
+        "step": step,
+        "has_document": True,
+        "event_datetime": data.get(ts_field),
+    }
+    logger.info("  Document found")
+    return result
+
+
+async def get_shares_available(company_symbol: str) -> dict:
+    """
+    Fetch available shares for all pricing periods from DealTermsServer.
+    """
+    logger.info("get_shares_available symbol=%s", company_symbol)
+    result = await onprem.get_shares_available(company_symbol)
+    logger.info("  Returned: hasPendingEloc=%s, pricingPeriods=%d, currentQuote=%s",
+                result.get("hasPendingEloc"),
+                len(result.get("pricingPeriods", [])),
+                "present" if result.get("currentQuote") else "absent")
+    return result
+
+
+async def get_action_items(company_id: int) -> list[dict]:
+    """
+    Fetch pending action items for the company.
+    Stub: will be implemented when DealTermsServer provides action item data.
+    """
+    logger.info("get_action_items company_id=%s", company_id)
+    items = []
+    logger.info("  Returning %d action items (stub)", len(items))
+    return items
+
+
+async def get_pricing_workflows(company_id: int) -> list[dict]:
+    """
+    Fetch ELOC workflow states from DealTermsServer where include=true.
+    Filters by company_id and returns derived step statuses for dashboard display.
+    """
+    from app.elocs.models import build_workflow_steps
+
+    logger.info("get_pricing_workflows company_id=%s", company_id)
+    all_states = await onprem.get_included_eloc_states()
+
+    workflows = []
+    for state in all_states:
+        if state.get("companyId") != company_id:
+            continue
+
+        workflow_step = state.get("workflowStep", "")
+        status = state.get("status", "Pending")
+        steps, can_remove = build_workflow_steps(workflow_step, status)
+
+        workflows.append({
+            "eloc_id": str(state.get("elocId", "")),
+            "company_id": state.get("companyId"),
+            "current_step": workflow_step,
+            "step_status": status,
+            "updated_at": str(state["modifiedAt"]) if state.get("modifiedAt") else None,
+            "can_remove": can_remove,
+            "steps": steps,
+        })
+
+    logger.info("  Returning %d pricing workflows", len(workflows))
+    return workflows
+
+
+async def remove_pricing_workflow(eloc_id: str, company_id: int) -> bool:
+    """
+    Exclude an ELOC from the workflow via DealTermsServer.
+    DealTermsServer handles the removal logic and validation.
+    """
+    logger.info("remove_pricing_workflow eloc_id=%s company_id=%s", eloc_id, company_id)
+    success = await onprem.exclude_eloc(eloc_id)
+    if success:
+        logger.info("  Excluded eloc_id=%s", eloc_id)
+    else:
+        logger.warning("  Exclude failed for eloc_id=%s", eloc_id)
+    return success
+
+
+async def submit_purchase_notice(
+    eloc_id: str,
+    company_id: str,
+    pricing_period: str,
+    shares: int,
+) -> dict:
+    """
+    Forward purchase notice to on-prem server and return acknowledgment.
+    """
+    logger.info("submit_purchase_notice eloc=%s company=%s period=%s shares=%d",
+                eloc_id, company_id, pricing_period, shares)
+    result = await onprem.submit_purchase_notice(eloc_id, company_id, pricing_period, shares)
+    logger.info("  On-prem result: %s", result)
+    return result
