@@ -37,7 +37,8 @@ async def add_signatory(
     logger.info("POST /signatories — user=%s, name=%s, title=%s, email=%s",
                 user.user_id, request.name, request.title, request.email)
     signatory = await repo.add_signatory(
-        user.user_id, request.name, request.title, request.address, request.email
+        user.user_id, request.name, request.title, request.address, request.email,
+        request.signature_image
     )
     logger.debug("POST /signatories — created signatory id=%s for user=%s", signatory.get("_id"), user.user_id)
     return signatory

@@ -71,11 +71,12 @@ async def get_signatories(user_id: str) -> list[dict]:
     return signatories
 
 
-async def add_signatory(user_id: str, name: str, title: str, address: str, email: str) -> dict:
+async def add_signatory(user_id: str, name: str, title: str, address: str, email: str,
+                        signature_image: str | None = None) -> dict:
     """Add a signatory to a user's list. Returns the created signatory."""
     signatory_id = str(ObjectId())
-    logger.info("add_signatory(user=%s) — id=%s, name=%s, title=%s, email=%s",
-                user_id, signatory_id, name, title, email)
+    logger.info("add_signatory(user=%s) — id=%s, name=%s, title=%s, email=%s, has_signature=%s",
+                user_id, signatory_id, name, title, email, signature_image is not None)
     db = get_db()
     signatory = {
         "_id": signatory_id,
@@ -84,6 +85,8 @@ async def add_signatory(user_id: str, name: str, title: str, address: str, email
         "address": address,
         "email": email,
     }
+    if signature_image:
+        signatory["signature_image"] = signature_image
     result = await db.user_signatories.update_one(
         {"user_id": user_id},
         {"$push": {"signatories": signatory}},

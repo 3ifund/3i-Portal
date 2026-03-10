@@ -129,6 +129,7 @@ const PurchaseNotice = (() => {
             opt.textContent = `${sig.name} — ${sig.title}`;
             opt.dataset.name = sig.name;
             opt.dataset.title = sig.title;
+            opt.dataset.signature = sig.signature_image || '';
             select.appendChild(opt);
         });
 
@@ -142,13 +143,26 @@ const PurchaseNotice = (() => {
     function onSignatoryChange() {
         const select = document.getElementById('pn-signatory-select');
         const selected = select.options[select.selectedIndex];
+        const sigImg = document.getElementById('pn-signatory-signature');
+        const sigLine = document.getElementById('pn-signature-line-co');
 
         if (selected && selected.value) {
             setText('pn-signatory-name', selected.dataset.name || '');
             setText('pn-signatory-title', selected.dataset.title || '');
+
+            if (selected.dataset.signature) {
+                sigImg.src = selected.dataset.signature;
+                sigImg.style.display = '';
+                if (sigLine) sigLine.style.display = 'none';
+            } else {
+                sigImg.style.display = 'none';
+                if (sigLine) sigLine.style.display = '';
+            }
         } else {
             setText('pn-signatory-name', '\u2014');
             setText('pn-signatory-title', '\u2014');
+            sigImg.style.display = 'none';
+            if (sigLine) sigLine.style.display = '';
         }
     }
 

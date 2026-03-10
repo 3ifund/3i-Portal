@@ -22,6 +22,14 @@ const PasswordModal = (() => {
             overlay.classList.add('visible');
         }
 
+        function resetPasswordVisibility() {
+            overlay.querySelectorAll('.password-toggle').forEach((btn) => {
+                const input = document.getElementById(btn.dataset.target);
+                if (input) input.type = 'password';
+                btn.textContent = 'Show';
+            });
+        }
+
         function close() {
             // Don't allow close if forced
             if (mustChange && sessionStorage.getItem('must_change_password') === 'true') return;
@@ -30,6 +38,7 @@ const PasswordModal = (() => {
             document.getElementById('current-password').value = '';
             document.getElementById('new-password').value = '';
             document.getElementById('confirm-password').value = '';
+            resetPasswordVisibility();
             const statusEl = document.getElementById('password-modal-status');
             statusEl.className = 'modal-status';
             statusEl.textContent = '';
@@ -43,6 +52,17 @@ const PasswordModal = (() => {
         // Close handlers (hidden when forced)
         if (closeBtn) closeBtn.addEventListener('click', close);
         if (cancelBtn) cancelBtn.addEventListener('click', close);
+
+        // Password toggle handlers
+        overlay.querySelectorAll('.password-toggle').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                const input = document.getElementById(btn.dataset.target);
+                if (!input) return;
+                const showing = input.type === 'text';
+                input.type = showing ? 'password' : 'text';
+                btn.textContent = showing ? 'Show' : 'Hide';
+            });
+        });
 
         // Submit handler
         if (submitBtn) {

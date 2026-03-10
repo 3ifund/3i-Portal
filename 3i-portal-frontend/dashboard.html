@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard — 3i Fund Portal</title>
     <link rel="stylesheet" href="css/styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@700&display=swap" rel="stylesheet">
 </head>
 <body>
     <div class="page-container">
@@ -108,15 +109,24 @@
             <div class="modal-body">
                 <div class="form-group">
                     <label class="form-label" for="current-password">Current Password</label>
-                    <input type="password" id="current-password" class="form-input" required>
+                    <div class="password-input-wrapper">
+                        <input type="password" id="current-password" class="form-input" required>
+                        <button type="button" class="password-toggle" data-target="current-password" tabindex="-1">Show</button>
+                    </div>
                 </div>
                 <div class="form-group">
                     <label class="form-label" for="new-password">New Password</label>
-                    <input type="password" id="new-password" class="form-input" required>
+                    <div class="password-input-wrapper">
+                        <input type="password" id="new-password" class="form-input" required>
+                        <button type="button" class="password-toggle" data-target="new-password" tabindex="-1">Show</button>
+                    </div>
                 </div>
                 <div class="form-group">
                     <label class="form-label" for="confirm-password">Confirm New Password</label>
-                    <input type="password" id="confirm-password" class="form-input" required>
+                    <div class="password-input-wrapper">
+                        <input type="password" id="confirm-password" class="form-input" required>
+                        <button type="button" class="password-toggle" data-target="confirm-password" tabindex="-1">Show</button>
+                    </div>
                 </div>
                 <div class="modal-status" id="password-modal-status"></div>
             </div>
@@ -156,6 +166,17 @@
                 <div class="form-group">
                     <label class="form-label" for="sig-email">Email</label>
                     <input type="email" id="sig-email" class="form-input" placeholder="email@company.com">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Signature</label>
+                    <div class="sig-preview" id="sig-preview">
+                        <p class="sig-preview-empty" id="sig-preview-empty">No signature yet</p>
+                    </div>
+                    <div class="sig-actions">
+                        <button type="button" class="btn btn-secondary btn-sm" id="sig-generate-btn">Generate from Name</button>
+                        <button type="button" class="btn btn-secondary btn-sm" id="sig-upload-btn">Upload Signature</button>
+                        <input type="file" id="sig-file-input" accept=".png,.jpg,.jpeg" style="display:none;">
+                    </div>
                 </div>
                 <input type="hidden" id="sig-editing-id" value="">
                 <div class="modal-status" id="signatory-modal-status"></div>

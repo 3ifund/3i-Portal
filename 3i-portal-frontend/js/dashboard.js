@@ -498,6 +498,29 @@ const Dashboard = (() => {
     // ---- Signatory Management ----
 
     let editingSignatoryId = null;
+    let currentSignatureImage = null;
+
+    function generateSignature(name) {
+        const canvas = document.createElement('canvas');
+        canvas.width = 400;
+        canvas.height = 120;
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, 400, 120);
+        ctx.font = 'bold 48px "Dancing Script", cursive';
+        ctx.fillStyle = '#1a1a2e';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(name, 10, 60);
+        return canvas.toDataURL('image/png');
+    }
+
+    function showSignaturePreview(dataUrl) {
+        const preview = document.getElementById('sig-preview');
+        if (dataUrl) {
+            preview.innerHTML = `<img src="${dataUrl}" alt="Signature preview">`;
+        } else {
+            preview.innerHTML = '<p class="sig-preview-empty">No signature yet</p>';
+        }
+    }
 
     async function loadSignatories() {
         const list = document.getElementById('signatories-list');
@@ -517,10 +540,14 @@ const Dashboard = (() => {
             signatories.forEach((s) => {
                 const div = document.createElement('div');
                 div.style.cssText = 'display:flex; justify-content:space-between; align-items:center; padding:0.5rem 0; border-bottom:1px solid var(--input-border);';
+                const sigThumb = s.signature_image
+                    ? `<img src="${s.signature_image}" class="sig-thumbnail" alt="Signature">`
+                    : '';
                 div.innerHTML = `
                     <div>
                         <strong>${escapeHtml(s.name)}</strong> — ${escapeHtml(s.title)}<br>
                         <span style="font-size:0.85rem; color:var(--text-secondary);">${escapeHtml(s.email)}</span>
+                        ${sigThumb}
                     </div>
                     <div>
                         <button class="btn-action sig-edit-btn" data-id="${escapeHtml(s._id)}">Edit</button>
@@ -556,6 +583,8 @@ const Dashboard = (() => {
         document.getElementById('sig-email').value = sig.email || '';
         document.getElementById('sig-editing-id').value = sig._id;
         document.getElementById('signatory-modal-submit').textContent = 'Save';
+        currentSignatureImage = sig.signature_image || null;
+        showSignaturePreview(currentSignatureImage);
     }
 
     function resetSignatoryForm() {
@@ -569,6 +598,8 @@ const Dashboard = (() => {
         document.getElementById('signatory-modal-submit').textContent = 'Add';
         document.getElementById('signatory-modal-status').className = 'modal-status';
         document.getElementById('signatory-modal-status').textContent = '';
+        currentSignatureImage = null;
+        showSignaturePreview(null);
     }
 
     async function handleSignatorySubmit() {
@@ -590,10 +621,16 @@ const Dashboard = (() => {
         submitBtn.disabled = true;
 
         try {
+            // Auto-generate signature from name if none provided
+            if (!currentSignatureImage && name) {
+                currentSignatureImage = generateSignature(name);
+            }
+            const signature_image = currentSignatureImage || null;
+
             if (editingSignatoryId) {
-                await API.updateSignatory(editingSignatoryId, { name, title, address, email });
+                await API.updateSignatory(editingSignatoryId, { name, title, address, email, signature_image });
             } else {
-                await API.addSignatory({ name, title, address, email });
+                await API.addSignatory({ name, title, address, email, signature_image });
             }
             statusEl.className = 'modal-status success';
             statusEl.textContent = editingSignatoryId ? 'Signatory updated.' : 'Signatory added.';
@@ -639,6 +676,40 @@ const Dashboard = (() => {
 
         const submitBtn = document.getElementById('signatory-modal-submit');
         if (submitBtn) submitBtn.addEventListener('click', handleSignatorySubmit);
+
+        // Signature: generate from name
+        const genBtn = document.getElementById('sig-generate-btn');
+        if (genBtn) {
+            genBtn.addEventListener('click', () => {
+                const name = document.getElementById('sig-name').value.trim();
+                if (!name) return;
+                currentSignatureImage = generateSignature(name);
+                showSignaturePreview(currentSignatureImage);
+            });
+        }
+
+        // Signature: upload custom
+        const uploadBtn = document.getElementById('sig-upload-btn');
+        const fileInput = document.getElementById('sig-file-input');
+        if (uploadBtn && fileInput) {
+            uploadBtn.addEventListener('click', () => fileInput.click());
+            fileInput.addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                if (file.size > 500 * 1024) {
+                    alert('Signature image must be under 500 KB.');
+                    fileInput.value = '';
+                    return;
+                }
+                const reader = new FileReader();
+                reader.onload = () => {
+                    currentSignatureImage = reader.result;
+                    showSignaturePreview(currentSignatureImage);
+                };
+                reader.readAsDataURL(file);
+                fileInput.value = '';
+            });
+        }
     }
 
     // ---- Shares Input Modal ----
@@ -650,7 +721,7 @@ const Dashboard = (() => {
         document.getElementById('shares-modal-available').textContent =
             new Intl.NumberFormat('en-US').format(availableShares);
         const input = document.getElementById('shares-modal-input');
-        input.value = '';
+        input.value = availableShares;
         input.max = availableShares;
         document.getElementById('shares-modal-status').className = 'modal-status';
         document.getElementById('shares-modal-status').textContent = '';

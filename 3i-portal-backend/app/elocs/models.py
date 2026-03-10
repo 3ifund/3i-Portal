@@ -92,7 +92,7 @@ class PricingPeriod(BaseModel):
 
 
 class ElocSummary(BaseModel):
-    eloc_id: int
+    eloc_id: str
     company_id: int
     company_symbol: str | None = None
     company_name: str | None = None

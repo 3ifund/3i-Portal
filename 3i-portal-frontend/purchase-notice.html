@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Purchase Notice — 3i Fund Portal</title>
     <link rel="stylesheet" href="css/styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@700&display=swap" rel="stylesheet">
 </head>
 <body>
     <div class="page-container">
@@ -101,10 +102,6 @@
                                 <td class="pn-field-label">Commitment Remaining:</td>
                                 <td class="pn-field-value" id="pn-commitment-remaining"></td>
                             </tr>
-                            <tr>
-                                <td class="pn-field-label">Dollar Cap Per Notice:</td>
-                                <td class="pn-field-value" id="pn-dollar-cap"></td>
-                            </tr>
                         </tbody>
                     </table>
                 </div>
@@ -114,7 +111,8 @@
                     <h3 class="pn-block-title" id="pn-company-name-upper"></h3>
                     <div class="pn-field-row">
                         <span class="pn-label">By:</span>
-                        <span class="pn-signature-line"></span>
+                        <img id="pn-signatory-signature" class="pn-signature-img" style="display:none;" alt="Signature">
+                        <span class="pn-signature-line" id="pn-signature-line-co"></span>
                     </div>
                     <div class="pn-field-row pn-signatory-select-row">
                         <label class="pn-label" for="pn-signatory-select">Signatory:</label>

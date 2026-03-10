@@ -20,6 +20,7 @@ class CreateSignatoryRequest(BaseModel):
     title: str
     address: str
     email: str
+    signature_image: str | None = None
 
 
 class UpdateSignatoryRequest(BaseModel):
@@ -27,3 +28,4 @@ class UpdateSignatoryRequest(BaseModel):
     title: str | None = None
     address: str | None = None
     email: str | None = None
+    signature_image: str | None = None

@@ -38,8 +38,9 @@ async def get_company_elocs(
     status_filter: str | None = None,
 ) -> list[dict]:
     """
-    Build ELOC listing from DealTermsServer workflow states and shares-available data.
-    The frontend only uses eloc_id and pricing_period_types from this response.
+    Build ELOC listing from DealTermsServer shares-available data.
+    Active ELOCs are determined by whether the company has an active deal
+    with pricing periods in the DealTerms PostgreSQL database (via DTS).
     """
     logger.info("Fetching ELOCs for company_id=%s symbol=%s filter=%s",
                 company_id, company_symbol, status_filter)
@@ -49,46 +50,37 @@ async def get_company_elocs(
         logger.info("  History filter — returning empty (no direct DB)")
         return []
 
-    # Get included ELOC states from DealTermsServer
-    all_states = await onprem.get_included_eloc_states()
-    company_states = [s for s in all_states if s.get("companyId") == company_id]
-    logger.debug("  DealTermsServer returned %d included states for company", len(company_states))
-
-    if not company_states:
-        return []
-
-    # Get pricing period types from shares-available
+    # Get active ELOC data from DealTermsServer shares-available endpoint
     try:
         shares_data = await onprem.get_shares_available(company_symbol)
-        period_types = [p.get("periodType", "") for p in shares_data.get("pricingPeriods", [])]
-        company_name = shares_data.get("companyName", "")
     except Exception as exc:
         logger.warning("  Shares-available failed for %s: %s", company_symbol, exc)
-        period_types = []
-        company_name = ""
+        return []
 
-    enriched = []
-    for state in company_states:
-        eloc_id = str(state.get("elocId", ""))
-        logger.debug("  ELOC %s: step=%s status=%s periods=%s",
-                      eloc_id, state.get("workflowStep"), state.get("status"), period_types)
+    if not shares_data or not shares_data.get("pricingPeriods"):
+        logger.info("  No active ELOC deal for %s", company_symbol)
+        return []
 
-        enriched.append({
-            "eloc_id": eloc_id,
-            "company_id": company_id,
-            "company_symbol": company_symbol,
-            "company_name": company_name,
-            "total_commitment": 0,
-            "total_commitment_remaining": 0,
-            "registered_shares_available": 0,
-            "expiration_date": None,
-            "status": "active",
-            "pricing_period_types": period_types,
-            "pricing_periods_count": len(period_types),
-        })
+    period_types = [p.get("periodType", "") for p in shares_data["pricingPeriods"]]
+    company_name = shares_data.get("companyName", "")
 
-    logger.info("  Returning %d ELOCs", len(enriched))
-    return enriched
+    # Build a single ELOC entry from the shares-available data
+    eloc = {
+        "eloc_id": f"{company_symbol}-active",
+        "company_id": company_id,
+        "company_symbol": company_symbol,
+        "company_name": company_name,
+        "total_commitment": 0,
+        "total_commitment_remaining": 0,
+        "registered_shares_available": 0,
+        "expiration_date": None,
+        "status": "active",
+        "pricing_period_types": period_types,
+        "pricing_periods_count": len(period_types),
+    }
+
+    logger.info("  Returning 1 active ELOC with %d pricing periods", len(period_types))
+    return [eloc]
 
 
 async def get_eloc_detail(eloc_id: int, company_id: int, company_symbol: str = "") -> dict:
