@@ -11,6 +11,7 @@ const Dashboard = (() => {
     let workflowsWs = null;
     let wsReconnectTimer = null;
     let workflowsReconnectTimer = null;
+    let hasSignatories = true; // assume true until checked
 
     // ---- ELOC Cards ----
 
@@ -170,8 +171,9 @@ const Dashboard = (() => {
             }
 
             if (btn) {
-                btn.disabled = !enableBtn;
-                if (enableBtn && period) {
+                const canInitiate = enableBtn && hasSignatories;
+                btn.disabled = !canInitiate;
+                if (canInitiate && period) {
                     btn.onclick = () => openSharesModal(symbol, period.pricingPeriodId, period.availableShares);
                 } else {
                     btn.onclick = null;
@@ -337,6 +339,8 @@ const Dashboard = (() => {
                 return;
             }
 
+            // Remove existing workflow cards before rendering fresh set
+            container.querySelectorAll('.workflow-container').forEach((c) => c.remove());
             empty.style.display = 'none';
             workflows.forEach((wf) => {
                 container.appendChild(renderWorkflowCard(wf));
@@ -663,6 +667,10 @@ const Dashboard = (() => {
     function closeSignatoryModal() {
         document.getElementById('signatory-modal-overlay').classList.remove('visible');
         resetSignatoryForm();
+        // Re-check signatories in case user added/removed one
+        checkSignatories();
+        // Re-poll shares to update button states
+        pollSharesAvailable();
     }
 
     function initSignatoryManagement() {
@@ -709,6 +717,36 @@ const Dashboard = (() => {
                 reader.readAsDataURL(file);
                 fileInput.value = '';
             });
+        }
+    }
+
+    // ---- Signatory Check ----
+
+    async function checkSignatories() {
+        console.log('[Dashboard] Checking if user has signatories...');
+        try {
+            const signatories = await API.getSignatories();
+            hasSignatories = signatories && signatories.length > 0;
+            console.log('[Dashboard] hasSignatories=%s (count=%d)', hasSignatories, signatories?.length || 0);
+
+            const warning = document.getElementById('signatory-warning');
+            const activeTab = document.getElementById('active-tab');
+
+            if (!hasSignatories) {
+                if (warning) warning.style.display = 'block';
+                if (activeTab) activeTab.classList.add('has-actions');
+
+                // Disable any already-enabled initiate buttons
+                document.querySelectorAll('.period-btn').forEach((btn) => {
+                    btn.disabled = true;
+                    btn.onclick = null;
+                });
+            } else {
+                if (warning) warning.style.display = 'none';
+                if (activeTab) activeTab.classList.remove('has-actions');
+            }
+        } catch (err) {
+            console.warn('[Dashboard] Signatory check failed:', err.message);
         }
     }
 
@@ -809,6 +847,9 @@ const Dashboard = (() => {
         // Initialize signatory management and shares modal
         initSignatoryManagement();
         initSharesModal();
+
+        // Check if user has signatories (controls initiate button)
+        checkSignatories();
     }
 
     document.addEventListener('DOMContentLoaded', init);

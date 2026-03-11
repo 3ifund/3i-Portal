@@ -43,13 +43,17 @@
 
             <!-- Tabs: Active / History / Action Items -->
             <div class="tabs">
-                <button class="tab active" data-tab="active">Active ELOCs</button>
+                <button class="tab active" data-tab="active" id="active-tab">Active ELOCs</button>
                 <button class="tab" data-tab="history">ELOC History</button>
                 <button class="tab" data-tab="actions" id="actions-tab">Action Items</button>
             </div>
 
             <!-- Active ELOCs Grid -->
             <div id="active-elocs-panel">
+                <div class="signatory-warning" id="signatory-warning" style="display:none;">
+                    <p>You must add at least one signatory before initiating a purchase notice.
+                    Click <strong>Manage Signatories</strong> in the navigation bar to add one.</p>
+                </div>
                 <div class="loading-container" id="active-loading">
                     <div class="loading-spinner"></div>
                     <span>Loading ELOCs...</span>

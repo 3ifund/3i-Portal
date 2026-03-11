@@ -1,6 +1,6 @@
 """
 3i Fund Portal — MongoDB Repository for Purchase Notice Templates & Signatories
-Collections: purchase_notice_templates, user_signatories (in portal_3i DB)
+Collections: purchase_notice_templates, user_signatories (in three_i_fund_portal DB)
 """
 
 import logging
@@ -17,43 +17,76 @@ async def get_all_templates() -> list[dict]:
     logger.debug("get_all_templates() — querying purchase_notice_templates collection")
     db = get_db()
     cursor = db.purchase_notice_templates.find({}, {"_id": 0})
-    result = await cursor.to_list(length=100)
+    result = await cursor.to_list(length=500)
     logger.debug("get_all_templates() — found %d templates", len(result))
     return result
 
 
-async def get_template_by_period_type(period_type: str) -> dict | None:
-    """Get a template by pricing period type (e.g., 'ThreeDay')."""
-    logger.debug("get_template_by_period_type(%s) — querying", period_type)
+async def get_templates_by_company(company_id: int) -> list[dict]:
+    """Get all templates for a specific company."""
+    logger.debug("get_templates_by_company(%s) — querying", company_id)
     db = get_db()
+    cursor = db.purchase_notice_templates.find({"company_id": company_id}, {"_id": 0})
+    result = await cursor.to_list(length=100)
+    logger.debug("get_templates_by_company(%s) — found %d templates", company_id, len(result))
+    return result
+
+
+async def get_template_by_period_type(period_type: str, company_id: int | None = None) -> dict | None:
+    """Get a template by company and pricing period type.
+    Falls back to legacy template (no company_id) if company-specific not found."""
+    logger.debug("get_template_by_period_type(%s, company_id=%s) — querying", period_type, company_id)
+    db = get_db()
+
+    # Try company-specific template first
+    if company_id is not None:
+        doc = await db.purchase_notice_templates.find_one(
+            {"company_id": company_id, "pricing_period_type": period_type}, {"_id": 0}
+        )
+        if doc:
+            logger.debug("get_template_by_period_type(%s, company_id=%s) — found company-specific",
+                          period_type, company_id)
+            return doc
+        logger.debug("get_template_by_period_type(%s, company_id=%s) — no company-specific, trying legacy",
+                      period_type, company_id)
+
+    # Fallback to legacy template (no company_id field)
     doc = await db.purchase_notice_templates.find_one(
-        {"pricing_period_type": period_type}, {"_id": 0}
+        {"pricing_period_type": period_type, "company_id": {"$exists": False}}, {"_id": 0}
     )
     if doc:
-        logger.debug("get_template_by_period_type(%s) — found: body_text_len=%d, entity=%s",
+        logger.debug("get_template_by_period_type(%s) — found legacy: body_text_len=%d, entity=%s",
                       period_type, len(doc.get("body_text", "")), doc.get("agreed_accepted_entity"))
     else:
-        logger.debug("get_template_by_period_type(%s) — not found", period_type)
+        logger.debug("get_template_by_period_type(%s, company_id=%s) — not found", period_type, company_id)
     return doc
 
 
-async def upsert_template(period_type: str, body_text: str, agreed_accepted_entity: str) -> dict:
-    """Create or update a template for a pricing period type."""
-    logger.info("upsert_template(%s) — body_text_len=%d, entity=%s",
-                period_type, len(body_text), agreed_accepted_entity)
+async def upsert_template(period_type: str, body_text: str, agreed_accepted_entity: str,
+                           company_id: int | None = None) -> dict:
+    """Create or update a template for a company and pricing period type."""
+    logger.info("upsert_template(company_id=%s, %s) — body_text_len=%d, entity=%s",
+                company_id, period_type, len(body_text), agreed_accepted_entity)
     db = get_db()
+
+    query = {"pricing_period_type": period_type}
+    set_fields = {
+        "pricing_period_type": period_type,
+        "body_text": body_text,
+        "agreed_accepted_entity": agreed_accepted_entity,
+    }
+    if company_id is not None:
+        query["company_id"] = company_id
+        set_fields["company_id"] = company_id
+
     result = await db.purchase_notice_templates.update_one(
-        {"pricing_period_type": period_type},
-        {"$set": {
-            "pricing_period_type": period_type,
-            "body_text": body_text,
-            "agreed_accepted_entity": agreed_accepted_entity,
-        }},
+        query,
+        {"$set": set_fields},
         upsert=True,
     )
-    logger.info("upsert_template(%s) — matched=%d, modified=%d, upserted_id=%s",
-                period_type, result.matched_count, result.modified_count, result.upserted_id)
-    return await get_template_by_period_type(period_type)
+    logger.info("upsert_template(company_id=%s, %s) — matched=%d, modified=%d, upserted_id=%s",
+                company_id, period_type, result.matched_count, result.modified_count, result.upserted_id)
+    return await get_template_by_period_type(period_type, company_id)
 
 
 # ---- User Signatories ----

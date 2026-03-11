@@ -23,9 +23,9 @@ class Settings(BaseSettings):
     onprem_base_url: str = "http://localhost:9000"
     onprem_timeout_seconds: int = 30
 
-    # MongoDB — portal_3i database
+    # MongoDB — three_i_fund_portal database
     mongo_uri: str = "mongodb://localhost:27017"
-    mongo_db_name: str = "portal_3i"
+    mongo_db_name: str = "three_i_fund_portal"
 
     # PostgreSQL — DealTerms DB (on-prem)
     pg_host: str = "localhost"

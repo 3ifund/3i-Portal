@@ -13,6 +13,7 @@ from app.auth.models import UserInfo
 from app.admin.users_models import CreateUserRequest, UpdateUserRequest, ResetPasswordRequest
 from app.users import repository as users_repo
 from app.database.postgres import get_pool
+from app.onprem import client as onprem
 
 logger = logging.getLogger("portal.admin.users")
 router = APIRouter()
@@ -196,4 +197,46 @@ async def list_companies_for_dropdown(admin: UserInfo = Depends(require_admin)):
     rows = await pool.fetch("SELECT company_id, symbol, name FROM company ORDER BY name")
     result = [dict(r) for r in rows]
     logger.info("  → returned %d companies", len(result))
+    return result
+
+
+@router.get("/companies-with-elocs")
+async def list_companies_with_elocs(admin: UserInfo = Depends(require_admin)):
+    """Return companies with active ELOCs and their pricing period types."""
+    logger.info("GET /admin/companies-with-elocs by admin=%s", admin.user_id)
+    pool = get_pool()
+
+    # Get all company summaries from DealTermsServer shares-available
+    summaries = await onprem.get_all_company_summaries()
+    active_symbols = [s["symbol"] for s in summaries if s.get("hasActiveEloc")]
+    logger.info("  → %d companies with active ELOCs: %s", len(active_symbols), active_symbols)
+
+    if not active_symbols:
+        return []
+
+    # Fetch company DB records by symbol
+    placeholders = ", ".join(f"${i+1}" for i in range(len(active_symbols)))
+    rows = await pool.fetch(
+        f"SELECT company_id, symbol, name FROM company WHERE symbol IN ({placeholders}) ORDER BY name",
+        *active_symbols,
+    )
+    company_map = {r["symbol"]: dict(r) for r in rows}
+
+    # Fetch pricing periods for each active company
+    result = []
+    for symbol in active_symbols:
+        company = company_map.get(symbol)
+        if not company:
+            logger.warning("  → symbol %s not found in company table, skipping", symbol)
+            continue
+        try:
+            shares_data = await onprem.get_shares_available(symbol)
+            period_types = [p.get("periodType", "") for p in shares_data.get("pricingPeriods", [])]
+        except Exception as exc:
+            logger.warning("  → shares-available failed for %s: %s", symbol, exc)
+            period_types = []
+        company["pricing_period_types"] = period_types
+        result.append(company)
+        logger.info("  → %s (%s): periods=%s", company["name"], symbol, period_types)
+
     return result

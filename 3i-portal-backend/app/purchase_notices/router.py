@@ -108,10 +108,11 @@ async def get_prefill(
                  fields.get("periodType"), fields.get("exerciseDate"),
                  fields.get("isWithinAcceptanceWindow"), fields.get("signerName"))
 
-    # 2. Get template from MongoDB
+    # 2. Get template from MongoDB (company-specific, with legacy fallback)
     period_type = fields.get("periodType", "")
-    logger.debug("Looking up template for period_type=%s", period_type)
-    template = await repo.get_template_by_period_type(period_type)
+    company_id = int(user.company_id) if user.company_id else None
+    logger.debug("Looking up template for company_id=%s, period_type=%s", company_id, period_type)
+    template = await repo.get_template_by_period_type(period_type, company_id)
     body_text = template.get("body_text", "") if template else ""
     agreed_entity = template.get("agreed_accepted_entity", "") if template else ""
     logger.debug("Template found=%s, body_text_len=%d, entity=%s",

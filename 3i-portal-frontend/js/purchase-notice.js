@@ -84,9 +84,14 @@ const PurchaseNotice = (() => {
             setText('pn-cc-email', data.adminEmailAddress);
         }
 
-        // Body text
+        // Body text — only show if template provides it
         const bodyEl = document.getElementById('pn-body-text');
-        bodyEl.textContent = data.body_text || '';
+        if (data.body_text) {
+            bodyEl.textContent = data.body_text;
+            bodyEl.style.display = '';
+        } else {
+            bodyEl.style.display = 'none';
+        }
 
         // Fields table
         setText('pn-company-name', data.companyName || '');
@@ -109,10 +114,14 @@ const PurchaseNotice = (() => {
         // Populate signatory dropdown
         populateSignatories(data.signatories || []);
 
-        // Agreed and Accepted block
-        setText('pn-agreed-entity', data.agreed_accepted_entity || '');
-        setText('pn-firm-signer-name', data.signerName || '');
-        setText('pn-firm-signer-title', data.signerTitle || '');
+        // Agreed and Accepted block — entity from template, signature fields left blank
+        const entityEl = document.getElementById('pn-agreed-entity');
+        if (data.agreed_accepted_entity) {
+            entityEl.textContent = data.agreed_accepted_entity;
+            entityEl.style.display = '';
+        } else {
+            entityEl.style.display = 'none';
+        }
 
         // Dated line
         setText('pn-dated', formatDate(new Date().toISOString()));
@@ -129,6 +138,7 @@ const PurchaseNotice = (() => {
             opt.textContent = `${sig.name} — ${sig.title}`;
             opt.dataset.name = sig.name;
             opt.dataset.title = sig.title;
+            opt.dataset.address = sig.address || '';
             opt.dataset.signature = sig.signature_image || '';
             select.appendChild(opt);
         });
@@ -145,10 +155,27 @@ const PurchaseNotice = (() => {
         const selected = select.options[select.selectedIndex];
         const sigImg = document.getElementById('pn-signatory-signature');
         const sigLine = document.getElementById('pn-signature-line-co');
+        const sendBtn = document.getElementById('pn-send-btn');
+
+        // Value spans and their corresponding blank lines
+        const nameVal = document.getElementById('pn-signatory-name');
+        const nameLine = document.getElementById('pn-signatory-name-line');
+        const titleVal = document.getElementById('pn-signatory-title');
+        const titleLine = document.getElementById('pn-signatory-title-line');
+        const addrVal = document.getElementById('pn-signatory-address');
+        const addrLine = document.getElementById('pn-signatory-address-line');
 
         if (selected && selected.value) {
+            // Show values, hide blank lines
             setText('pn-signatory-name', selected.dataset.name || '');
             setText('pn-signatory-title', selected.dataset.title || '');
+            setText('pn-signatory-address', selected.dataset.address || '');
+            if (nameVal) nameVal.style.display = '';
+            if (nameLine) nameLine.style.display = 'none';
+            if (titleVal) titleVal.style.display = '';
+            if (titleLine) titleLine.style.display = 'none';
+            if (addrVal) addrVal.style.display = '';
+            if (addrLine) addrLine.style.display = 'none';
 
             if (selected.dataset.signature) {
                 sigImg.src = selected.dataset.signature;
@@ -158,11 +185,20 @@ const PurchaseNotice = (() => {
                 sigImg.style.display = 'none';
                 if (sigLine) sigLine.style.display = '';
             }
+
+            if (sendBtn) sendBtn.disabled = false;
         } else {
-            setText('pn-signatory-name', '\u2014');
-            setText('pn-signatory-title', '\u2014');
+            // Hide values, show blank lines
+            if (nameVal) nameVal.style.display = 'none';
+            if (nameLine) nameLine.style.display = '';
+            if (titleVal) titleVal.style.display = 'none';
+            if (titleLine) titleLine.style.display = '';
+            if (addrVal) addrVal.style.display = 'none';
+            if (addrLine) addrLine.style.display = '';
             sigImg.style.display = 'none';
             if (sigLine) sigLine.style.display = '';
+
+            if (sendBtn) sendBtn.disabled = true;
         }
     }
 

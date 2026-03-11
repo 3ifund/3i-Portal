@@ -282,6 +282,16 @@ const API = (() => {
         return handleResponse(response);
     }
 
+    /**
+     * GET /admin/companies-with-elocs — only companies that have ELOCs
+     */
+    async function adminGetCompaniesWithElocs() {
+        const response = await fetch(`${BASE_URL}/admin/companies-with-elocs`, {
+            headers: authHeaders(),
+        });
+        return handleResponse(response);
+    }
+
     // --- Admin: purchase notice templates ---
 
     async function adminGetPurchaseNoticeTemplates() {
@@ -291,8 +301,15 @@ const API = (() => {
         return handleResponse(response);
     }
 
-    async function adminUpsertPurchaseNoticeTemplate(periodType, data) {
-        const response = await fetch(`${BASE_URL}/admin/purchase-notice-templates/${encodeURIComponent(periodType)}`, {
+    async function adminGetCompanyTemplates(companyId) {
+        const response = await fetch(`${BASE_URL}/admin/purchase-notice-templates/company/${encodeURIComponent(companyId)}`, {
+            headers: authHeaders(),
+        });
+        return handleResponse(response);
+    }
+
+    async function adminUpsertPurchaseNoticeTemplate(companyId, periodType, data) {
+        const response = await fetch(`${BASE_URL}/admin/purchase-notice-templates/${encodeURIComponent(companyId)}/${encodeURIComponent(periodType)}`, {
             method: 'PUT',
             headers: authHeaders(),
             body: JSON.stringify(data),
@@ -367,7 +384,9 @@ const API = (() => {
         adminResetPassword,
         adminDeleteUser,
         adminGetCompaniesList,
+        adminGetCompaniesWithElocs,
         adminGetPurchaseNoticeTemplates,
+        adminGetCompanyTemplates,
         adminUpsertPurchaseNoticeTemplate,
         getSignatories,
         addSignatory,

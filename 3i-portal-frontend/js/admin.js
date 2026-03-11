@@ -514,18 +514,50 @@ const Admin = (() => {
     // ---- Notice Templates Tab ----
 
     let editingPeriodType = null;
+    let editingCompanyId = null;
+    let elocCompaniesCache = null; // [{company_id, symbol, name, pricing_period_types}]
+
+    async function loadElocCompanies() {
+        if (elocCompaniesCache) return elocCompaniesCache;
+        try {
+            elocCompaniesCache = await API.adminGetCompaniesWithElocs();
+        } catch {
+            elocCompaniesCache = [];
+        }
+        return elocCompaniesCache;
+    }
+
+    function getSelectedElocCompany() {
+        const companyId = document.getElementById('template-company-filter').value;
+        if (!companyId || !elocCompaniesCache) return null;
+        return elocCompaniesCache.find((c) => String(c.company_id) === String(companyId)) || null;
+    }
 
     async function loadTemplates() {
         const loading = document.getElementById('templates-loading');
         const table = document.getElementById('templates-table');
         const empty = document.getElementById('templates-empty');
         const tbody = document.getElementById('templates-tbody');
+        const company = getSelectedElocCompany();
+
+        if (!company) {
+            loading.style.display = 'none';
+            table.style.display = 'none';
+            empty.style.display = 'block';
+            empty.querySelector('p').textContent = 'Select a company to view its templates.';
+            return;
+        }
+
+        loading.style.display = 'flex';
+        table.style.display = 'none';
+        empty.style.display = 'none';
 
         try {
-            const templates = await API.adminGetPurchaseNoticeTemplates();
+            const templates = await API.adminGetCompanyTemplates(company.company_id);
             loading.style.display = 'none';
 
             if (!templates || templates.length === 0) {
+                empty.querySelector('p').textContent = 'No templates configured for this company. Click "+ Add Template" to create one.';
                 empty.style.display = 'block';
                 table.style.display = 'none';
                 return;
@@ -539,16 +571,18 @@ const Admin = (() => {
                 tr.innerHTML = `
                     <td>${escapeHtml(t.pricing_period_type)}</td>
                     <td style="font-size:0.85rem; color:var(--text-secondary);">${escapeHtml(preview)}</td>
-                    <td>${escapeHtml(t.agreed_accepted_entity || '—')}</td>
+                    <td>${escapeHtml(t.agreed_accepted_entity || '\u2014')}</td>
                     <td>
-                        <button class="btn-action edit-template-btn" data-period-type="${escapeHtml(t.pricing_period_type)}">Edit</button>
+                        <button class="btn-action edit-template-btn"
+                            data-period-type="${escapeHtml(t.pricing_period_type)}"
+                            data-company-id="${t.company_id || ''}">Edit</button>
                     </td>
                 `;
                 tbody.appendChild(tr);
             });
 
             tbody.querySelectorAll('.edit-template-btn').forEach((btn) => {
-                btn.addEventListener('click', () => openTemplateModal(btn.dataset.periodType));
+                btn.addEventListener('click', () => openTemplateModal(btn.dataset.periodType, btn.dataset.companyId || null));
             });
 
             table.style.display = 'table';
@@ -559,8 +593,42 @@ const Admin = (() => {
         }
     }
 
-    async function openTemplateModal(periodType) {
+    async function populateTemplateCompanyFilter() {
+        const companies = await loadElocCompanies();
+        const filter = document.getElementById('template-company-filter');
+        if (filter) {
+            const existing = filter.value;
+            while (filter.options.length > 1) filter.remove(1);
+            (companies || []).forEach((c) => {
+                const opt = document.createElement('option');
+                opt.value = c.company_id;
+                opt.textContent = `${c.name} (${c.symbol})`;
+                filter.appendChild(opt);
+            });
+            if (existing) filter.value = existing;
+        }
+    }
+
+    function populatePeriodTypeDropdown(company, selectedPeriodType) {
+        const periodSelect = document.getElementById('template-period-type');
+        periodSelect.innerHTML = '<option value="">-- Select Period Type --</option>';
+        const periods = company ? company.pricing_period_types || [] : [];
+        periods.forEach((pt) => {
+            const opt = document.createElement('option');
+            opt.value = pt;
+            opt.textContent = pt;
+            if (pt === selectedPeriodType) opt.selected = true;
+            periodSelect.appendChild(opt);
+        });
+    }
+
+    async function openTemplateModal(periodType, companyId) {
+        const company = getSelectedElocCompany();
+        if (!company) return;
+
         editingPeriodType = periodType || null;
+        editingCompanyId = company.company_id;
+
         const titleEl = document.getElementById('template-modal-title');
         const periodSelect = document.getElementById('template-period-type');
         const bodyText = document.getElementById('template-body-text');
@@ -570,14 +638,16 @@ const Admin = (() => {
         statusEl.className = 'modal-status';
         statusEl.textContent = '';
 
+        populatePeriodTypeDropdown(company, periodType);
+
         if (periodType) {
+            // Editing existing
             titleEl.textContent = `Edit Template: ${periodType}`;
-            periodSelect.value = periodType;
             periodSelect.disabled = true;
 
             try {
-                const template = await API.adminGetPurchaseNoticeTemplates();
-                const match = (template || []).find((t) => t.pricing_period_type === periodType);
+                const templates = await API.adminGetCompanyTemplates(company.company_id);
+                const match = (templates || []).find((t) => t.pricing_period_type === periodType);
                 bodyText.value = match ? match.body_text || '' : '';
                 entity.value = match ? match.agreed_accepted_entity || '' : '';
             } catch {
@@ -585,8 +655,8 @@ const Admin = (() => {
                 entity.value = '';
             }
         } else {
+            // Adding new
             titleEl.textContent = 'Add Template';
-            periodSelect.value = '';
             periodSelect.disabled = false;
             bodyText.value = '';
             entity.value = '';
@@ -598,16 +668,23 @@ const Admin = (() => {
     function closeTemplateModal() {
         document.getElementById('template-modal-overlay').classList.remove('visible');
         editingPeriodType = null;
+        editingCompanyId = null;
     }
 
     async function handleTemplateSave() {
         const statusEl = document.getElementById('template-modal-status');
         const submitBtn = document.getElementById('template-modal-submit');
 
+        const companyId = editingCompanyId;
         const periodType = editingPeriodType || document.getElementById('template-period-type').value;
         const bodyText = document.getElementById('template-body-text').value;
         const entity = document.getElementById('template-entity').value.trim();
 
+        if (!companyId) {
+            statusEl.className = 'modal-status error';
+            statusEl.textContent = 'Please select a company.';
+            return;
+        }
         if (!periodType) {
             statusEl.className = 'modal-status error';
             statusEl.textContent = 'Please select a period type.';
@@ -629,7 +706,7 @@ const Admin = (() => {
         submitBtn.disabled = true;
 
         try {
-            await API.adminUpsertPurchaseNoticeTemplate(periodType, {
+            await API.adminUpsertPurchaseNoticeTemplate(companyId, periodType, {
                 body_text: bodyText,
                 agreed_accepted_entity: entity,
             });
@@ -647,9 +724,9 @@ const Admin = (() => {
         }
     }
 
-    function initTemplateManagement() {
+    async function initTemplateManagement() {
         const addBtn = document.getElementById('add-template-btn');
-        if (addBtn) addBtn.addEventListener('click', () => openTemplateModal(null));
+        if (addBtn) addBtn.addEventListener('click', () => openTemplateModal(null, null));
 
         const closeBtn = document.getElementById('template-modal-close');
         const cancelBtn = document.getElementById('template-modal-cancel');
@@ -658,6 +735,12 @@ const Admin = (() => {
 
         const submitBtn = document.getElementById('template-modal-submit');
         if (submitBtn) submitBtn.addEventListener('click', handleTemplateSave);
+
+        const companyFilter = document.getElementById('template-company-filter');
+        if (companyFilter) companyFilter.addEventListener('change', loadTemplates);
+
+        // Populate company filter dropdown
+        await populateTemplateCompanyFilter();
     }
 
     // ---- Utilities ----
@@ -693,7 +776,7 @@ const Admin = (() => {
 
     // ---- Init ----
 
-    function init() {
+    async function init() {
         // Verify admin role
         if (!Auth.isAdmin()) {
             window.location.href = 'dashboard.html';
@@ -708,12 +791,11 @@ const Admin = (() => {
 
         initTabs();
         initUserManagement();
-        initTemplateManagement();
+        await initTemplateManagement();
         loadCompanies();
         loadElocs();
         loadPurchaseNotices();
         loadUsers();
-        loadTemplates();
     }
 
     document.addEventListener('DOMContentLoaded', init);

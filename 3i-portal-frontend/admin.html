@@ -143,9 +143,14 @@
             <div id="templates-panel" style="display:none;">
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
                     <h2 style="font-size:1.15rem; font-weight:600; margin:0;">Purchase Notice Templates</h2>
-                    <button class="btn btn-primary" id="add-template-btn">+ Add Template</button>
+                    <div style="display:flex; align-items:center; gap:0.75rem;">
+                        <select id="template-company-filter" class="form-input" style="width:auto; min-width:200px;">
+                            <option value="">-- Select Company --</option>
+                        </select>
+                        <button class="btn btn-primary" id="add-template-btn">+ Add Template</button>
+                    </div>
                 </div>
-                <div class="loading-container" id="templates-loading">
+                <div class="loading-container" id="templates-loading" style="display:none;">
                     <div class="loading-spinner"></div>
                     <span>Loading templates...</span>
                 </div>
@@ -160,8 +165,8 @@
                     </thead>
                     <tbody id="templates-tbody"></tbody>
                 </table>
-                <div class="empty-state" id="templates-empty" style="display:none;">
-                    <p>No templates configured. Click "+ Add Template" to create one.</p>
+                <div class="empty-state" id="templates-empty">
+                    <p>Select a company to view its templates.</p>
                 </div>
             </div>
 
@@ -180,9 +185,6 @@
                     <label class="form-label" for="template-period-type">Period Type</label>
                     <select id="template-period-type" class="form-input">
                         <option value="">-- Select Period Type --</option>
-                        <option value="OneDay">OneDay</option>
-                        <option value="ThreeDay">ThreeDay</option>
-                        <option value="FiveDay">FiveDay</option>
                     </select>
                 </div>
                 <div class="form-group">
@@ -309,9 +311,9 @@
         </div>
     </div>
 
-    <script src="js/api.js"></script>
-    <script src="js/auth.js"></script>
-    <script src="js/password-modal.js"></script>
-    <script src="js/admin.js"></script>
+    <script src="js/api.js?v=5"></script>
+    <script src="js/auth.js?v=5"></script>
+    <script src="js/password-modal.js?v=5"></script>
+    <script src="js/admin.js?v=5"></script>
 </body>
 </html>

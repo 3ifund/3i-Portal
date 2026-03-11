@@ -79,17 +79,17 @@ a:hover {
 .navbar {
     display: flex;
     align-items: center;
-    justify-content: space-between;
     padding: 0.75rem 2rem;
     background-color: var(--bg-secondary);
     border-bottom: 1px solid var(--border-blue);
-    position: relative;
+    gap: 1.5rem;
 }
 
 .navbar-brand {
     display: flex;
     align-items: center;
     gap: 0.375rem;
+    flex-shrink: 0;
 }
 
 .navbar-logo {
@@ -99,27 +99,28 @@ a:hover {
 }
 
 .navbar-title {
-    position: absolute;
-    left: 50%;
-    transform: translateX(-50%);
     font-size: 1.2rem;
     font-weight: 600;
     color: var(--text-primary);
     letter-spacing: 0.02em;
     white-space: nowrap;
+    flex-shrink: 0;
 }
 
 .navbar-user {
     display: flex;
     align-items: center;
     gap: 1rem;
+    margin-left: auto;
+    min-width: 0;
 }
 
 .navbar-company {
-    font-size: 1.2rem;
+    font-size: 1.1rem;
     font-weight: 600;
     color: #ffffff;
     letter-spacing: 0.02em;
+    margin-right: 0.5rem;
 }
 
 .navbar-logout {
@@ -131,6 +132,8 @@ a:hover {
     border-radius: var(--border-radius);
     cursor: pointer;
     transition: all var(--transition-speed);
+    white-space: nowrap;
+    flex-shrink: 0;
 }
 
 .navbar-logout:hover {
@@ -1006,6 +1009,9 @@ input[type="number"] {
 .pn-signature-img {
     max-height: 60px;
     max-width: 300px;
+    background-color: #ffffff;
+    padding: 4px 8px;
+    border-radius: 3px;
 }
 
 /* ============================================
@@ -1176,6 +1182,24 @@ input[type="number"] {
    Purchase Notice Document
    ============================================ */
 
+/* ============================================
+   Dashboard — Signatory Warning
+   ============================================ */
+
+.signatory-warning {
+    padding: 0.75rem 1.25rem;
+    margin-bottom: 1rem;
+    background-color: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    border-radius: var(--border-radius);
+    color: var(--badge-red);
+    font-size: 0.9rem;
+}
+
+/* ============================================
+   Purchase Notice Document
+   ============================================ */
+
 .pn-loading {
     display: flex;
     flex-direction: column;
@@ -1288,9 +1312,10 @@ input[type="number"] {
 }
 
 .pn-signature-line {
-    flex: 1;
+    flex: none;
+    width: 33%;
+    min-width: 120px;
     border-bottom: 1px solid var(--text-secondary);
-    min-width: 200px;
     height: 1.2em;
 }
 
