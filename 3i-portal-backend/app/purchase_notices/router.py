@@ -161,9 +161,9 @@ async def submit_portal_purchase_notice(
         )
 
     logger.info(
-        "POST /submit — user=%s symbol=%s period=%d shares=%d signatory=%s",
+        "POST /submit — user=%s symbol=%s period=%d shares=%d signatory=%s company_id=%s",
         user.user_id, request.symbol, request.pricing_period_id,
-        request.shares, request.signatory_name,
+        request.shares, request.signatory_name, user.company_id,
     )
 
     payload = {
@@ -172,6 +172,19 @@ async def submit_portal_purchase_notice(
         "company_name": user.company_name or "",
         "submitted_by": user.user_id,
     }
+
+    logger.debug(
+        "POST /submit payload keys: %s",
+        list(payload.keys()),
+    )
+    logger.debug(
+        "POST /submit payload (core): symbol=%s, pricing_period_id=%s, shares=%s, "
+        "company_id=%s, company_name=%s, signatory_name=%s, period_type=%s, "
+        "exercise_date=%s, settlement_date=%s",
+        payload.get("symbol"), payload.get("pricing_period_id"), payload.get("shares"),
+        payload.get("company_id"), payload.get("company_name"), payload.get("signatory_name"),
+        payload.get("period_type"), payload.get("exercise_date"), payload.get("settlement_date"),
+    )
 
     try:
         result = await onprem.submit_portal_purchase_notice(payload)

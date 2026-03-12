@@ -212,12 +212,24 @@ async def submit_portal_purchase_notice(payload: dict) -> dict:
     DTS generates eloc_id, PDF, and writes to three_i_fund_portal MongoDB.
     """
     logger.info(
-        "POST /api/portal/purchase-notice symbol=%s period=%s shares=%d",
-        payload.get("symbol"), payload.get("pricing_period_id"), payload.get("shares", 0),
+        "POST /api/portal/purchase-notice symbol=%s period=%s shares=%s company=%s",
+        payload.get("symbol"), payload.get("pricing_period_id"),
+        payload.get("shares"), payload.get("company_id"),
     )
+    # Log all payload keys and values (excluding large fields like signature images)
+    safe_payload = {
+        k: (v[:80] + "..." if isinstance(v, str) and len(v) > 80 else v)
+        for k, v in payload.items()
+    }
+    logger.info("  payload keys: %s", list(payload.keys()))
+    logger.debug("  payload: %s", safe_payload)
+
     response = await _request_with_retry("POST", "/api/portal/purchase-notice", json=payload)
     logger.info("  → %s (%d bytes)", response.status_code, len(response.content))
-    logger.debug("  → body: %s", response.text[:2000])
+    if response.status_code >= 400:
+        logger.error("  → DTS error response: %s", response.text[:2000])
+    else:
+        logger.debug("  → body: %s", response.text[:2000])
     response.raise_for_status()
     return response.json()
 
