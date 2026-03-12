@@ -155,11 +155,9 @@ const PurchaseNotice = (() => {
             select.appendChild(opt);
         });
 
-        // Auto-select if only one signatory
-        if (signatories.length === 1) {
-            select.value = signatories[0]._id;
-            onSignatoryChange();
-        }
+        // Default to placeholder — user must explicitly select
+        select.value = '';
+        onSignatoryChange();
     }
 
     function onSignatoryChange() {

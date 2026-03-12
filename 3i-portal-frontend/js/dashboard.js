@@ -579,8 +579,11 @@ const Dashboard = (() => {
 
                 if (msg.type === 'workflow_update' && msg.workflow) {
                     handleWorkflowUpdate(msg.workflow);
+                    // Re-poll shares available — workflow state change may affect availability
+                    pollSharesAvailable();
                 } else if (msg.type === 'workflow_removed' && msg.eloc_id) {
                     handleWorkflowRemoved(msg.eloc_id);
+                    pollSharesAvailable();
                 }
             } catch (e) {
                 console.warn('[Dashboard] Workflows WS parse error:', e);
