@@ -7,9 +7,15 @@ import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
+from fastapi import status
+
 from app.auth.dependencies import get_current_user
 from app.auth.models import UserInfo
-from app.purchase_notices.models import CreateSignatoryRequest, UpdateSignatoryRequest
+from app.purchase_notices.models import (
+    CreateSignatoryRequest,
+    PortalPurchaseNoticeRequest,
+    UpdateSignatoryRequest,
+)
 from app.purchase_notices import mongo_repository as repo
 from app.onprem import client as onprem
 
@@ -134,3 +140,71 @@ async def get_prefill(
         "shares": shares,
         "signatories": signatories,
     }
+
+
+# ---- Portal-Initiated Purchase Notice Submission ----
+
+@router.post("/submit")
+async def submit_portal_purchase_notice(
+    request: PortalPurchaseNoticeRequest,
+    user: UserInfo = Depends(get_current_user),
+):
+    """
+    Submit a portal-initiated purchase notice to DTS.
+    DTS generates the PDF, creates eloc_id, writes to three_i_fund_portal MongoDB,
+    and returns the eloc_id.
+    """
+    if not user.company_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User has no company assigned",
+        )
+
+    logger.info(
+        "POST /submit — user=%s symbol=%s period=%d shares=%d signatory=%s",
+        user.user_id, request.symbol, request.pricing_period_id,
+        request.shares, request.signatory_name,
+    )
+
+    payload = {
+        **request.model_dump(),
+        "company_id": int(user.company_id),
+        "company_name": user.company_name or "",
+        "submitted_by": user.user_id,
+    }
+
+    try:
+        result = await onprem.submit_portal_purchase_notice(payload)
+    except Exception as exc:
+        logger.error("Portal purchase notice submission failed: %s", exc, exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Unable to submit purchase notice: {exc}",
+        )
+
+    logger.info("Portal purchase notice submitted: %s", result)
+    return result
+
+
+@router.get("/documents/{eloc_id}/{step}")
+async def get_portal_document(
+    eloc_id: str,
+    step: str,
+    user: UserInfo = Depends(get_current_user),
+):
+    """
+    Fetch document for a portal-initiated ELOC workflow step.
+    Returns PDF data from three_i_fund_portal.eloc_data via DTS.
+    """
+    logger.info("GET /documents/%s/%s — user=%s", eloc_id, step, user.user_id)
+
+    doc = await onprem.get_portal_eloc_document(eloc_id, step)
+    if not doc:
+        logger.warning("Document not found for eloc=%s step=%s", eloc_id, step)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Document not found for this step",
+        )
+
+    logger.info("Document returned for eloc=%s step=%s", eloc_id, step)
+    return doc

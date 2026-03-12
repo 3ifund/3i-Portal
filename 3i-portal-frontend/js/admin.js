@@ -199,9 +199,9 @@ const Admin = (() => {
                     <td>
                         <button class="btn-action edit-user-btn" data-user-id="${escapeHtml(u.user_id)}">Edit</button>
                         <button class="btn-action reset-pwd-btn" data-user-id="${escapeHtml(u.user_id)}">Reset Pwd</button>
-                        <button class="btn-action toggle-active-btn"
+                        ${u.role === 'admin' ? '' : `<button class="btn-action toggle-active-btn"
                                 data-user-id="${escapeHtml(u.user_id)}"
-                                data-active="${u.is_active}">${u.is_active ? 'Deactivate' : 'Activate'}</button>
+                                data-active="${u.is_active}">${u.is_active ? 'Deactivate' : 'Activate'}</button>`}
                     </td>
                 `;
                 tbody.appendChild(tr);

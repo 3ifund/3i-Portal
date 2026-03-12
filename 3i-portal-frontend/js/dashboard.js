@@ -350,6 +350,13 @@ const Dashboard = (() => {
         }
     }
 
+    // Steps that have downloadable documents
+    const DOCUMENT_STEPS = new Set([
+        'SignedContractToCompany',
+        'VwapNotificationToCompany',
+        'ReceivedCountersignedVwapNotification',
+    ]);
+
     // Step icons — matches C# ElocWorkflowStep enum
     const STEP_ICONS = {
         SignedContractToCompany: '\u{1F4E5}',
@@ -375,14 +382,17 @@ const Dashboard = (() => {
         const card = document.createElement('div');
         card.className = 'workflow-container';
         card.dataset.elocId = workflow.eloc_id;
+        card.dataset.source = workflow.source || 'dts';
 
         let stepsHtml = '';
         (workflow.steps || []).forEach((step) => {
             const cssClass = STATUS_CSS[step.status] || 'awaiting';
             const icon = STEP_ICONS[step.key] || '\u2022';
+            const hasDoc = step.status === 'Completed' && DOCUMENT_STEPS.has(step.key);
+            const clickable = hasDoc ? 'clickable' : '';
             stepsHtml += `
-                <div class="workflow-step ${cssClass}" data-step="${escapeHtml(step.key)}">
-                    <div class="workflow-badge ${cssClass}">${icon}</div>
+                <div class="workflow-step ${cssClass} ${clickable}" data-step="${escapeHtml(step.key)}">
+                    <div class="workflow-badge ${cssClass} ${clickable}">${icon}</div>
                     <div class="workflow-label">${escapeHtml(step.label)}</div>
                 </div>
             `;
@@ -397,6 +407,15 @@ const Dashboard = (() => {
                 ${stepsHtml}
             </div>
         `;
+
+        // Click handlers for completed document badges
+        card.querySelectorAll('.workflow-step.clickable').forEach((stepEl) => {
+            stepEl.addEventListener('click', () => {
+                const stepKey = stepEl.dataset.step;
+                openDocumentViewer(workflow.eloc_id, stepKey, workflow.source || 'dts');
+            });
+            stepEl.style.cursor = 'pointer';
+        });
 
         // Remove button handler
         const removeBtn = card.querySelector('.workflow-remove-btn');
@@ -415,8 +434,8 @@ const Dashboard = (() => {
             }
         });
 
-        console.log('[Dashboard] Rendered workflow card: ELOC %s, step=%s status=%s can_remove=%s',
-            workflow.eloc_id, workflow.current_step, workflow.step_status, workflow.can_remove);
+        console.log('[Dashboard] Rendered workflow card: ELOC %s, step=%s status=%s source=%s can_remove=%s',
+            workflow.eloc_id, workflow.current_step, workflow.step_status, workflow.source, workflow.can_remove);
         return card;
     }
 
@@ -451,6 +470,85 @@ const Dashboard = (() => {
         const remaining = container.querySelectorAll('.workflow-container');
         if (remaining.length === 0) {
             document.getElementById('pricing-empty').style.display = 'block';
+        }
+    }
+
+    // ---- Document Viewer ----
+
+    const STEP_LABELS = {
+        SignedContractToCompany: 'Purchase Notice',
+        VwapNotificationToCompany: 'Purchase Confirmation',
+        ReceivedCountersignedVwapNotification: 'Countersigned Confirmation',
+    };
+
+    async function openDocumentViewer(elocId, step, source) {
+        console.log('[Dashboard] Opening document viewer: eloc=%s step=%s source=%s', elocId, step, source);
+
+        const overlay = document.getElementById('document-modal-overlay');
+        const title = document.getElementById('document-modal-title');
+        const loading = document.getElementById('document-modal-loading');
+        const iframe = document.getElementById('document-modal-iframe');
+        const statusEl = document.getElementById('document-modal-status');
+
+        title.textContent = STEP_LABELS[step] || 'Document';
+        loading.style.display = 'flex';
+        iframe.style.display = 'none';
+        iframe.src = '';
+        statusEl.className = 'modal-status';
+        statusEl.textContent = '';
+        overlay.classList.add('visible');
+
+        try {
+            const doc = await API.getPortalElocDocument(elocId, step);
+            loading.style.display = 'none';
+
+            if (doc && doc.pdf_base64) {
+                const byteChars = atob(doc.pdf_base64);
+                const byteArray = new Uint8Array(byteChars.length);
+                for (let i = 0; i < byteChars.length; i++) {
+                    byteArray[i] = byteChars.charCodeAt(i);
+                }
+                const blob = new Blob([byteArray], { type: 'application/pdf' });
+                const blobUrl = URL.createObjectURL(blob);
+                iframe.src = blobUrl;
+                iframe.style.display = 'block';
+                // Clean up blob URL when modal closes
+                iframe.dataset.blobUrl = blobUrl;
+            } else {
+                statusEl.className = 'modal-status error';
+                statusEl.textContent = 'No document data returned.';
+            }
+        } catch (err) {
+            console.error('[Dashboard] Document fetch failed:', err);
+            loading.style.display = 'none';
+            statusEl.className = 'modal-status error';
+            statusEl.textContent = err.message || 'Failed to load document.';
+        }
+    }
+
+    function closeDocumentViewer() {
+        const overlay = document.getElementById('document-modal-overlay');
+        const iframe = document.getElementById('document-modal-iframe');
+        overlay.classList.remove('visible');
+
+        // Revoke blob URL to free memory
+        if (iframe.dataset.blobUrl) {
+            URL.revokeObjectURL(iframe.dataset.blobUrl);
+            delete iframe.dataset.blobUrl;
+        }
+        iframe.src = '';
+    }
+
+    function initDocumentViewer() {
+        const closeBtn = document.getElementById('document-modal-close');
+        if (closeBtn) closeBtn.addEventListener('click', closeDocumentViewer);
+
+        // Close on overlay click
+        const overlay = document.getElementById('document-modal-overlay');
+        if (overlay) {
+            overlay.addEventListener('click', (e) => {
+                if (e.target === overlay) closeDocumentViewer();
+            });
         }
     }
 
@@ -844,9 +942,10 @@ const Dashboard = (() => {
         connectQuotesWs();
         connectWorkflowsWs();
 
-        // Initialize signatory management and shares modal
+        // Initialize signatory management, shares modal, and document viewer
         initSignatoryManagement();
         initSharesModal();
+        initDocumentViewer();
 
         // Check if user has signatories (controls initiate button)
         checkSignatories();

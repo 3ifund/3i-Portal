@@ -128,10 +128,11 @@ async def websocket_workflows(websocket: WebSocket, token: str = ""):
 
 # ---- Initial State & Resync via DealTermsServer REST ----
 
-def _build_workflow_message(state: dict) -> dict:
+def _build_workflow_message(state: dict, source: str = "dts") -> dict:
     """
     Build a workflow_update message from a DealTermsServer state response.
     DealTermsServer returns camelCase JSON: elocId, companyId, workflowStep, status, modifiedAt.
+    source: "dts" for upstream ELOCs, "portal" for portal-initiated ELOCs.
     """
     eloc_id = str(state.get("elocId", ""))
     company_id = state.get("companyId", 0)
@@ -155,19 +156,34 @@ def _build_workflow_message(state: dict) -> dict:
             "updated_at": str(modified_at) if modified_at else None,
             "can_remove": can_remove,
             "steps": steps,
+            "source": source,
         },
     }
 
 
 async def _send_initial_state(company_id: int, ws: WebSocket):
-    """Send all included workflows to a newly connected browser client."""
-    states = await onprem.get_included_eloc_states()
+    """Send all included workflows (DTS + portal) to a newly connected browser client."""
     count = 0
+
+    # DTS upstream workflows
+    states = await onprem.get_included_eloc_states()
     for state in states:
         if state.get("companyId") == company_id:
-            message = _build_workflow_message(state)
+            message = _build_workflow_message(state, source="dts")
             await ws.send_text(json.dumps(message))
             count += 1
+
+    # Portal-initiated workflows
+    try:
+        portal_states = await onprem.get_portal_eloc_states_included()
+        for state in portal_states:
+            if state.get("companyId") == company_id:
+                message = _build_workflow_message(state, source="portal")
+                await ws.send_text(json.dumps(message))
+                count += 1
+    except Exception as exc:
+        logger.warning("WS /workflows: failed to fetch portal states: %s", exc)
+
     logger.info("WS /workflows: sent %d initial workflows to company_id=%s", count, company_id)
 
 
@@ -180,12 +196,25 @@ async def _resync_all_clients():
         return
 
     logger.info("DTS WS: resyncing all connected clients (%d companies)", len(_connections))
+
+    # DTS upstream workflows
     states = await onprem.get_included_eloc_states()
     for state in states:
         company_id = state.get("companyId")
         if company_id and company_id in _connections:
-            message = _build_workflow_message(state)
+            message = _build_workflow_message(state, source="dts")
             await _broadcast(company_id, message)
+
+    # Portal-initiated workflows
+    try:
+        portal_states = await onprem.get_portal_eloc_states_included()
+        for state in portal_states:
+            company_id = state.get("companyId")
+            if company_id and company_id in _connections:
+                message = _build_workflow_message(state, source="portal")
+                await _broadcast(company_id, message)
+    except Exception as exc:
+        logger.warning("DTS WS: failed to fetch portal states during resync: %s", exc)
 
 
 # ---- DealTermsServer WebSocket Client ----
@@ -279,15 +308,21 @@ async def _handle_state_changed(msg: dict):
     """
     Handle state_changed from DealTermsServer.
     Fetch full state via REST, then broadcast to browser clients.
+    Routes to portal or DTS REST endpoint based on source field.
     """
     eloc_id = msg.get("elocId", "")
-    logger.info("DTS WS: state_changed eloc_id=%s step=%s status=%s",
-                eloc_id, msg.get("step"), msg.get("status"))
+    source = msg.get("source", "dts")
+    logger.info("DTS WS: state_changed eloc_id=%s step=%s status=%s source=%s",
+                eloc_id, msg.get("step"), msg.get("status"), source)
 
-    # Fetch full state to get company_id and all fields
-    state = await onprem.get_eloc_state_by_id(eloc_id)
+    # Fetch full state — use portal endpoint if source is portal
+    if source == "portal":
+        state = await onprem.get_portal_eloc_state_by_id(eloc_id)
+    else:
+        state = await onprem.get_eloc_state_by_id(eloc_id)
+
     if not state:
-        logger.warning("DTS WS: could not fetch state for eloc_id=%s", eloc_id)
+        logger.warning("DTS WS: could not fetch state for eloc_id=%s (source=%s)", eloc_id, source)
         return
 
     company_id = state.get("companyId")
@@ -299,7 +334,7 @@ async def _handle_state_changed(msg: dict):
         await _handle_eloc_removed({"elocId": eloc_id})
         return
 
-    message = _build_workflow_message(state)
+    message = _build_workflow_message(state, source=source)
     await _broadcast(int(company_id), message)
 
 
@@ -307,26 +342,32 @@ async def _handle_eloc_added(msg: dict):
     """
     Handle eloc_added from DealTermsServer.
     Fetch full state via REST, then broadcast to browser clients.
+    Routes to portal or DTS REST endpoint based on source field.
     """
     eloc_id = msg.get("elocId", "")
     company_id = msg.get("companyId")
-    logger.info("DTS WS: eloc_added eloc_id=%s company_id=%s", eloc_id, company_id)
+    source = msg.get("source", "dts")
+    logger.info("DTS WS: eloc_added eloc_id=%s company_id=%s source=%s", eloc_id, company_id, source)
 
     # Cache the mapping
     if eloc_id and company_id:
         _eloc_company_map[eloc_id] = int(company_id)
 
-    # Fetch full state for complete workflow data
-    state = await onprem.get_eloc_state_by_id(eloc_id)
+    # Fetch full state — use portal endpoint if source is portal
+    if source == "portal":
+        state = await onprem.get_portal_eloc_state_by_id(eloc_id)
+    else:
+        state = await onprem.get_eloc_state_by_id(eloc_id)
+
     if not state:
-        logger.warning("DTS WS: could not fetch state for new eloc_id=%s", eloc_id)
+        logger.warning("DTS WS: could not fetch state for new eloc_id=%s (source=%s)", eloc_id, source)
         return
 
     company_id = state.get("companyId", company_id)
     if not company_id:
         return
 
-    message = _build_workflow_message(state)
+    message = _build_workflow_message(state, source=source)
     await _broadcast(int(company_id), message)
 
 

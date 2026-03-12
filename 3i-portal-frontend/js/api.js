@@ -362,6 +362,29 @@ const API = (() => {
         return handleResponse(response);
     }
 
+    /**
+     * POST /purchase-notices/submit — submit portal-initiated purchase notice to DTS
+     */
+    async function submitPortalPurchaseNotice(payload) {
+        const response = await fetch(`${BASE_URL}/purchase-notices/submit`, {
+            method: 'POST',
+            headers: authHeaders(),
+            body: JSON.stringify(payload),
+        });
+        return handleResponse(response);
+    }
+
+    /**
+     * GET /purchase-notices/documents/:elocId/:step — fetch document for portal ELOC
+     */
+    async function getPortalElocDocument(elocId, step) {
+        const response = await fetch(
+            `${BASE_URL}/purchase-notices/documents/${encodeURIComponent(elocId)}/${encodeURIComponent(step)}`,
+            { headers: authHeaders() }
+        );
+        return handleResponse(response);
+    }
+
     return {
         login,
         getMe,
@@ -374,6 +397,8 @@ const API = (() => {
         getElocWorkflow,
         getElocDocument,
         submitPurchaseNotice,
+        submitPortalPurchaseNotice,
+        getPortalElocDocument,
         changePassword,
         adminGetCompanies,
         adminGetElocs,

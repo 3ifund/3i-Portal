@@ -172,6 +172,68 @@
 
     </div><!-- /page-container -->
 
+    <!-- Legal Disclaimer Confirmation Dialog -->
+    <div class="modal-overlay" id="pn-confirm-overlay" style="display:none;">
+        <div class="modal pn-confirm-modal">
+            <div class="modal-header">
+                <h2 class="modal-title">Purchase Notice Confirmation</h2>
+            </div>
+            <div class="modal-body">
+                <div class="pn-confirm-scroll">
+                    <p class="pn-confirm-warning">PLEASE READ CAREFULLY BEFORE SUBMITTING</p>
+
+                    <p>By clicking "Accept and Submit" below, you are submitting a VWAP Purchase Notice
+                    under the Common Stock Purchase Agreement (the "Agreement") between
+                    <strong id="pn-confirm-company"></strong> (the "Company") and 3i, LP (the "Investor").</p>
+
+                    <h4>Terms of This Purchase Notice</h4>
+                    <table class="pn-confirm-terms">
+                        <tr><td>Shares Requested:</td><td id="pn-confirm-shares"></td></tr>
+                        <tr><td>Valuation Period:</td><td id="pn-confirm-valuation"></td></tr>
+                        <tr><td>Settlement Date:</td><td id="pn-confirm-settlement"></td></tr>
+                        <tr><td>Pricing:</td><td>VWAP less applicable discount per the Agreement</td></tr>
+                    </table>
+
+                    <h4>Binding Agreement and Irrevocability</h4>
+                    <p>This Purchase Notice, once submitted, constitutes an <strong>irrevocable instruction</strong>
+                    to sell shares of the Company's Common Stock to the Investor at the VWAP Purchase Price
+                    determined during the Valuation Period, subject to the terms and conditions of the Agreement.
+                    This Purchase Notice <strong>cannot be withdrawn, cancelled, or modified</strong> after submission.</p>
+
+                    <h4>Representations and Warranties</h4>
+                    <p>By submitting this Purchase Notice, you represent and warrant on behalf of the Company that, as of the date hereof:</p>
+                    <ol class="pn-confirm-list">
+                        <li>All representations and warranties of the Company contained in the Agreement are true and correct in all material respects;</li>
+                        <li>The Company is in compliance with all covenants and agreements contained in the Agreement;</li>
+                        <li>No event constituting a Material Adverse Effect has occurred;</li>
+                        <li>The Registration Statement is effective and available for the resale of the shares subject to this Purchase Notice;</li>
+                        <li>Trading of the Company's Common Stock has not been suspended by the SEC or the applicable exchange; and</li>
+                        <li>No condition exists that would prevent the consummation of the transactions contemplated by this Purchase Notice.</li>
+                    </ol>
+
+                    <h4>Electronic Signature and Consent</h4>
+                    <p>In accordance with the Electronic Signatures in Global and National Commerce Act
+                    (15 U.S.C. &sect; 7001 et seq.) and applicable state law, your electronic submission of this
+                    Purchase Notice shall have the same legal force and effect as a manually executed and delivered
+                    written notice. You acknowledge that your electronic submission constitutes your electronic
+                    signature, you consent to electronic execution and delivery, and you have the authority to bind
+                    the Company to the obligations set forth herein.</p>
+                </div>
+
+                <label class="pn-confirm-checkbox-label">
+                    <input type="checkbox" id="pn-confirm-checkbox">
+                    <span>I have read and understand the above terms. I confirm that I am authorized to submit
+                    this Purchase Notice on behalf of <strong id="pn-confirm-company2"></strong> and that
+                    submission constitutes a binding and irrevocable obligation of the Company under the Agreement.</span>
+                </label>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-danger" id="pn-confirm-reject">Reject</button>
+                <button class="btn btn-accept" id="pn-confirm-accept" disabled>Accept and Submit</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Alert Dialog (shares gone / window closed) -->
     <div class="modal-overlay" id="pn-alert-overlay" style="display:none;">
         <div class="modal" style="max-width:460px;">

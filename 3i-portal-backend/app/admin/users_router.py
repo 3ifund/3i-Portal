@@ -178,6 +178,14 @@ async def delete_user(
             detail="Cannot deactivate your own account",
         )
 
+    # Prevent deactivation of any admin-role user
+    target_user = await users_repo.get_user_by_id(user_id)
+    if target_user and target_user.get("role") == "admin":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot deactivate an admin account",
+        )
+
     success = await users_repo.deactivate_user(user_id)
     if not success:
         raise HTTPException(

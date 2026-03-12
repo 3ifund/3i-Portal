@@ -202,3 +202,61 @@ async def submit_purchase_notice(
     logger.debug("  → body: %s", response.text[:2000])
     response.raise_for_status()
     return response.json()
+
+
+# ---- Portal-Initiated Purchase Notice Endpoints ----
+
+async def submit_portal_purchase_notice(payload: dict) -> dict:
+    """
+    POST /api/portal/purchase-notice — submit portal-initiated purchase notice.
+    DTS generates eloc_id, PDF, and writes to three_i_fund_portal MongoDB.
+    """
+    logger.info(
+        "POST /api/portal/purchase-notice symbol=%s period=%s shares=%d",
+        payload.get("symbol"), payload.get("pricing_period_id"), payload.get("shares", 0),
+    )
+    response = await _request_with_retry("POST", "/api/portal/purchase-notice", json=payload)
+    logger.info("  → %s (%d bytes)", response.status_code, len(response.content))
+    logger.debug("  → body: %s", response.text[:2000])
+    response.raise_for_status()
+    return response.json()
+
+
+async def get_portal_eloc_states_included() -> list[dict]:
+    """
+    GET /api/portal/eloc/states/included — all active portal ELOC workflow states.
+    """
+    logger.info("GET /api/portal/eloc/states/included")
+    response = await _request_with_retry("GET", "/api/portal/eloc/states/included")
+    logger.info("  → %s (%d bytes)", response.status_code, len(response.content))
+    response.raise_for_status()
+    return response.json()
+
+
+async def get_portal_eloc_state_by_id(eloc_id: str) -> dict | None:
+    """
+    GET /api/portal/eloc/states/{elocId} — single portal ELOC workflow state.
+    """
+    logger.info("GET /api/portal/eloc/states/%s", eloc_id)
+    response = await _request_with_retry("GET", f"/api/portal/eloc/states/{eloc_id}")
+    if response.status_code == 404:
+        logger.warning("  → 404 not found")
+        return None
+    logger.info("  → %s (%d bytes)", response.status_code, len(response.content))
+    response.raise_for_status()
+    return response.json()
+
+
+async def get_portal_eloc_document(eloc_id: str, step: str) -> dict | None:
+    """
+    GET /api/portal/eloc/documents/{elocId}/{step} — document for a portal ELOC step.
+    """
+    logger.info("GET /api/portal/eloc/documents/%s/%s", eloc_id, step)
+    response = await _request_with_retry(
+        "GET", f"/api/portal/eloc/documents/{eloc_id}/{step}")
+    if response.status_code == 404:
+        logger.warning("  → 404 not found")
+        return None
+    logger.info("  → %s (%d bytes)", response.status_code, len(response.content))
+    response.raise_for_status()
+    return response.json()

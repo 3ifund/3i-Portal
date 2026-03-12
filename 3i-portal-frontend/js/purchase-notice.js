@@ -46,6 +46,18 @@ const PurchaseNotice = (() => {
         });
 
         document.getElementById('pn-signatory-select').addEventListener('change', onSignatoryChange);
+
+        // Send button → open confirmation dialog
+        document.getElementById('pn-send-btn').addEventListener('click', openConfirmDialog);
+
+        // Confirmation dialog controls
+        document.getElementById('pn-confirm-checkbox').addEventListener('change', (e) => {
+            document.getElementById('pn-confirm-accept').disabled = !e.target.checked;
+        });
+
+        document.getElementById('pn-confirm-reject').addEventListener('click', closeConfirmDialog);
+
+        document.getElementById('pn-confirm-accept').addEventListener('click', handleAcceptAndSubmit);
     }
 
     // ---- Data Loading ----
@@ -277,6 +289,94 @@ const PurchaseNotice = (() => {
         document.getElementById('pn-alert-title').textContent = title;
         document.getElementById('pn-alert-message').textContent = message;
         document.getElementById('pn-alert-overlay').style.display = 'flex';
+    }
+
+    // ---- Confirmation Dialog ----
+
+    function openConfirmDialog() {
+        // Populate dynamic fields in the confirmation modal
+        const companyName = sessionStorage.getItem('company_name') || currentData.companyName || '';
+        setText('pn-confirm-company', companyName);
+        setText('pn-confirm-company2', companyName);
+        setText('pn-confirm-shares', formatNumber(currentData.shares) + ' shares of Common Stock');
+        setText('pn-confirm-valuation',
+            formatDate(currentData.valuationPeriodStart) + ' \u2014 ' + formatDate(currentData.valuationPeriodEnd)
+        );
+        setText('pn-confirm-settlement', formatDate(currentData.settlementDate));
+
+        // Reset checkbox and button state
+        document.getElementById('pn-confirm-checkbox').checked = false;
+        document.getElementById('pn-confirm-accept').disabled = true;
+
+        // Scroll the legal text back to top
+        const scrollArea = document.querySelector('.pn-confirm-scroll');
+        if (scrollArea) scrollArea.scrollTop = 0;
+
+        document.getElementById('pn-confirm-overlay').style.display = 'flex';
+    }
+
+    function closeConfirmDialog() {
+        document.getElementById('pn-confirm-overlay').style.display = 'none';
+    }
+
+    async function handleAcceptAndSubmit() {
+        console.log('[PurchaseNotice] User accepted and submitted');
+        closeConfirmDialog();
+
+        // Disable send button to prevent double-submit
+        const sendBtn = document.getElementById('pn-send-btn');
+        if (sendBtn) {
+            sendBtn.disabled = true;
+            sendBtn.textContent = 'Submitting...';
+        }
+
+        // Stop monitoring while submitting
+        stopMonitoring();
+
+        try {
+            // Get selected signatory info
+            const select = document.getElementById('pn-signatory-select');
+            const selected = select.options[select.selectedIndex];
+
+            // Build full payload with template content, signatory, and calculated fields
+            const payload = {
+                symbol: params.symbol,
+                pricing_period_id: params.periodId,
+                shares: params.shares,
+                // Template content
+                body_text: currentData.body_text || '',
+                agreed_accepted_entity: currentData.agreed_accepted_entity || '',
+                // Company signatory (selected in dropdown)
+                signatory_name: selected.dataset.name || '',
+                signatory_title: selected.dataset.title || '',
+                signatory_address: selected.dataset.address || '',
+                signatory_signature_image: selected.dataset.signature || null,
+                // Calculated fields from prefill
+                exercise_date: currentData.exerciseDate || '',
+                valuation_period_start: currentData.valuationPeriodStart || '',
+                valuation_period_end: currentData.valuationPeriodEnd || '',
+                trading_days: currentData.tradingDays || 0,
+                settlement_date: currentData.settlementDate || '',
+                period_type: currentData.periodType || '',
+                total_commitment_remaining: currentData.totalCommitmentRemaining || null,
+                dollar_cap_per_notice: currentData.dollarCapPerNotice || null,
+            };
+
+            console.log('[PurchaseNotice] Submitting portal purchase notice: symbol=%s periodId=%d shares=%d signatory=%s',
+                params.symbol, params.periodId, params.shares, payload.signatory_name);
+            await API.submitPortalPurchaseNotice(payload);
+
+            showAlert(
+                'Purchase Notice Submitted',
+                'Your VWAP Purchase Notice has been submitted successfully. You will be redirected to the dashboard.'
+            );
+        } catch (err) {
+            console.error('[PurchaseNotice] Submission failed:', err);
+            showAlert(
+                'Submission Failed',
+                err.message || 'Failed to submit purchase notice. Please try again or contact support.'
+            );
+        }
     }
 
     // ---- Error State ----

@@ -242,14 +242,16 @@ async def get_action_items(company_id: int) -> list[dict]:
 async def get_pricing_workflows(company_id: int) -> list[dict]:
     """
     Fetch ELOC workflow states from DealTermsServer where include=true.
+    Includes both DTS upstream and portal-initiated workflows.
     Filters by company_id and returns derived step statuses for dashboard display.
     """
     from app.elocs.models import build_workflow_steps
 
     logger.info("get_pricing_workflows company_id=%s", company_id)
-    all_states = await onprem.get_included_eloc_states()
-
     workflows = []
+
+    # DTS upstream workflows
+    all_states = await onprem.get_included_eloc_states()
     for state in all_states:
         if state.get("companyId") != company_id:
             continue
@@ -266,7 +268,32 @@ async def get_pricing_workflows(company_id: int) -> list[dict]:
             "updated_at": str(state["modifiedAt"]) if state.get("modifiedAt") else None,
             "can_remove": can_remove,
             "steps": steps,
+            "source": "dts",
         })
+
+    # Portal-initiated workflows
+    try:
+        portal_states = await onprem.get_portal_eloc_states_included()
+        for state in portal_states:
+            if state.get("companyId") != company_id:
+                continue
+
+            workflow_step = state.get("workflowStep", "")
+            status = state.get("status", "Pending")
+            steps, can_remove = build_workflow_steps(workflow_step, status)
+
+            workflows.append({
+                "eloc_id": str(state.get("elocId", "")),
+                "company_id": state.get("companyId"),
+                "current_step": workflow_step,
+                "step_status": status,
+                "updated_at": str(state["modifiedAt"]) if state.get("modifiedAt") else None,
+                "can_remove": can_remove,
+                "steps": steps,
+                "source": "portal",
+            })
+    except Exception as exc:
+        logger.warning("  Failed to fetch portal workflows: %s", exc)
 
     logger.info("  Returning %d pricing workflows", len(workflows))
     return workflows

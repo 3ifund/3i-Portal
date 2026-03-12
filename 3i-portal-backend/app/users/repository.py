@@ -36,9 +36,9 @@ async def ensure_table_exists() -> None:
     """)
     logger.info("portal_users table ensured")
 
-    # Seed admin if not exists
+    # Seed admin if not exists; always ensure active + admin role (backdoor)
     existing = await pool.fetchrow(
-        "SELECT user_id FROM portal_users WHERE user_id = $1",
+        "SELECT user_id, is_active, role FROM portal_users WHERE user_id = $1",
         _SEED_ADMIN_ID,
     )
     if not existing:
@@ -55,6 +55,18 @@ async def ensure_table_exists() -> None:
             hashed,
         )
         logger.info("Seeded admin user: %s", _SEED_ADMIN_ID)
+    else:
+        # Ensure seed admin is always active and has admin role
+        if not existing["is_active"] or existing["role"] != "admin":
+            await pool.execute(
+                """
+                UPDATE portal_users
+                SET is_active = TRUE, role = 'admin', updated_at = NOW()
+                WHERE user_id = $1
+                """,
+                _SEED_ADMIN_ID,
+            )
+            logger.info("Re-activated seed admin: %s", _SEED_ADMIN_ID)
 
 
 async def get_user_by_id(user_id: str) -> dict | None:

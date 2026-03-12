@@ -769,12 +769,21 @@ a:hover {
     text-align: center;
 }
 
-.workflow-step.has-document .workflow-badge {
+.workflow-step.has-document .workflow-badge,
+.workflow-step.clickable .workflow-badge {
     cursor: pointer;
 }
 
-.workflow-step.has-document .workflow-badge:hover {
+.workflow-step.has-document .workflow-badge:hover,
+.workflow-step.clickable .workflow-badge:hover {
     transform: scale(1.1);
+}
+
+.workflow-step.clickable .workflow-label {
+    cursor: pointer;
+    text-decoration: underline;
+    text-decoration-style: dotted;
+    text-underline-offset: 2px;
 }
 
 /* Connector lines between badges */
@@ -1402,4 +1411,123 @@ input[type="number"] {
     .pn-signature-line {
         border-bottom-color: #000;
     }
+}
+
+/* ============================================
+   Purchase Notice — Confirmation Modal
+   ============================================ */
+
+.pn-confirm-modal {
+    max-width: 640px;
+}
+
+.pn-confirm-scroll {
+    max-height: 400px;
+    overflow-y: auto;
+    padding: 1rem;
+    background-color: var(--input-bg);
+    border: 1px solid var(--input-border);
+    border-radius: var(--border-radius);
+    font-size: 0.88rem;
+    line-height: 1.65;
+    color: var(--text-primary);
+    margin-bottom: 1rem;
+}
+
+.pn-confirm-scroll h4 {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--accent-blue);
+    margin: 1.25rem 0 0.4rem;
+}
+
+.pn-confirm-scroll p {
+    margin-bottom: 0.5rem;
+}
+
+.pn-confirm-warning {
+    text-align: center;
+    font-weight: 700;
+    color: var(--badge-red);
+    font-size: 0.95rem;
+    margin-bottom: 1rem;
+    letter-spacing: 0.03em;
+}
+
+.pn-confirm-terms {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 0.5rem 0 1rem;
+}
+
+.pn-confirm-terms td {
+    padding: 0.3rem 0.5rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    font-size: 0.88rem;
+}
+
+.pn-confirm-terms td:first-child {
+    font-weight: 600;
+    color: var(--text-secondary);
+    width: 160px;
+}
+
+.pn-confirm-list {
+    margin: 0.5rem 0 0.75rem 1.25rem;
+    font-size: 0.85rem;
+    color: var(--text-primary);
+}
+
+.pn-confirm-list li {
+    margin-bottom: 0.35rem;
+}
+
+.pn-confirm-checkbox-label {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.6rem;
+    padding: 0.75rem;
+    background-color: rgba(239, 68, 68, 0.05);
+    border: 1px solid rgba(239, 68, 68, 0.2);
+    border-radius: var(--border-radius);
+    font-size: 0.85rem;
+    line-height: 1.5;
+    color: var(--text-primary);
+    cursor: pointer;
+}
+
+.pn-confirm-checkbox-label input[type="checkbox"] {
+    margin-top: 0.2rem;
+    flex-shrink: 0;
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+}
+
+.btn-danger {
+    background-color: var(--badge-red);
+    color: #ffffff;
+}
+
+.btn-danger:hover:not(:disabled) {
+    background-color: #dc2626;
+}
+
+.btn-danger:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.btn-accept {
+    background-color: var(--badge-green);
+    color: #ffffff;
+}
+
+.btn-accept:hover:not(:disabled) {
+    background-color: #16a34a;
+}
+
+.btn-accept:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
 }
