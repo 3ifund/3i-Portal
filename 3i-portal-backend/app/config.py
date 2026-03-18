@@ -34,6 +34,14 @@ class Settings(BaseSettings):
     pg_user: str = "postgres"
     pg_password: str = ""
 
+    # Twilio SMS
+    twilio_account_sid: str = ""
+    twilio_auth_token: str = ""
+    twilio_from_number: str = ""
+
+    # Approval page base URL (for links in SMS)
+    approval_base_url: str = "http://localhost:8001"
+
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 
 

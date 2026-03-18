@@ -600,9 +600,10 @@ const Dashboard = (() => {
         };
     }
 
-    // ---- Signatory Management ----
+    // ---- Signatory Management (company signatories — edit details only) ----
 
     let editingSignatoryId = null;
+    let editingSignatoryName = null;
     let currentSignatureImage = null;
 
     function generateSignature(name) {
@@ -630,6 +631,10 @@ const Dashboard = (() => {
     async function loadSignatories() {
         const list = document.getElementById('signatories-list');
         const empty = document.getElementById('signatories-empty');
+        const detailsForm = document.getElementById('signatory-details-form');
+
+        // Hide form when reloading list
+        if (detailsForm) detailsForm.style.display = 'none';
 
         try {
             const signatories = await API.getSignatories();
@@ -643,33 +648,28 @@ const Dashboard = (() => {
             empty.style.display = 'none';
             list.innerHTML = '';
             signatories.forEach((s) => {
-                const div = document.createElement('div');
-                div.style.cssText = 'display:flex; justify-content:space-between; align-items:center; padding:0.5rem 0; border-bottom:1px solid var(--input-border);';
+                const hasDetails = s.title && s.signature_image;
+                const statusText = hasDetails ? 'Complete' : 'Details needed';
+                const statusClass = hasDetails ? 'active' : 'completed';
                 const sigThumb = s.signature_image
                     ? `<img src="${s.signature_image}" class="sig-thumbnail" alt="Signature">`
                     : '';
+                const div = document.createElement('div');
+                div.style.cssText = 'display:flex; justify-content:space-between; align-items:center; padding:0.5rem 0; border-bottom:1px solid var(--input-border); cursor:pointer;';
                 div.innerHTML = `
                     <div>
-                        <strong>${escapeHtml(s.name)}</strong> — ${escapeHtml(s.title)}<br>
-                        <span style="font-size:0.85rem; color:var(--text-secondary);">${escapeHtml(s.email)}</span>
+                        <strong>${escapeHtml(s.name)}</strong>
+                        ${s.title ? ` — ${escapeHtml(s.title)}` : ''}
+                        <span class="eloc-card-status ${statusClass}" style="margin-left:0.5rem; font-size:0.75rem;">${statusText}</span>
                         ${sigThumb}
                     </div>
-                    <div>
-                        <button class="btn-action sig-edit-btn" data-id="${escapeHtml(s._id)}">Edit</button>
-                        <button class="btn-action sig-delete-btn" data-id="${escapeHtml(s._id)}">Delete</button>
-                    </div>
+                    <button class="btn-action sig-edit-btn" data-id="${escapeHtml(s._id)}">Edit Details</button>
                 `;
-                list.appendChild(div);
-            });
-
-            list.querySelectorAll('.sig-edit-btn').forEach((btn) => {
-                btn.addEventListener('click', () => {
-                    const sig = signatories.find((s) => s._id === btn.dataset.id);
-                    if (sig) startEditSignatory(sig);
+                // Click anywhere on the row to edit
+                div.addEventListener('click', () => {
+                    startEditSignatory(s);
                 });
-            });
-            list.querySelectorAll('.sig-delete-btn').forEach((btn) => {
-                btn.addEventListener('click', () => handleDeleteSignatory(btn.dataset.id));
+                list.appendChild(div);
             });
         } catch (err) {
             console.error('[Dashboard] Failed to load signatories:', err);
@@ -681,26 +681,29 @@ const Dashboard = (() => {
 
     function startEditSignatory(sig) {
         editingSignatoryId = sig._id;
-        document.getElementById('signatory-form-title').textContent = 'Edit Signatory';
-        document.getElementById('sig-name').value = sig.name || '';
+        editingSignatoryName = sig.name || '';
+        const detailsForm = document.getElementById('signatory-details-form');
+        detailsForm.style.display = '';
+
+        document.getElementById('signatory-form-title').textContent = `Edit Details: ${sig.name}`;
+        document.getElementById('sig-name-display').textContent = sig.name || '';
         document.getElementById('sig-title').value = sig.title || '';
         document.getElementById('sig-address').value = sig.address || '';
-        document.getElementById('sig-email').value = sig.email || '';
         document.getElementById('sig-editing-id').value = sig._id;
-        document.getElementById('signatory-modal-submit').textContent = 'Save';
+        document.getElementById('signatory-modal-status').className = 'modal-status';
+        document.getElementById('signatory-modal-status').textContent = '';
         currentSignatureImage = sig.signature_image || null;
         showSignaturePreview(currentSignatureImage);
     }
 
     function resetSignatoryForm() {
         editingSignatoryId = null;
-        document.getElementById('signatory-form-title').textContent = 'Add Signatory';
-        document.getElementById('sig-name').value = '';
+        editingSignatoryName = null;
+        const detailsForm = document.getElementById('signatory-details-form');
+        if (detailsForm) detailsForm.style.display = 'none';
         document.getElementById('sig-title').value = '';
         document.getElementById('sig-address').value = '';
-        document.getElementById('sig-email').value = '';
         document.getElementById('sig-editing-id').value = '';
-        document.getElementById('signatory-modal-submit').textContent = 'Add';
         document.getElementById('signatory-modal-status').className = 'modal-status';
         document.getElementById('signatory-modal-status').textContent = '';
         currentSignatureImage = null;
@@ -710,52 +713,41 @@ const Dashboard = (() => {
     async function handleSignatorySubmit() {
         const statusEl = document.getElementById('signatory-modal-status');
         const submitBtn = document.getElementById('signatory-modal-submit');
-        const name = document.getElementById('sig-name').value.trim();
         const title = document.getElementById('sig-title').value.trim();
         const address = document.getElementById('sig-address').value.trim();
-        const email = document.getElementById('sig-email').value.trim();
 
-        if (!name || !title || !email) {
+        if (!title) {
             statusEl.className = 'modal-status error';
-            statusEl.textContent = 'Name, title, and email are required.';
+            statusEl.textContent = 'Title is required.';
+            return;
+        }
+
+        if (!editingSignatoryId) {
+            statusEl.className = 'modal-status error';
+            statusEl.textContent = 'No signatory selected.';
             return;
         }
 
         statusEl.className = 'modal-status sending';
-        statusEl.textContent = editingSignatoryId ? 'Saving...' : 'Adding...';
+        statusEl.textContent = 'Saving...';
         submitBtn.disabled = true;
 
         try {
             // Auto-generate signature from name if none provided
-            if (!currentSignatureImage && name) {
-                currentSignatureImage = generateSignature(name);
+            if (!currentSignatureImage && editingSignatoryName) {
+                currentSignatureImage = generateSignature(editingSignatoryName);
             }
             const signature_image = currentSignatureImage || null;
 
-            if (editingSignatoryId) {
-                await API.updateSignatory(editingSignatoryId, { name, title, address, email, signature_image });
-            } else {
-                await API.addSignatory({ name, title, address, email, signature_image });
-            }
+            await API.updateSignatory(editingSignatoryId, { title, address, signature_image });
             statusEl.className = 'modal-status success';
-            statusEl.textContent = editingSignatoryId ? 'Signatory updated.' : 'Signatory added.';
-            resetSignatoryForm();
+            statusEl.textContent = 'Details saved.';
             await loadSignatories();
         } catch (err) {
             statusEl.className = 'modal-status error';
             statusEl.textContent = err.message || 'Failed.';
         } finally {
             submitBtn.disabled = false;
-        }
-    }
-
-    async function handleDeleteSignatory(signatoryId) {
-        if (!confirm('Delete this signatory?')) return;
-        try {
-            await API.deleteSignatory(signatoryId);
-            await loadSignatories();
-        } catch (err) {
-            alert(err.message || 'Failed to delete signatory.');
         }
     }
 
@@ -768,9 +760,7 @@ const Dashboard = (() => {
     function closeSignatoryModal() {
         document.getElementById('signatory-modal-overlay').classList.remove('visible');
         resetSignatoryForm();
-        // Re-check signatories in case user added/removed one
         checkSignatories();
-        // Re-poll shares to update button states
         pollSharesAvailable();
     }
 
@@ -790,9 +780,8 @@ const Dashboard = (() => {
         const genBtn = document.getElementById('sig-generate-btn');
         if (genBtn) {
             genBtn.addEventListener('click', () => {
-                const name = document.getElementById('sig-name').value.trim();
-                if (!name) return;
-                currentSignatureImage = generateSignature(name);
+                if (!editingSignatoryName) return;
+                currentSignatureImage = generateSignature(editingSignatoryName);
                 showSignaturePreview(currentSignatureImage);
             });
         }
@@ -824,11 +813,14 @@ const Dashboard = (() => {
     // ---- Signatory Check ----
 
     async function checkSignatories() {
-        console.log('[Dashboard] Checking if user has signatories...');
+        console.log('[Dashboard] Checking if user has complete signatories...');
         try {
             const signatories = await API.getSignatories();
-            hasSignatories = signatories && signatories.length > 0;
-            console.log('[Dashboard] hasSignatories=%s (count=%d)', hasSignatories, signatories?.length || 0);
+            // Need at least one signatory with title and signature filled in
+            hasSignatories = signatories && signatories.some((s) => s.title && s.signature_image);
+            console.log('[Dashboard] hasSignatories=%s (total=%d, complete=%d)',
+                hasSignatories, signatories?.length || 0,
+                signatories ? signatories.filter((s) => s.title && s.signature_image).length : 0);
 
             const warning = document.getElementById('signatory-warning');
             const activeTab = document.getElementById('active-tab');

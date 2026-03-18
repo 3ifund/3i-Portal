@@ -31,6 +31,22 @@ class UpdateSignatoryRequest(BaseModel):
     signature_image: str | None = None
 
 
+# ---- Company Signatories (admin-managed names, client-entered details) ----
+
+class AdminAddSignatoryRequest(BaseModel):
+    name: str
+
+
+class AdminUpdateSignatoryNameRequest(BaseModel):
+    name: str
+
+
+class UpdateSignatoryDetailsRequest(BaseModel):
+    title: str | None = None
+    address: str | None = None
+    signature_image: str | None = None
+
+
 # ---- Portal-Initiated Purchase Notice Submission ----
 
 class PortalPurchaseNoticeRequest(BaseModel):

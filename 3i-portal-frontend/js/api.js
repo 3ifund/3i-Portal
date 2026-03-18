@@ -317,20 +317,46 @@ const API = (() => {
         return handleResponse(response);
     }
 
-    // --- User: signatories ---
+    // --- Admin: company signatories ---
 
-    async function getSignatories() {
-        const response = await fetch(`${BASE_URL}/purchase-notices/signatories`, {
+    async function adminGetCompanySignatories(companyId) {
+        const response = await fetch(`${BASE_URL}/admin/signatories/${encodeURIComponent(companyId)}`, {
             headers: authHeaders(),
         });
         return handleResponse(response);
     }
 
-    async function addSignatory(data) {
-        const response = await fetch(`${BASE_URL}/purchase-notices/signatories`, {
+    async function adminAddCompanySignatory(companyId, name) {
+        const response = await fetch(`${BASE_URL}/admin/signatories/${encodeURIComponent(companyId)}`, {
             method: 'POST',
             headers: authHeaders(),
-            body: JSON.stringify(data),
+            body: JSON.stringify({ name }),
+        });
+        return handleResponse(response);
+    }
+
+    async function adminUpdateCompanySignatory(companyId, signatoryId, name) {
+        const response = await fetch(`${BASE_URL}/admin/signatories/${encodeURIComponent(companyId)}/${encodeURIComponent(signatoryId)}`, {
+            method: 'PUT',
+            headers: authHeaders(),
+            body: JSON.stringify({ name }),
+        });
+        return handleResponse(response);
+    }
+
+    async function adminDeleteCompanySignatory(companyId, signatoryId) {
+        const response = await fetch(`${BASE_URL}/admin/signatories/${encodeURIComponent(companyId)}/${encodeURIComponent(signatoryId)}`, {
+            method: 'DELETE',
+            headers: authHeaders(),
+        });
+        return handleResponse(response);
+    }
+
+    // --- User: company signatories (details) ---
+
+    async function getSignatories() {
+        const response = await fetch(`${BASE_URL}/purchase-notices/signatories`, {
+            headers: authHeaders(),
         });
         return handleResponse(response);
     }
@@ -340,14 +366,6 @@ const API = (() => {
             method: 'PUT',
             headers: authHeaders(),
             body: JSON.stringify(data),
-        });
-        return handleResponse(response);
-    }
-
-    async function deleteSignatory(signatoryId) {
-        const response = await fetch(`${BASE_URL}/purchase-notices/signatories/${encodeURIComponent(signatoryId)}`, {
-            method: 'DELETE',
-            headers: authHeaders(),
         });
         return handleResponse(response);
     }
@@ -413,10 +431,12 @@ const API = (() => {
         adminGetPurchaseNoticeTemplates,
         adminGetCompanyTemplates,
         adminUpsertPurchaseNoticeTemplate,
+        adminGetCompanySignatories,
+        adminAddCompanySignatory,
+        adminUpdateCompanySignatory,
+        adminDeleteCompanySignatory,
         getSignatories,
-        addSignatory,
         updateSignatory,
-        deleteSignatory,
         getPurchaseNoticePrefill,
     };
 })();

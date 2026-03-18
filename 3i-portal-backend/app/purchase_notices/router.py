@@ -15,6 +15,7 @@ from app.purchase_notices.models import (
     CreateSignatoryRequest,
     PortalPurchaseNoticeRequest,
     UpdateSignatoryRequest,
+    UpdateSignatoryDetailsRequest,
 )
 from app.purchase_notices import mongo_repository as repo
 from app.onprem import client as onprem
@@ -23,66 +24,39 @@ logger = logging.getLogger("portal.purchase_notices")
 router = APIRouter()
 
 
-# ---- Signatories ----
+# ---- Company Signatories (names managed by admin, details entered by client) ----
 
 @router.get("/signatories")
 async def list_signatories(user: UserInfo = Depends(get_current_user)):
-    """List the current user's signatories."""
-    logger.info("GET /signatories — user=%s", user.user_id)
-    signatories = await repo.get_signatories(user.user_id)
-    logger.debug("GET /signatories — user=%s — returned %d signatories", user.user_id, len(signatories))
+    """List signatories for the current user's company."""
+    if not user.company_id:
+        raise HTTPException(status_code=400, detail="User has no company assigned")
+    company_id = int(user.company_id)
+    logger.info("GET /signatories — user=%s, company_id=%s", user.user_id, company_id)
+    signatories = await repo.get_company_signatories(company_id)
+    logger.debug("GET /signatories — company_id=%s — returned %d signatories", company_id, len(signatories))
     return signatories
 
 
-@router.post("/signatories", status_code=201)
-async def add_signatory(
-    request: CreateSignatoryRequest,
-    user: UserInfo = Depends(get_current_user),
-):
-    """Add a signatory to the current user's list."""
-    logger.info("POST /signatories — user=%s, name=%s, title=%s, email=%s",
-                user.user_id, request.name, request.title, request.email)
-    signatory = await repo.add_signatory(
-        user.user_id, request.name, request.title, request.address, request.email,
-        request.signature_image
-    )
-    logger.debug("POST /signatories — created signatory id=%s for user=%s", signatory.get("_id"), user.user_id)
-    return signatory
-
-
 @router.put("/signatories/{signatory_id}")
-async def update_signatory(
+async def update_signatory_details(
     signatory_id: str,
-    request: UpdateSignatoryRequest,
+    request: UpdateSignatoryDetailsRequest,
     user: UserInfo = Depends(get_current_user),
 ):
-    """Update a signatory."""
+    """Update signatory details (title, address, signature_image) — client-entered."""
+    if not user.company_id:
+        raise HTTPException(status_code=400, detail="User has no company assigned")
+    company_id = int(user.company_id)
     updates = request.model_dump(exclude_none=True)
-    logger.info("PUT /signatories/%s — user=%s, updates=%s", signatory_id, user.user_id, updates)
+    logger.info("PUT /signatories/%s — user=%s, company=%s, updates=%s",
+                signatory_id, user.user_id, company_id, list(updates.keys()))
     if not updates:
-        logger.warning("PUT /signatories/%s — no fields to update", signatory_id)
         raise HTTPException(status_code=400, detail="No fields to update")
-    ok = await repo.update_signatory(user.user_id, signatory_id, updates)
+    ok = await repo.update_company_signatory_details(company_id, signatory_id, updates)
     if not ok:
-        logger.warning("PUT /signatories/%s — not found for user=%s", signatory_id, user.user_id)
         raise HTTPException(status_code=404, detail="Signatory not found")
-    logger.debug("PUT /signatories/%s — updated successfully", signatory_id)
     return {"status": "updated"}
-
-
-@router.delete("/signatories/{signatory_id}")
-async def delete_signatory(
-    signatory_id: str,
-    user: UserInfo = Depends(get_current_user),
-):
-    """Delete a signatory."""
-    logger.info("DELETE /signatories/%s — user=%s", signatory_id, user.user_id)
-    ok = await repo.delete_signatory(user.user_id, signatory_id)
-    if not ok:
-        logger.warning("DELETE /signatories/%s — not found for user=%s", signatory_id, user.user_id)
-        raise HTTPException(status_code=404, detail="Signatory not found")
-    logger.debug("DELETE /signatories/%s — deleted successfully", signatory_id)
-    return {"status": "deleted"}
 
 
 # ---- Purchase Notice Prefill ----
@@ -124,10 +98,10 @@ async def get_prefill(
     logger.debug("Template found=%s, body_text_len=%d, entity=%s",
                  template is not None, len(body_text), agreed_entity)
 
-    # 3. Get user's signatories
-    logger.debug("Loading signatories for user=%s", user.user_id)
-    signatories = await repo.get_signatories(user.user_id)
-    logger.debug("Found %d signatories for user=%s", len(signatories), user.user_id)
+    # 3. Get company signatories (admin-managed names, client-entered details)
+    logger.debug("Loading company signatories for company_id=%s", company_id)
+    signatories = await repo.get_company_signatories(company_id) if company_id else []
+    logger.debug("Found %d company signatories for company_id=%s", len(signatories), company_id)
 
     # 4. Return merged response
     logger.info("Prefill response ready: %s %s exercise=%s valuation=%s-%s settlement=%s shares=%d signatories=%d",

@@ -21,6 +21,7 @@ from app.workflows.router import router as workflows_router, connect_dealterms_w
 from app.admin.users_router import router as admin_users_router
 from app.purchase_notices.admin_router import router as pn_admin_router
 from app.purchase_notices.router import router as pn_router
+from app.approval.router import router as approval_router
 from app.users.repository import ensure_table_exists
 
 # Initialize logging before anything else
@@ -87,6 +88,7 @@ app.include_router(pn_admin_router, prefix="/admin", tags=["admin-templates"])
 app.include_router(pn_router, prefix="/purchase-notices", tags=["purchase-notices"])
 app.include_router(quotes_router, prefix="/ws", tags=["quotes"])
 app.include_router(workflows_router, prefix="/ws", tags=["workflows"])
+app.include_router(approval_router, tags=["approval"])
 
 
 @app.get("/health")
