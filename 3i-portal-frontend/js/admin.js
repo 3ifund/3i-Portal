@@ -21,6 +21,7 @@ const Admin = (() => {
             users: document.getElementById('users-panel'),
             templates: document.getElementById('templates-panel'),
             signatories: document.getElementById('signatories-panel'),
+            verification: document.getElementById('verification-panel'),
         };
 
         tabs.forEach((tab) => {
@@ -928,6 +929,222 @@ const Admin = (() => {
         populateSignatoryCompanyFilter();
     }
 
+    // ---- Verification Settings Tab ----
+
+    let editingContactId = null;
+
+    async function loadApprovalContacts() {
+        const loading = document.getElementById('contacts-loading');
+        const table = document.getElementById('contacts-table');
+        const empty = document.getElementById('contacts-empty');
+        const tbody = document.getElementById('contacts-tbody');
+
+        loading.style.display = 'flex';
+        table.style.display = 'none';
+        empty.style.display = 'none';
+
+        try {
+            const contacts = await API.adminGetApprovalContacts();
+            loading.style.display = 'none';
+
+            if (!contacts || contacts.length === 0) {
+                empty.style.display = 'block';
+                table.style.display = 'none';
+                return;
+            }
+
+            empty.style.display = 'none';
+            tbody.innerHTML = '';
+            contacts.forEach((c) => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${escapeHtml(c.name)}</td>
+                    <td>${escapeHtml(c.phone_number)}</td>
+                    <td><input type="checkbox" class="contact-include-cb" data-id="${c.id}" ${c.include ? 'checked' : ''}></td>
+                    <td>
+                        <button class="btn-action" onclick="document.dispatchEvent(new CustomEvent('edit-contact', {detail: ${c.id}}))">Edit</button>
+                        <button class="btn-action btn-action-danger" onclick="document.dispatchEvent(new CustomEvent('delete-contact', {detail: ${c.id}}))">Delete</button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            // Bind include checkboxes
+            tbody.querySelectorAll('.contact-include-cb').forEach((cb) => {
+                cb.addEventListener('change', async () => {
+                    try {
+                        await API.adminSetContactInclude(parseInt(cb.dataset.id), cb.checked);
+                    } catch (err) {
+                        alert('Failed to update: ' + (err.message || err));
+                        cb.checked = !cb.checked;
+                    }
+                });
+            });
+
+            table.style.display = '';
+
+            // Store contacts for edit lookups
+            table._contacts = contacts;
+        } catch (err) {
+            loading.style.display = 'none';
+            empty.querySelector('p').textContent = 'Error: ' + (err.message || err);
+            empty.style.display = 'block';
+        }
+    }
+
+    async function loadCompanyVerifications() {
+        const loading = document.getElementById('verifications-loading');
+        const table = document.getElementById('verifications-table');
+        const tbody = document.getElementById('verifications-tbody');
+
+        loading.style.display = 'flex';
+        table.style.display = 'none';
+
+        try {
+            const companies = await API.adminGetCompanyVerifications();
+            loading.style.display = 'none';
+
+            if (!companies || companies.length === 0) {
+                return;
+            }
+
+            tbody.innerHTML = '';
+            companies.forEach((c) => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${escapeHtml(c.name)}</td>
+                    <td>${escapeHtml(c.symbol)}</td>
+                    <td><input type="checkbox" class="verification-cb" data-id="${c.company_id}" ${c.require_verification ? 'checked' : ''}></td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            // Bind verification checkboxes
+            tbody.querySelectorAll('.verification-cb').forEach((cb) => {
+                cb.addEventListener('change', async () => {
+                    try {
+                        await API.adminSetCompanyVerification(parseInt(cb.dataset.id), cb.checked);
+                    } catch (err) {
+                        alert('Failed to update: ' + (err.message || err));
+                        cb.checked = !cb.checked;
+                    }
+                });
+            });
+
+            table.style.display = '';
+        } catch (err) {
+            loading.style.display = 'none';
+        }
+    }
+
+    function openContactModal(contactId, contacts) {
+        editingContactId = contactId;
+        const titleEl = document.getElementById('contact-modal-title');
+        const submitBtn = document.getElementById('contact-modal-submit');
+        const nameInput = document.getElementById('contact-name-input');
+        const phoneInput = document.getElementById('contact-phone-input');
+        const statusEl = document.getElementById('contact-modal-status');
+
+        statusEl.className = 'modal-status';
+        statusEl.textContent = '';
+
+        if (contactId && contacts) {
+            const contact = contacts.find((c) => c.id === contactId);
+            titleEl.textContent = 'Edit Contact';
+            submitBtn.textContent = 'Save';
+            nameInput.value = contact ? contact.name : '';
+            phoneInput.value = contact ? contact.phone_number : '';
+        } else {
+            titleEl.textContent = 'Add Contact';
+            submitBtn.textContent = 'Add';
+            nameInput.value = '';
+            phoneInput.value = '';
+        }
+
+        document.getElementById('contact-modal-overlay').classList.add('visible');
+        nameInput.focus();
+    }
+
+    function closeContactModal() {
+        editingContactId = null;
+        document.getElementById('contact-modal-overlay').classList.remove('visible');
+    }
+
+    async function handleContactSave() {
+        const statusEl = document.getElementById('contact-modal-status');
+        const submitBtn = document.getElementById('contact-modal-submit');
+        const name = document.getElementById('contact-name-input').value.trim();
+        const phone = document.getElementById('contact-phone-input').value.trim();
+
+        if (!name || !phone) {
+            statusEl.className = 'modal-status error';
+            statusEl.textContent = 'Name and phone number are required.';
+            return;
+        }
+
+        submitBtn.disabled = true;
+        statusEl.className = 'modal-status';
+        statusEl.textContent = '';
+
+        try {
+            if (editingContactId) {
+                await API.adminUpdateApprovalContact(editingContactId, name, phone);
+                statusEl.className = 'modal-status success';
+                statusEl.textContent = 'Contact updated.';
+            } else {
+                await API.adminAddApprovalContact(name, phone);
+                statusEl.className = 'modal-status success';
+                statusEl.textContent = 'Contact added.';
+            }
+            setTimeout(() => {
+                closeContactModal();
+                loadApprovalContacts();
+            }, 600);
+        } catch (err) {
+            statusEl.className = 'modal-status error';
+            statusEl.textContent = err.message || 'Failed.';
+        } finally {
+            submitBtn.disabled = false;
+        }
+    }
+
+    async function handleDeleteContact(contactId) {
+        if (!confirm('Delete this approval contact?')) return;
+        try {
+            await API.adminDeleteApprovalContact(contactId);
+            loadApprovalContacts();
+        } catch (err) {
+            alert(err.message || 'Failed to delete contact.');
+        }
+    }
+
+    function initVerificationManagement() {
+        const addBtn = document.getElementById('add-contact-btn');
+        if (addBtn) addBtn.addEventListener('click', () => openContactModal(null, null));
+
+        const closeBtn = document.getElementById('contact-modal-close');
+        const cancelBtn = document.getElementById('contact-modal-cancel');
+        if (closeBtn) closeBtn.addEventListener('click', closeContactModal);
+        if (cancelBtn) cancelBtn.addEventListener('click', closeContactModal);
+
+        const submitBtn = document.getElementById('contact-modal-submit');
+        if (submitBtn) submitBtn.addEventListener('click', handleContactSave);
+
+        // Custom events for edit/delete from table buttons
+        document.addEventListener('edit-contact', (e) => {
+            const contactId = e.detail;
+            const table = document.getElementById('contacts-table');
+            openContactModal(contactId, table._contacts || []);
+        });
+
+        document.addEventListener('delete-contact', (e) => {
+            handleDeleteContact(e.detail);
+        });
+
+        loadApprovalContacts();
+        loadCompanyVerifications();
+    }
+
     // ---- Utilities ----
 
     function escapeHtml(str) {
@@ -978,6 +1195,7 @@ const Admin = (() => {
         initUserManagement();
         await initTemplateManagement();
         initSignatoryManagement();
+        initVerificationManagement();
         loadCompanies();
         loadElocs();
         loadPurchaseNotices();

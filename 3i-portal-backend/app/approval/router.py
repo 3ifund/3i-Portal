@@ -1,11 +1,21 @@
-"""Purchase notice approval — token-based mobile approval page and response endpoint."""
+"""
+3i Fund Portal — Purchase Notice Approval
+Token-based mobile approval page and response endpoint.
+Each contact gets a unique token; first responder wins.
+On approval, the held payload is submitted to DTS.
+"""
 
+import json
 import uuid
 import logging
 from datetime import datetime, timezone, timedelta
+
 from fastapi import APIRouter, Form
 from fastapi.responses import HTMLResponse
+
 from app.database.postgres import get_pool
+from app.onprem import client as onprem
+from app.purchase_notices import mongo_repository as mongo_repo
 
 logger = logging.getLogger("portal.approval")
 
@@ -14,46 +24,79 @@ router = APIRouter()
 TOKEN_EXPIRY_HOURS = 24
 
 
-async def create_approval_token(eloc_deal_id: int, company_name: str, amount: str) -> dict:
-    """Create an approval token. Called internally when a purchase notice is submitted."""
+async def create_approval_token(
+    group_id: str,
+    contact_name: str,
+    contact_phone: str,
+    company_name: str,
+    amount: str,
+    payload_json: str,
+) -> dict:
+    """Create an approval token for one contact. Called once per contact per submission."""
     pool = get_pool()
     token = str(uuid.uuid4())
     now = datetime.now(timezone.utc)
     expires = now + timedelta(hours=TOKEN_EXPIRY_HOURS)
 
     await pool.execute("""
-        INSERT INTO approval_tokens (token, eloc_deal_id, company_name, amount, status, created_at, expires_at)
-        VALUES ($1, $2, $3, $4, 'pending', $5, $6)
-    """, token, eloc_deal_id, company_name, amount, now, expires)
+        INSERT INTO approval_tokens
+            (token, group_id, contact_name, contact_phone, company_name, amount, status, payload_json, created_at, expires_at)
+        VALUES ($1, $2, $3, $4, $5, $6, 'pending', $7, $8, $9)
+    """, token, group_id, contact_name, contact_phone, company_name, amount, payload_json, now, expires)
 
-    logger.info(f"Approval token created: {token} for {company_name} ${amount} (deal {eloc_deal_id})")
+    logger.info("Approval token created: %s for %s → %s (%s)", token, company_name, contact_name, contact_phone)
     return {"token": token, "url": f"/approve/{token}"}
 
 
 @router.get("/approve/{token}", response_class=HTMLResponse)
 async def approval_page(token: str):
     """Serve the mobile approval page."""
-    logger.info(f"Approval page accessed: {token}")
+    logger.info("Approval page accessed: %s", token)
     pool = get_pool()
 
     row = await pool.fetchrow(
-        "SELECT token, eloc_deal_id, company_name, amount, status, expires_at FROM approval_tokens WHERE token = $1",
+        "SELECT token, group_id, contact_name, company_name, amount, status, expires_at FROM approval_tokens WHERE token = $1",
         token,
     )
 
     if not row:
-        logger.warning(f"Approval token not found: {token}")
+        logger.warning("Approval token not found: %s", token)
         return _error_page("Invalid Link", "This approval link is not valid.")
 
+    group_id = row["group_id"]
     status = row["status"]
     expires = row["expires_at"]
 
+    # Check if this specific token was already used
     if status != "pending":
-        logger.info(f"Approval token already used: {token} status={status}")
+        logger.info("Approval token already used: %s status=%s", token, status)
+        if status == "superseded":
+            # Another contact already responded — find who
+            responder = await pool.fetchrow(
+                "SELECT contact_name, status FROM approval_tokens WHERE group_id = $1 AND status IN ('approved', 'rejected')",
+                group_id,
+            )
+            if responder:
+                return _done_page(
+                    "Already Responded",
+                    f"This purchase notice was already {responder['status']} by {responder['contact_name']}.",
+                )
         return _done_page(f"Already {status.title()}", f"This purchase notice has already been {status}.")
 
+    # Check if another token in the group was already used
+    group_responded = await pool.fetchrow(
+        "SELECT contact_name, status FROM approval_tokens WHERE group_id = $1 AND status IN ('approved', 'rejected')",
+        group_id,
+    )
+    if group_responded:
+        logger.info("Group %s already responded by %s", group_id, group_responded["contact_name"])
+        return _done_page(
+            "Already Responded",
+            f"This purchase notice was already {group_responded['status']} by {group_responded['contact_name']}.",
+        )
+
     if expires and datetime.now(timezone.utc) > expires.replace(tzinfo=timezone.utc):
-        logger.warning(f"Approval token expired: {token}")
+        logger.warning("Approval token expired: %s", token)
         return _error_page("Link Expired", "This approval link has expired.")
 
     company_name = row["company_name"]
@@ -101,12 +144,12 @@ async def approval_page(token: str):
 
 @router.post("/approve/{token}/respond", response_class=HTMLResponse)
 async def approval_respond(token: str, action: str = Form(...)):
-    """Handle approval or rejection."""
-    logger.info(f"Approval response: token={token} action={action}")
+    """Handle approval or rejection. First responder wins; submits to DTS on approval."""
+    logger.info("Approval response: token=%s action=%s", token, action)
     pool = get_pool()
 
     row = await pool.fetchrow(
-        "SELECT token, status, company_name, amount FROM approval_tokens WHERE token = $1",
+        "SELECT token, group_id, contact_name, contact_phone, status, company_name, amount, payload_json FROM approval_tokens WHERE token = $1",
         token,
     )
 
@@ -119,17 +162,62 @@ async def approval_respond(token: str, action: str = Form(...)):
     if action not in ("approved", "rejected"):
         return _error_page("Invalid Action", "Invalid response.")
 
+    group_id = row["group_id"]
+    contact_name = row["contact_name"]
+    contact_phone = row["contact_phone"]
+    company_name = row["company_name"]
+    amount = row["amount"]
+    now = datetime.now(timezone.utc)
+
+    # Check if another token in the group was already used (race condition guard)
+    group_responded = await pool.fetchrow(
+        "SELECT contact_name, status FROM approval_tokens WHERE group_id = $1 AND status IN ('approved', 'rejected')",
+        group_id,
+    )
+    if group_responded:
+        return _done_page(
+            "Already Responded",
+            f"This purchase notice was already {group_responded['status']} by {group_responded['contact_name']}.",
+        )
+
+    # Mark this token as responded
     await pool.execute(
         "UPDATE approval_tokens SET status = $1, responded_at = $2 WHERE token = $3",
-        action, datetime.now(timezone.utc), token,
+        action, now, token,
     )
 
-    logger.info(f"Approval {action}: token={token} company={row['company_name']} amount={row['amount']}")
+    # Mark all other tokens in the group as superseded
+    await pool.execute(
+        "UPDATE approval_tokens SET status = 'superseded', responded_at = $1 WHERE group_id = $2 AND token != $3 AND status = 'pending'",
+        now, group_id, token,
+    )
+
+    verified_by = f"{contact_name} ({contact_phone})"
+    logger.info("Approval %s by %s: group=%s company=%s amount=%s", action, verified_by, group_id, company_name, amount)
 
     if action == "approved":
-        return _done_page("Accepted", f"Purchase notice from {row['company_name']} for ${row['amount']} has been accepted.")
+        # Submit the held payload to DTS
+        try:
+            payload = json.loads(row["payload_json"])
+            result = await onprem.submit_portal_purchase_notice(payload)
+            eloc_id = result.get("elocId") or result.get("eloc_id")
+            logger.info("DTS submission successful after approval: eloc_id=%s", eloc_id)
+
+            # Write verified_by to MongoDB eloc_data
+            if eloc_id:
+                await mongo_repo.set_verified_by(eloc_id, verified_by)
+
+        except Exception as exc:
+            logger.error("DTS submission failed after approval: %s", exc, exc_info=True)
+            return _error_page(
+                "Submission Error",
+                f"The purchase notice was approved but submission failed: {exc}. Please contact support.",
+            )
+
+        return _done_page("Accepted", f"Purchase notice from {company_name} for ${amount} has been accepted and submitted.")
+
     else:
-        return _done_page("Rejected", f"Purchase notice from {row['company_name']} for ${row['amount']} has been rejected.")
+        return _done_page("Rejected", f"Purchase notice from {company_name} for ${amount} has been rejected.")
 
 
 def _error_page(title, message):

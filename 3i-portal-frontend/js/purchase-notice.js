@@ -362,12 +362,19 @@ const PurchaseNotice = (() => {
 
             console.log('[PurchaseNotice] Submitting portal purchase notice: symbol=%s periodId=%d shares=%d signatory=%s',
                 params.symbol, params.periodId, params.shares, payload.signatory_name);
-            await API.submitPortalPurchaseNotice(payload);
+            const result = await API.submitPortalPurchaseNotice(payload);
 
-            showAlert(
-                'Purchase Notice Submitted',
-                'Your VWAP Purchase Notice has been submitted successfully. You will be redirected to the dashboard.'
-            );
+            if (result && result.status === 'pending_verification') {
+                showAlert(
+                    'Pending Verification',
+                    'Your purchase notice has been sent for approval via SMS. You will be notified when it is approved or rejected.'
+                );
+            } else {
+                showAlert(
+                    'Purchase Notice Submitted',
+                    'Your VWAP Purchase Notice has been submitted successfully. You will be redirected to the dashboard.'
+                );
+            }
         } catch (err) {
             console.error('[PurchaseNotice] Submission failed:', err);
             showAlert(

@@ -38,6 +38,7 @@
                 <button class="tab" data-tab="users">Users</button>
                 <button class="tab" data-tab="templates">Notice Templates</button>
                 <button class="tab" data-tab="signatories">Signatories</button>
+                <button class="tab" data-tab="verification">Verification Settings</button>
             </div>
 
             <!-- Companies Panel -->
@@ -201,6 +202,81 @@
                 </div>
             </div>
 
+            <!-- Verification Settings Panel -->
+            <div id="verification-panel" style="display:none;">
+                <!-- Approval Contacts Section -->
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+                    <h2 style="font-size:1.15rem; font-weight:600; margin:0;">Approval Contacts</h2>
+                    <button class="btn btn-primary" id="add-contact-btn">+ Add Contact</button>
+                </div>
+                <div class="loading-container" id="contacts-loading" style="display:none;">
+                    <div class="loading-spinner"></div>
+                    <span>Loading contacts...</span>
+                </div>
+                <table class="admin-table" id="contacts-table" style="display:none;">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Phone Number</th>
+                            <th>Include</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="contacts-tbody"></tbody>
+                </table>
+                <div class="empty-state" id="contacts-empty" style="display:none;">
+                    <p>No approval contacts. Click "+ Add Contact" to create one.</p>
+                </div>
+
+                <!-- Company Verification Section -->
+                <hr class="section-divider" style="margin:2rem 0;">
+                <div style="margin-bottom:1rem;">
+                    <h2 style="font-size:1.15rem; font-weight:600; margin:0;">Company Verification</h2>
+                    <p style="font-size:0.85rem; color:var(--text-secondary); margin-top:0.25rem;">
+                        Enable verification to require SMS approval before a purchase notice is submitted.
+                    </p>
+                </div>
+                <div class="loading-container" id="verifications-loading" style="display:none;">
+                    <div class="loading-spinner"></div>
+                    <span>Loading companies...</span>
+                </div>
+                <table class="admin-table" id="verifications-table" style="display:none;">
+                    <thead>
+                        <tr>
+                            <th>Company</th>
+                            <th>Symbol</th>
+                            <th>Require Verification</th>
+                        </tr>
+                    </thead>
+                    <tbody id="verifications-tbody"></tbody>
+                </table>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Contact Add/Edit Modal -->
+    <div class="modal-overlay" id="contact-modal-overlay">
+        <div class="modal" style="max-width:450px;">
+            <div class="modal-header">
+                <h2 class="modal-title" id="contact-modal-title">Add Contact</h2>
+                <button class="modal-close" id="contact-modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label" for="contact-name-input">Name</label>
+                    <input type="text" id="contact-name-input" class="form-input" placeholder="e.g., John Smith">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="contact-phone-input">Phone Number</label>
+                    <input type="text" id="contact-phone-input" class="form-input" placeholder="e.g., +15551234567">
+                </div>
+                <div class="modal-status" id="contact-modal-status"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="contact-modal-cancel">Cancel</button>
+                <button class="btn btn-primary" id="contact-modal-submit">Add</button>
+            </div>
         </div>
     </div>
 
@@ -363,9 +439,9 @@
         </div>
     </div>
 
-    <script src="js/api.js?v=6"></script>
-    <script src="js/auth.js?v=6"></script>
-    <script src="js/password-modal.js?v=6"></script>
-    <script src="js/admin.js?v=6"></script>
+    <script src="js/api.js?v=7"></script>
+    <script src="js/auth.js?v=7"></script>
+    <script src="js/password-modal.js?v=7"></script>
+    <script src="js/admin.js?v=7"></script>
 </body>
 </html>

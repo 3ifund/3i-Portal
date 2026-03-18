@@ -248,3 +248,23 @@ async def update_company_signatory_details(company_id: int, signatory_id: str, u
     logger.info("update_company_signatory_details(company=%s, sig=%s) — modified=%s",
                 company_id, signatory_id, modified)
     return modified
+
+
+# ---- Verified By ----
+
+async def set_verified_by(eloc_id: str, verified_by: str) -> bool:
+    """Set the verified_by field on an eloc_data document in portal_3i."""
+    logger.info("set_verified_by — eloc_id=%s, verified_by=%s", eloc_id, verified_by)
+    db = get_db()
+    result = await db.eloc_data.update_one(
+        {"eloc_id": eloc_id},
+        {"$set": {"verified_by": verified_by}},
+    )
+    modified = result.modified_count > 0
+    logger.info("set_verified_by — eloc_id=%s, verified_by=%s — matched=%d, modified=%s",
+                eloc_id, verified_by, result.matched_count, modified)
+    if not modified:
+        logger.warning("set_verified_by — eloc_id=%s NOT modified (matched=%d). "
+                       "Document may not exist yet or value unchanged.",
+                       eloc_id, result.matched_count)
+    return modified

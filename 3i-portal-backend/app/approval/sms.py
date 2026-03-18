@@ -10,17 +10,25 @@ async def send_approval_sms(phone_number: str, company_name: str, amount: str, a
     """Send SMS with approval link via Twilio."""
     from twilio.rest import Client
 
-    logger.info(f"Sending approval SMS to {phone_number} for {company_name} ${amount}")
+    logger.info("send_approval_sms — to=%s, company=%s, amount=$%s", phone_number, company_name, amount)
+    logger.debug("send_approval_sms — approval_url=%s", approval_url)
+    logger.debug("send_approval_sms — twilio from=%s, account_sid=%s...",
+                 settings.twilio_from_number, settings.twilio_account_sid[:8] if settings.twilio_account_sid else "N/A")
+
+    body = f"3i Fund: ELOC Notice for {company_name} — ${amount}. Tap to approve: {approval_url}"
+    logger.debug("send_approval_sms — message body length=%d chars", len(body))
 
     try:
         client = Client(settings.twilio_account_sid, settings.twilio_auth_token)
         message = client.messages.create(
-            body=f"3i Fund: ELOC Notice for {company_name} — ${amount}. Tap to approve: {approval_url}",
+            body=body,
             from_=settings.twilio_from_number,
             to=phone_number,
         )
-        logger.info(f"SMS sent: SID={message.sid} status={message.status} to={phone_number}")
+        logger.info("send_approval_sms — SUCCESS: SID=%s, status=%s, to=%s, company=%s",
+                     message.sid, message.status, phone_number, company_name)
         return {"sid": message.sid, "status": message.status}
-    except Exception as e:
-        logger.error(f"SMS send failed to {phone_number}: {e}")
+    except Exception as exc:
+        logger.error("send_approval_sms — FAILED: to=%s, company=%s, error=%s",
+                     phone_number, company_name, exc, exc_info=True)
         raise

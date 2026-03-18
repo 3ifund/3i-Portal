@@ -403,6 +403,68 @@ const API = (() => {
         return handleResponse(response);
     }
 
+    // --- Admin Approval Contacts ---
+
+    async function adminGetApprovalContacts() {
+        const response = await fetch(`${BASE_URL}/admin/approval-contacts`, {
+            headers: authHeaders(),
+        });
+        return handleResponse(response);
+    }
+
+    async function adminAddApprovalContact(name, phone_number) {
+        const response = await fetch(`${BASE_URL}/admin/approval-contacts`, {
+            method: 'POST',
+            headers: authHeaders(),
+            body: JSON.stringify({ name, phone_number }),
+        });
+        return handleResponse(response);
+    }
+
+    async function adminUpdateApprovalContact(contactId, name, phone_number) {
+        const response = await fetch(`${BASE_URL}/admin/approval-contacts/${contactId}`, {
+            method: 'PUT',
+            headers: authHeaders(),
+            body: JSON.stringify({ name, phone_number }),
+        });
+        return handleResponse(response);
+    }
+
+    async function adminDeleteApprovalContact(contactId) {
+        const response = await fetch(`${BASE_URL}/admin/approval-contacts/${contactId}`, {
+            method: 'DELETE',
+            headers: authHeaders(),
+        });
+        return handleResponse(response);
+    }
+
+    async function adminSetContactInclude(contactId, include) {
+        const response = await fetch(`${BASE_URL}/admin/approval-contacts/${contactId}/include`, {
+            method: 'PUT',
+            headers: authHeaders(),
+            body: JSON.stringify({ include }),
+        });
+        return handleResponse(response);
+    }
+
+    // --- Admin Company Verifications ---
+
+    async function adminGetCompanyVerifications() {
+        const response = await fetch(`${BASE_URL}/admin/company-verifications`, {
+            headers: authHeaders(),
+        });
+        return handleResponse(response);
+    }
+
+    async function adminSetCompanyVerification(companyId, require_verification) {
+        const response = await fetch(`${BASE_URL}/admin/company-verifications/${companyId}`, {
+            method: 'PUT',
+            headers: authHeaders(),
+            body: JSON.stringify({ require_verification }),
+        });
+        return handleResponse(response);
+    }
+
     return {
         login,
         getMe,
@@ -438,5 +500,12 @@ const API = (() => {
         getSignatories,
         updateSignatory,
         getPurchaseNoticePrefill,
+        adminGetApprovalContacts,
+        adminAddApprovalContact,
+        adminUpdateApprovalContact,
+        adminDeleteApprovalContact,
+        adminSetContactInclude,
+        adminGetCompanyVerifications,
+        adminSetCompanyVerification,
     };
 })();
