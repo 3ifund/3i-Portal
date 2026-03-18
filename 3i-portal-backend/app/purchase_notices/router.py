@@ -3,7 +3,6 @@
 Signatory management + purchase notice prefill + submission with optional SMS verification.
 """
 
-import json
 import logging
 import uuid
 
@@ -166,44 +165,8 @@ async def submit_portal_purchase_notice(
         payload.get("period_type"), payload.get("exercise_date"), payload.get("settlement_date"),
     )
 
-    # Check if company requires SMS verification
+    # 1. Always submit to DTS first — creates ELOC at SignedContractToCompany / Pending
     company_id = int(user.company_id)
-    requires_verification = await get_company_verification(company_id)
-    logger.info("POST /submit — company_id=%s requires_verification=%s", company_id, requires_verification)
-
-    if requires_verification:
-        contacts = await get_included_contacts()
-        if contacts:
-            group_id = str(uuid.uuid4())
-            payload_json = json.dumps(payload)
-            company_name = user.company_name or ""
-            amount = str(payload.get("shares", 0))
-
-            logger.info("POST /submit — sending verification SMS to %d contacts, group=%s",
-                        len(contacts), group_id)
-
-            for contact in contacts:
-                token_result = await create_approval_token(
-                    group_id=group_id,
-                    contact_name=contact["name"],
-                    contact_phone=contact["phone_number"],
-                    company_name=company_name,
-                    amount=amount,
-                    payload_json=payload_json,
-                )
-                full_url = f"{settings.approval_base_url}{token_result['url']}"
-                try:
-                    await send_approval_sms(
-                        contact["phone_number"], company_name, amount, full_url,
-                    )
-                except Exception as sms_exc:
-                    logger.error("SMS send failed to %s: %s", contact["phone_number"], sms_exc)
-
-            return {"status": "pending_verification", "message": "Purchase notice sent for approval via SMS."}
-
-        logger.info("POST /submit — verification required but no included contacts, submitting directly")
-
-    # Direct submit (no verification or no contacts)
     try:
         result = await onprem.submit_portal_purchase_notice(payload)
     except Exception as exc:
@@ -213,15 +176,62 @@ async def submit_portal_purchase_notice(
             detail=f"Unable to submit purchase notice: {exc}",
         )
 
-    # Write verified_by = "Auto" to MongoDB
     eloc_id = result.get("elocId") or result.get("eloc_id")
+    logger.info("POST /submit — DTS created ELOC: eloc_id=%s at SignedContractToCompany/Pending", eloc_id)
+
+    # 2. Check if company requires SMS verification
+    requires_verification = await get_company_verification(company_id)
+    logger.info("POST /submit — company_id=%s requires_verification=%s", company_id, requires_verification)
+
+    if requires_verification:
+        contacts = await get_included_contacts()
+        if contacts:
+            group_id = str(uuid.uuid4())
+            company_name = user.company_name or ""
+            amount = str(payload.get("shares", 0))
+
+            logger.info("POST /submit — sending verification SMS to %d contacts, group=%s, eloc_id=%s",
+                        len(contacts), group_id, eloc_id)
+
+            for contact in contacts:
+                token_result = await create_approval_token(
+                    group_id=group_id,
+                    contact_name=contact["name"],
+                    contact_phone=contact["phone_number"],
+                    company_name=company_name,
+                    amount=amount,
+                    eloc_id=eloc_id,
+                )
+                full_url = f"{settings.approval_base_url}{token_result['url']}"
+                try:
+                    await send_approval_sms(
+                        contact["phone_number"], company_name, amount, full_url,
+                    )
+                except Exception as sms_exc:
+                    logger.error("SMS send failed to %s: %s", contact["phone_number"], sms_exc)
+
+            return {
+                "status": "pending_verification",
+                "eloc_id": eloc_id,
+                "message": "Purchase notice sent for approval via SMS.",
+            }
+
+        logger.info("POST /submit — verification required but no included contacts, auto-accepting")
+
+    # 3. Auto-accept: advance to SavedContractToSharePoint and set verified_by = "Auto"
     if eloc_id:
+        try:
+            accept_result = await onprem.accept_portal_eloc(eloc_id)
+            logger.info("POST /submit — auto-accepted eloc_id=%s: %s", eloc_id, accept_result)
+        except Exception as acc_exc:
+            logger.error("Failed to auto-accept eloc_id=%s: %s", eloc_id, acc_exc, exc_info=True)
+
         try:
             await repo.set_verified_by(eloc_id, "Auto")
         except Exception as vb_exc:
             logger.error("Failed to set verified_by for eloc_id=%s: %s", eloc_id, vb_exc)
 
-    logger.info("Portal purchase notice submitted: %s", result)
+    logger.info("Portal purchase notice submitted and auto-accepted: %s", result)
     return result
 
 

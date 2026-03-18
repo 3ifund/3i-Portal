@@ -272,3 +272,35 @@ async def get_portal_eloc_document(eloc_id: str, step: str) -> dict | None:
     logger.info("  → %s (%d bytes)", response.status_code, len(response.content))
     response.raise_for_status()
     return response.json()
+
+
+async def accept_portal_eloc(eloc_id: str) -> dict:
+    """
+    POST /api/portal/eloc/{elocId}/accept — accept current workflow step.
+    DTS advances to the next step in the portal sequence.
+    """
+    logger.info("POST /api/portal/eloc/%s/accept", eloc_id)
+    response = await _request_with_retry("POST", f"/api/portal/eloc/{eloc_id}/accept")
+    logger.info("  → %s (%d bytes)", response.status_code, len(response.content))
+    if response.status_code >= 400:
+        logger.error("  → DTS error response: %s", response.text[:2000])
+    else:
+        logger.debug("  → body: %s", response.text[:2000])
+    response.raise_for_status()
+    return response.json()
+
+
+async def reject_portal_eloc(eloc_id: str) -> dict:
+    """
+    POST /api/portal/eloc/{elocId}/reject — reject portal ELOC.
+    DTS sets status=Rejected, include=false, and removes from tracker.
+    """
+    logger.info("POST /api/portal/eloc/%s/reject", eloc_id)
+    response = await _request_with_retry("POST", f"/api/portal/eloc/{eloc_id}/reject")
+    logger.info("  → %s (%d bytes)", response.status_code, len(response.content))
+    if response.status_code >= 400:
+        logger.error("  → DTS error response: %s", response.text[:2000])
+    else:
+        logger.debug("  → body: %s", response.text[:2000])
+    response.raise_for_status()
+    return response.json()

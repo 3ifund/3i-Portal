@@ -2,10 +2,10 @@
 3i Fund Portal — Purchase Notice Approval
 Token-based mobile approval page and response endpoint.
 Each contact gets a unique token; first responder wins.
-On approval, the held payload is submitted to DTS.
+On approval, DTS advances the ELOC to SavedContractToSharePoint.
+On rejection, DTS marks the ELOC as Rejected and removes it from workflow.
 """
 
-import json
 import uuid
 import logging
 from datetime import datetime, timezone, timedelta
@@ -30,7 +30,7 @@ async def create_approval_token(
     contact_phone: str,
     company_name: str,
     amount: str,
-    payload_json: str,
+    eloc_id: str,
 ) -> dict:
     """Create an approval token for one contact. Called once per contact per submission."""
     pool = get_pool()
@@ -40,11 +40,12 @@ async def create_approval_token(
 
     await pool.execute("""
         INSERT INTO approval_tokens
-            (token, group_id, contact_name, contact_phone, company_name, amount, status, payload_json, created_at, expires_at)
+            (token, group_id, contact_name, contact_phone, company_name, amount, status, eloc_id, created_at, expires_at)
         VALUES ($1, $2, $3, $4, $5, $6, 'pending', $7, $8, $9)
-    """, token, group_id, contact_name, contact_phone, company_name, amount, payload_json, now, expires)
+    """, token, group_id, contact_name, contact_phone, company_name, amount, eloc_id, now, expires)
 
-    logger.info("Approval token created: %s for %s → %s (%s)", token, company_name, contact_name, contact_phone)
+    logger.info("Approval token created: %s for %s → %s (%s) eloc_id=%s",
+                token, company_name, contact_name, contact_phone, eloc_id)
     return {"token": token, "url": f"/approve/{token}"}
 
 
@@ -55,7 +56,7 @@ async def approval_page(token: str):
     pool = get_pool()
 
     row = await pool.fetchrow(
-        "SELECT token, group_id, contact_name, company_name, amount, status, expires_at FROM approval_tokens WHERE token = $1",
+        "SELECT token, group_id, contact_name, company_name, amount, status, eloc_id, expires_at FROM approval_tokens WHERE token = $1",
         token,
     )
 
@@ -144,12 +145,14 @@ async def approval_page(token: str):
 
 @router.post("/approve/{token}/respond", response_class=HTMLResponse)
 async def approval_respond(token: str, action: str = Form(...)):
-    """Handle approval or rejection. First responder wins; submits to DTS on approval."""
+    """Handle approval or rejection. First responder wins.
+    On approval: DTS advances ELOC from SignedContractToCompany → SavedContractToSharePoint.
+    On rejection: DTS marks ELOC as Rejected, sets include=false, removes from tracker."""
     logger.info("Approval response: token=%s action=%s", token, action)
     pool = get_pool()
 
     row = await pool.fetchrow(
-        "SELECT token, group_id, contact_name, contact_phone, status, company_name, amount, payload_json FROM approval_tokens WHERE token = $1",
+        "SELECT token, group_id, contact_name, contact_phone, status, company_name, amount, eloc_id FROM approval_tokens WHERE token = $1",
         token,
     )
 
@@ -167,6 +170,7 @@ async def approval_respond(token: str, action: str = Form(...)):
     contact_phone = row["contact_phone"]
     company_name = row["company_name"]
     amount = row["amount"]
+    eloc_id = row["eloc_id"]
     now = datetime.now(timezone.utc)
 
     # Check if another token in the group was already used (race condition guard)
@@ -193,30 +197,39 @@ async def approval_respond(token: str, action: str = Form(...)):
     )
 
     verified_by = f"{contact_name} ({contact_phone})"
-    logger.info("Approval %s by %s: group=%s company=%s amount=%s", action, verified_by, group_id, company_name, amount)
+    logger.info("Approval %s by %s: group=%s company=%s amount=%s eloc_id=%s",
+                action, verified_by, group_id, company_name, amount, eloc_id)
 
     if action == "approved":
-        # Submit the held payload to DTS
+        # Accept the ELOC — DTS advances from SignedContractToCompany → SavedContractToSharePoint
         try:
-            payload = json.loads(row["payload_json"])
-            result = await onprem.submit_portal_purchase_notice(payload)
-            eloc_id = result.get("elocId") or result.get("eloc_id")
-            logger.info("DTS submission successful after approval: eloc_id=%s", eloc_id)
+            result = await onprem.accept_portal_eloc(eloc_id)
+            logger.info("DTS accept successful after approval: eloc_id=%s result=%s", eloc_id, result)
 
             # Write verified_by to MongoDB eloc_data
-            if eloc_id:
-                await mongo_repo.set_verified_by(eloc_id, verified_by)
+            await mongo_repo.set_verified_by(eloc_id, verified_by)
 
         except Exception as exc:
-            logger.error("DTS submission failed after approval: %s", exc, exc_info=True)
+            logger.error("DTS accept failed after approval: eloc_id=%s error=%s", eloc_id, exc, exc_info=True)
             return _error_page(
                 "Submission Error",
-                f"The purchase notice was approved but submission failed: {exc}. Please contact support.",
+                f"The purchase notice was approved but workflow advance failed: {exc}. Please contact support.",
             )
 
         return _done_page("Accepted", f"Purchase notice from {company_name} for ${amount} has been accepted and submitted.")
 
     else:
+        # Reject the ELOC — DTS sets Rejected, include=false, removes from tracker
+        try:
+            result = await onprem.reject_portal_eloc(eloc_id)
+            logger.info("DTS reject successful: eloc_id=%s result=%s", eloc_id, result)
+        except Exception as exc:
+            logger.error("DTS reject failed: eloc_id=%s error=%s", eloc_id, exc, exc_info=True)
+            return _error_page(
+                "Rejection Error",
+                f"The purchase notice rejection could not be processed: {exc}. Please contact support.",
+            )
+
         return _done_page("Rejected", f"Purchase notice from {company_name} for ${amount} has been rejected.")
 
 

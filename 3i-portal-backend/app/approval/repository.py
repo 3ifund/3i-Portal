@@ -46,13 +46,30 @@ async def ensure_approval_tables() -> None:
             company_name    VARCHAR(255)    NOT NULL,
             amount          VARCHAR(50)     NOT NULL,
             status          VARCHAR(20)     NOT NULL DEFAULT 'pending',
-            payload_json    TEXT            NOT NULL,
+            eloc_id         VARCHAR(255)    NULL,
+            payload_json    TEXT            NULL,
             created_at      TIMESTAMPTZ     NOT NULL DEFAULT NOW(),
             expires_at      TIMESTAMPTZ     NOT NULL,
             responded_at    TIMESTAMPTZ     NULL
         )
     """)
-    logger.info("approval_tokens table ensured")
+
+    # Migration: add eloc_id column and make payload_json nullable for existing tables
+    await pool.execute("""
+        DO $$
+        BEGIN
+            IF NOT EXISTS (
+                SELECT 1 FROM information_schema.columns
+                WHERE table_name = 'approval_tokens' AND column_name = 'eloc_id'
+            ) THEN
+                ALTER TABLE approval_tokens ADD COLUMN eloc_id VARCHAR(255) NULL;
+            END IF;
+        END $$;
+    """)
+    await pool.execute("""
+        ALTER TABLE approval_tokens ALTER COLUMN payload_json DROP NOT NULL
+    """)
+    logger.info("approval_tokens table ensured (with eloc_id column)")
 
 
 # ---- Approval Contacts CRUD ----

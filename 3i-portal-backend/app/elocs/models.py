@@ -11,8 +11,9 @@ from datetime import date, time
 # ---- Workflow Enums ----
 
 class WorkflowStepEnum(str, Enum):
-    """The 4 sequential steps of the ELOC workflow — matches C# ElocWorkflowStep enum."""
+    """The 5 sequential steps of the Portal ELOC workflow."""
     SignedContractToCompany = "SignedContractToCompany"
+    SavedContractToSharePoint = "SavedContractToSharePoint"
     FinalVwapPricingCalculated = "FinalVwapPricingCalculated"
     VwapNotificationToCompany = "VwapNotificationToCompany"
     ReceivedCountersignedVwapNotification = "ReceivedCountersignedVwapNotification"
@@ -33,6 +34,7 @@ WORKFLOW_STEPS_ORDERED = list(WorkflowStepEnum)
 # Human-readable labels for each step
 WORKFLOW_STEP_LABELS = {
     WorkflowStepEnum.SignedContractToCompany: "Signed Contract to Company",
+    WorkflowStepEnum.SavedContractToSharePoint: "Saved Contract to SharePoint",
     WorkflowStepEnum.FinalVwapPricingCalculated: "Final VWAP Pricing Calculated",
     WorkflowStepEnum.VwapNotificationToCompany: "VWAP Notification to Company",
     WorkflowStepEnum.ReceivedCountersignedVwapNotification: "Received Countersigned VWAP Notification",
