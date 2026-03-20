@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Purchase Confirmation — 3i Fund Portal</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="page-container">
+
+        <!-- Navigation Bar -->
+        <nav class="navbar">
+            <div class="navbar-brand">
+                <img src="assets/logo.png" alt="3i Fund" class="navbar-logo">
+            </div>
+            <span class="navbar-title">3i Fund Portal</span>
+            <div class="navbar-user">
+                <span class="navbar-company" id="company-name">&mdash;</span>
+                <button class="navbar-logout" id="logout-btn">Sign Out</button>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <div class="main-content">
+
+            <!-- Loading State -->
+            <div class="pn-loading" id="pc-loading">
+                <div class="spinner"></div>
+                <p>Loading purchase confirmation...</p>
+            </div>
+
+            <!-- Error State -->
+            <div class="pn-error" id="pc-error" style="display:none;">
+                <p id="pc-error-message">Unable to load purchase confirmation.</p>
+                <button class="btn btn-secondary" onclick="window.location.href='dashboard.html'">Return to Dashboard</button>
+            </div>
+
+            <!-- Purchase Confirmation Document -->
+            <div class="pn-document" id="pc-document" style="display:none;">
+
+                <!-- Title -->
+                <h2 class="pn-title">FORM OF VWAP PURCHASE CONFIRMATION</h2>
+
+                <!-- To / Email Block -->
+                <div class="pn-section pn-header-block">
+                    <div class="pn-field-row">
+                        <span class="pn-label">To:</span>
+                        <span class="pn-value" id="pc-to-name"></span>
+                    </div>
+                    <div class="pn-field-row">
+                        <span class="pn-label">E-mail:</span>
+                        <span class="pn-value" id="pc-to-email"></span>
+                    </div>
+                </div>
+
+                <!-- Body Text (from template) -->
+                <div class="pn-section pn-body-text" id="pc-body-text"></div>
+
+                <!-- VWAP Pricing Fields Table -->
+                <div class="pn-section">
+                    <table class="pn-fields-table">
+                        <tbody>
+                            <tr>
+                                <td class="pn-field-label">VWAP Purchase Share Amount (number of Shares):</td>
+                                <td class="pn-field-value" id="pc-shares"></td>
+                            </tr>
+                            <tr>
+                                <td class="pn-field-label">VWAP Purchase Exercise Date:</td>
+                                <td class="pn-field-value" id="pc-exercise-date"></td>
+                            </tr>
+                            <tr>
+                                <td class="pn-field-label">VWAP Purchase Period start date:</td>
+                                <td class="pn-field-value" id="pc-period-start"></td>
+                            </tr>
+                            <tr>
+                                <td class="pn-field-label">VWAP Purchase Period end date:</td>
+                                <td class="pn-field-value" id="pc-period-end"></td>
+                            </tr>
+                            <tr>
+                                <td class="pn-field-label">VWAP Purchase Settlement Date:</td>
+                                <td class="pn-field-value" id="pc-settlement-date"></td>
+                            </tr>
+                            <tr>
+                                <td class="pn-field-label">VWAP Purchase Price (per Share):</td>
+                                <td class="pn-field-value" id="pc-vwap-price"></td>
+                            </tr>
+                            <tr>
+                                <td class="pn-field-label">Total Aggregate VWAP Purchase Price:</td>
+                                <td class="pn-field-value" id="pc-total-price"></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Dated + Firm Signature Block (already signed by firm) -->
+                <div class="pn-section pn-signature-block">
+                    <div class="pn-field-row">
+                        <span class="pn-label">Dated:</span>
+                        <span class="pn-value" id="pc-dated"></span>
+                    </div>
+                    <h3 class="pn-block-title" id="pc-firm-entity" style="margin-top:0.75rem;"></h3>
+                    <p style="color:var(--text-secondary); margin:0 0 0.5rem;">By: 3i Management LLC, as Manager</p>
+                    <div class="pn-field-row" style="align-items:flex-start;">
+                        <span class="pn-label" style="margin-top:0.25rem;">By:</span>
+                        <img id="pc-firm-signature" class="pn-signature-img" style="display:none;" alt="Firm Signature">
+                        <span class="pn-signature-line" id="pc-firm-signature-line"></span>
+                    </div>
+                    <div class="pn-field-row">
+                        <span class="pn-label">Name:</span>
+                        <span class="pn-value" id="pc-firm-name"></span>
+                    </div>
+                    <div class="pn-field-row">
+                        <span class="pn-label">Title:</span>
+                        <span class="pn-value" id="pc-firm-title"></span>
+                    </div>
+                    <div class="pn-field-row">
+                        <span class="pn-label">Address:</span>
+                        <span class="pn-value" id="pc-firm-address"></span>
+                    </div>
+                    <div class="pn-field-row">
+                        <span class="pn-label">Email:</span>
+                        <span class="pn-value" id="pc-firm-email"></span>
+                    </div>
+                </div>
+
+                <!-- Company Countersign Block -->
+                <div class="pn-section pn-accepted-block">
+                    <h3 class="pn-block-title">AGREED AND ACCEPTED:</h3>
+                    <p class="pn-entity-name" id="pc-company-entity"></p>
+                    <div class="pn-field-row" style="align-items:flex-start;">
+                        <span class="pn-label" style="margin-top:0.25rem;">By:</span>
+                        <img id="pc-signatory-signature" class="pn-signature-img" style="display:none;" alt="Signature">
+                        <span class="pn-signature-line" id="pc-signature-line-co"></span>
+                    </div>
+                    <div class="pn-field-row pn-signatory-select-row">
+                        <label class="pn-label" for="pc-signatory-select">Signatory:</label>
+                        <select id="pc-signatory-select" class="form-input pn-select">
+                            <option value="">-- Select signatory --</option>
+                        </select>
+                    </div>
+                    <div class="pn-field-row">
+                        <span class="pn-label">Name:</span>
+                        <span class="pn-value" id="pc-signatory-name" style="display:none;"></span>
+                        <span class="pn-signature-line" id="pc-signatory-name-line"></span>
+                    </div>
+                    <div class="pn-field-row">
+                        <span class="pn-label">Title:</span>
+                        <span class="pn-value" id="pc-signatory-title" style="display:none;"></span>
+                        <span class="pn-signature-line" id="pc-signatory-title-line"></span>
+                    </div>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="pn-actions">
+                    <button class="btn btn-secondary" id="pc-back-btn">Back to Dashboard</button>
+                    <button class="btn btn-primary" id="pc-submit-btn" disabled>Countersign & Submit</button>
+                </div>
+            </div>
+
+        </div><!-- /main-content -->
+
+    </div><!-- /page-container -->
+
+    <!-- Countersign Confirmation Dialog -->
+    <div class="modal-overlay" id="pc-confirm-overlay" style="display:none;">
+        <div class="modal pn-confirm-modal">
+            <div class="modal-header">
+                <h2 class="modal-title">Purchase Confirmation Countersign</h2>
+            </div>
+            <div class="modal-body">
+                <div class="pn-confirm-scroll">
+                    <p class="pn-confirm-warning">PLEASE READ CAREFULLY BEFORE SUBMITTING</p>
+
+                    <p>By clicking "Accept and Submit" below, you are countersigning the VWAP Purchase
+                    Confirmation under the Common Stock Purchase Agreement (the "Agreement") between
+                    <strong id="pc-confirm-company"></strong> (the "Company") and the Investor.</p>
+
+                    <h4>Purchase Confirmation Terms</h4>
+                    <table class="pn-confirm-terms">
+                        <tr><td>Shares:</td><td id="pc-confirm-shares"></td></tr>
+                        <tr><td>VWAP Price:</td><td id="pc-confirm-price"></td></tr>
+                        <tr><td>Total Price:</td><td id="pc-confirm-total"></td></tr>
+                        <tr><td>Settlement Date:</td><td id="pc-confirm-settlement"></td></tr>
+                    </table>
+
+                    <h4>Binding Agreement</h4>
+                    <p>This countersignature, once submitted, constitutes your <strong>acceptance</strong>
+                    of the VWAP Purchase Confirmation and the pricing terms therein. Your electronic
+                    submission shall have the same legal force and effect as a manually executed document.</p>
+                </div>
+
+                <label class="pn-confirm-checkbox-label">
+                    <input type="checkbox" id="pc-confirm-checkbox">
+                    <span>I have read and understand the above terms. I confirm that I am authorized to
+                    countersign this Purchase Confirmation on behalf of <strong id="pc-confirm-company2"></strong>.</span>
+                </label>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="pc-confirm-cancel">Cancel</button>
+                <button class="btn btn-accept" id="pc-confirm-accept" disabled>Accept and Submit</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/api.js?v=7"></script>
+    <script src="js/auth.js?v=7"></script>
+    <script src="js/purchase-confirmation.js?v=7"></script>
+</body>
+</html>

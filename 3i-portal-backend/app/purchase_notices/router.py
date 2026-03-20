@@ -257,3 +257,139 @@ async def get_portal_document(
 
     logger.info("Document returned for eloc=%s step=%s", eloc_id, step)
     return doc
+
+
+# ---- Purchase Confirmation Countersign ----
+
+@router.get("/confirmation-prefill/{eloc_id}")
+async def get_confirmation_prefill(
+    eloc_id: str,
+    user: UserInfo = Depends(get_current_user),
+):
+    """
+    Get prefill data for countersigning a purchase confirmation.
+    Reads VWAP pricing data + template + firm signature + company signatories.
+    """
+    logger.info("GET /confirmation-prefill/%s — user=%s company_id=%s", eloc_id, user.user_id, user.company_id)
+
+    from app.database.mongo import get_db
+    db = get_db()
+
+    # 1. Load eloc_data from portal_3i
+    eloc_data = await db.eloc_data.find_one({"eloc_id": eloc_id})
+    if not eloc_data:
+        raise HTTPException(status_code=404, detail=f"ELOC data not found: {eloc_id}")
+
+    symbol = eloc_data.get("symbol", "")
+    company_id = eloc_data.get("company_id")
+    company_name = eloc_data.get("company_name", "")
+    period_type = eloc_data.get("period_type", "")
+
+    # 2. Load confirmation template
+    template = await repo.get_confirmation_template_by_period_type(period_type, company_id)
+    body_text = template.get("body_text", "") if template else ""
+    agreed_accepted_entity = template.get("agreed_accepted_entity", company_name) if template else company_name
+
+    # 3. Firm signature already stored in eloc_data from purchase notice submission
+    firm_signature = {
+        "name": eloc_data.get("firm_signatory_name", ""),
+        "title": eloc_data.get("firm_signatory_title", ""),
+        "address": eloc_data.get("firm_signatory_address", ""),
+        "email": eloc_data.get("firm_signatory_email", ""),
+        "signature_image": eloc_data.get("firm_signatory_signature_image"),
+    }
+
+    # 4. Load company signatories
+    signatories = []
+    if company_id:
+        signatories = await repo.get_company_signatories(company_id)
+
+    # 5. Build response
+    result = {
+        "eloc_id": eloc_id,
+        "symbol": symbol,
+        "company_id": company_id,
+        "company_name": company_name,
+        "period_type": period_type,
+        # Template content
+        "body_text": body_text,
+        "agreed_accepted_entity": agreed_accepted_entity,
+        # VWAP pricing data (from VwapPricingService results)
+        "shares": eloc_data.get("shares", 0),
+        "exercise_date": eloc_data.get("exercise_date", ""),
+        "valuation_period_start": eloc_data.get("valuation_period_start", ""),
+        "valuation_period_end": eloc_data.get("valuation_period_end", ""),
+        "settlement_date": eloc_data.get("settlement_date", ""),
+        "vwap_purchase_price": eloc_data.get("vwap_purchase_price"),
+        "lowest_vwap": eloc_data.get("lowest_vwap"),
+        "vwap_used": eloc_data.get("vwap_used"),
+        "dollar_amount_calculated": eloc_data.get("dollar_amount_calculated"),
+        # Firm signature (already signed)
+        "firm_signature": firm_signature,
+        # Company signatories (for countersign dropdown)
+        "signatories": signatories,
+    }
+
+    logger.info("Confirmation prefill for %s: symbol=%s, vwap=%s, %d signatories",
+                eloc_id, symbol, eloc_data.get("vwap_purchase_price"), len(signatories))
+    return result
+
+
+@router.post("/countersign")
+async def submit_countersign(
+    payload: dict,
+    user: UserInfo = Depends(get_current_user),
+):
+    """
+    Submit a countersigned purchase confirmation.
+    Advances the Portal workflow past VwapNotificationToCompany.
+    """
+    eloc_id = payload.get("eloc_id", "")
+    logger.info("POST /countersign — user=%s, eloc_id=%s", user.user_id, eloc_id)
+
+    if not eloc_id:
+        raise HTTPException(status_code=400, detail="eloc_id is required")
+
+    signatory_name = payload.get("signatory_name", "")
+    signatory_title = payload.get("signatory_title", "")
+    signatory_signature_image = payload.get("signatory_signature_image")
+
+    if not signatory_name:
+        raise HTTPException(status_code=400, detail="Signatory name is required")
+
+    from app.database.mongo import get_db
+    db = get_db()
+
+    # 1. Store countersign data in eloc_data
+    from datetime import datetime, timezone
+    update_fields = {
+        "countersign_name": signatory_name,
+        "countersign_title": signatory_title,
+        "countersign_signature_image": signatory_signature_image,
+        "countersigned_at": datetime.now(timezone.utc),
+        "countersigned_by": user.user_id,
+        "modified_at": datetime.now(timezone.utc),
+    }
+    await db.eloc_data.update_one(
+        {"eloc_id": eloc_id},
+        {"$set": update_fields},
+    )
+    logger.info("Countersign data stored for %s by %s", eloc_id, signatory_name)
+
+    # 2. Accept the current workflow step (VwapNotificationToCompany) via DTS
+    try:
+        result = await onprem.accept_portal_eloc(eloc_id)
+        logger.info("Workflow advanced for %s: %s", eloc_id, result)
+    except Exception as e:
+        logger.error("Failed to advance workflow for %s: %s", eloc_id, e)
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Failed to advance workflow: {e}",
+        )
+
+    return {
+        "status": "countersigned",
+        "eloc_id": eloc_id,
+        "signatory": signatory_name,
+        "result": result,
+    }

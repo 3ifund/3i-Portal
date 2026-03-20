@@ -231,11 +231,53 @@ async def get_shares_available(company_symbol: str) -> dict:
 async def get_action_items(company_id: int) -> list[dict]:
     """
     Fetch pending action items for the company.
-    Stub: will be implemented when DealTermsServer provides action item data.
+    Queries portal_3i.eloc_state for ELOCs at VwapNotificationToCompany/Pending
+    that need company countersigning.
     """
     logger.info("get_action_items company_id=%s", company_id)
     items = []
-    logger.info("  Returning %d action items (stub)", len(items))
+
+    try:
+        from app.database.mongo import get_db, is_connected
+        if not is_connected():
+            logger.info("  MongoDB not connected — returning empty action items")
+            return items
+
+        db = get_db()
+
+        # Query for ELOCs at VwapNotificationToCompany/Pending for this company
+        cursor = db.eloc_state.find({
+            "company_id": company_id,
+            "workflow_step": "VwapNotificationToCompany",
+            "status": "Pending",
+            "include": True,
+        })
+        pending_states = await cursor.to_list(length=100)
+        logger.info("  Found %d pending VwapNotificationToCompany states", len(pending_states))
+
+        for state in pending_states:
+            eloc_id = state.get("eloc_id", "")
+            # Look up eloc_data for symbol and pricing info
+            eloc_data = await db.eloc_data.find_one({"eloc_id": eloc_id})
+            symbol = eloc_data.get("symbol", "") if eloc_data else ""
+            shares = eloc_data.get("shares", 0) if eloc_data else 0
+            vwap_price = eloc_data.get("vwap_purchase_price") if eloc_data else None
+            created_at = state.get("modified_at") or state.get("created_at")
+
+            items.append({
+                "type": "countersign_purchase_confirmation",
+                "label": "Countersign Purchase Confirmation",
+                "eloc_id": eloc_id,
+                "symbol": symbol,
+                "shares": shares,
+                "vwap_price": vwap_price,
+                "created_at": created_at.isoformat() if created_at else None,
+            })
+
+    except Exception as e:
+        logger.error("  Error fetching action items: %s", e)
+
+    logger.info("  Returning %d action items", len(items))
     return items
 
 

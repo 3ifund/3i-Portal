@@ -352,6 +352,31 @@ const API = (() => {
         return handleResponse(response);
     }
 
+    // --- Admin: purchase confirmation templates ---
+
+    async function adminGetPurchaseConfirmationTemplates() {
+        const response = await fetch(`${BASE_URL}/admin/purchase-confirmation-templates`, {
+            headers: authHeaders(),
+        });
+        return handleResponse(response);
+    }
+
+    async function adminGetCompanyConfirmationTemplates(companyId) {
+        const response = await fetch(`${BASE_URL}/admin/purchase-confirmation-templates/company/${encodeURIComponent(companyId)}`, {
+            headers: authHeaders(),
+        });
+        return handleResponse(response);
+    }
+
+    async function adminUpsertPurchaseConfirmationTemplate(companyId, periodType, data) {
+        const response = await fetch(`${BASE_URL}/admin/purchase-confirmation-templates/${encodeURIComponent(companyId)}/${encodeURIComponent(periodType)}`, {
+            method: 'PUT',
+            headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+            body: JSON.stringify(data),
+        });
+        return handleResponse(response);
+    }
+
     // --- User: company signatories (details) ---
 
     async function getSignatories() {
@@ -385,6 +410,29 @@ const API = (() => {
      */
     async function submitPortalPurchaseNotice(payload) {
         const response = await fetch(`${BASE_URL}/purchase-notices/submit`, {
+            method: 'POST',
+            headers: authHeaders(),
+            body: JSON.stringify(payload),
+        });
+        return handleResponse(response);
+    }
+
+    /**
+     * GET /purchase-notices/confirmation-prefill/:elocId — prefill data for purchase confirmation countersign
+     */
+    async function getPurchaseConfirmationPrefill(elocId) {
+        const response = await fetch(
+            `${BASE_URL}/purchase-notices/confirmation-prefill/${encodeURIComponent(elocId)}`,
+            { headers: authHeaders() }
+        );
+        return handleResponse(response);
+    }
+
+    /**
+     * POST /purchase-notices/countersign — submit countersigned purchase confirmation
+     */
+    async function submitCountersign(payload) {
+        const response = await fetch(`${BASE_URL}/purchase-notices/countersign`, {
             method: 'POST',
             headers: authHeaders(),
             body: JSON.stringify(payload),
@@ -497,9 +545,14 @@ const API = (() => {
         adminAddCompanySignatory,
         adminUpdateCompanySignatory,
         adminDeleteCompanySignatory,
+        adminGetPurchaseConfirmationTemplates,
+        adminGetCompanyConfirmationTemplates,
+        adminUpsertPurchaseConfirmationTemplate,
         getSignatories,
         updateSignatory,
         getPurchaseNoticePrefill,
+        getPurchaseConfirmationPrefill,
+        submitCountersign,
         adminGetApprovalContacts,
         adminAddApprovalContact,
         adminUpdateApprovalContact,

@@ -21,6 +21,7 @@ const Admin = (() => {
             users: document.getElementById('users-panel'),
             templates: document.getElementById('templates-panel'),
             signatories: document.getElementById('signatories-panel'),
+            'confirm-templates': document.getElementById('confirm-templates-panel'),
             verification: document.getElementById('verification-panel'),
         };
 
@@ -745,6 +746,224 @@ const Admin = (() => {
         await populateTemplateCompanyFilter();
     }
 
+    // ---- Confirmation Templates Tab ----
+
+    let confirmEditingPeriodType = null;
+    let confirmEditingCompanyId = null;
+
+    function getSelectedConfirmElocCompany() {
+        const companyId = document.getElementById('confirm-template-company-filter').value;
+        if (!companyId || !elocCompaniesCache) return null;
+        return elocCompaniesCache.find((c) => String(c.company_id) === String(companyId)) || null;
+    }
+
+    async function loadConfirmationTemplates() {
+        const loading = document.getElementById('confirm-templates-loading');
+        const table = document.getElementById('confirm-templates-table');
+        const empty = document.getElementById('confirm-templates-empty');
+        const tbody = document.getElementById('confirm-templates-tbody');
+        const company = getSelectedConfirmElocCompany();
+
+        if (!company) {
+            loading.style.display = 'none';
+            table.style.display = 'none';
+            empty.style.display = 'block';
+            empty.querySelector('p').textContent = 'Select a company to view its purchase confirmation templates.';
+            return;
+        }
+
+        loading.style.display = 'flex';
+        table.style.display = 'none';
+        empty.style.display = 'none';
+
+        try {
+            const templates = await API.adminGetCompanyConfirmationTemplates(company.company_id);
+            loading.style.display = 'none';
+
+            if (!templates || templates.length === 0) {
+                empty.querySelector('p').textContent = 'No confirmation templates configured for this company. Click "+ Add Template" to create one.';
+                empty.style.display = 'block';
+                table.style.display = 'none';
+                return;
+            }
+
+            empty.style.display = 'none';
+            tbody.innerHTML = '';
+            templates.forEach((t) => {
+                const preview = (t.body_text || '').substring(0, 80) + ((t.body_text || '').length > 80 ? '...' : '');
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${escapeHtml(t.pricing_period_type)}</td>
+                    <td style="font-size:0.85rem; color:var(--text-secondary);">${escapeHtml(preview)}</td>
+                    <td>${escapeHtml(t.agreed_accepted_entity || '\u2014')}</td>
+                    <td>
+                        <button class="btn-action edit-confirm-template-btn"
+                            data-period-type="${escapeHtml(t.pricing_period_type)}"
+                            data-company-id="${t.company_id || ''}">Edit</button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            tbody.querySelectorAll('.edit-confirm-template-btn').forEach((btn) => {
+                btn.addEventListener('click', () => openConfirmTemplateModal(btn.dataset.periodType, btn.dataset.companyId || null));
+            });
+
+            table.style.display = 'table';
+        } catch (err) {
+            loading.style.display = 'none';
+            empty.style.display = 'block';
+            empty.querySelector('p').textContent = `Error: ${err.message}`;
+        }
+    }
+
+    async function populateConfirmTemplateCompanyFilter() {
+        const companies = await loadElocCompanies();
+        const filter = document.getElementById('confirm-template-company-filter');
+        if (filter) {
+            const existing = filter.value;
+            while (filter.options.length > 1) filter.remove(1);
+            (companies || []).forEach((c) => {
+                const opt = document.createElement('option');
+                opt.value = c.company_id;
+                opt.textContent = `${c.name} (${c.symbol})`;
+                filter.appendChild(opt);
+            });
+            if (existing) filter.value = existing;
+        }
+    }
+
+    function populateConfirmPeriodTypeDropdown(company, selectedPeriodType) {
+        const periodSelect = document.getElementById('confirm-template-period-type');
+        periodSelect.innerHTML = '<option value="">-- Select Period Type --</option>';
+        const periods = company ? company.pricing_period_types || [] : [];
+        periods.forEach((pt) => {
+            const opt = document.createElement('option');
+            opt.value = pt;
+            opt.textContent = pt;
+            if (pt === selectedPeriodType) opt.selected = true;
+            periodSelect.appendChild(opt);
+        });
+    }
+
+    async function openConfirmTemplateModal(periodType, companyId) {
+        const company = getSelectedConfirmElocCompany();
+        if (!company) return;
+
+        confirmEditingPeriodType = periodType || null;
+        confirmEditingCompanyId = company.company_id;
+
+        const titleEl = document.getElementById('confirm-template-modal-title');
+        const periodSelect = document.getElementById('confirm-template-period-type');
+        const bodyText = document.getElementById('confirm-template-body-text');
+        const entity = document.getElementById('confirm-template-entity');
+        const statusEl = document.getElementById('confirm-template-modal-status');
+
+        statusEl.className = 'modal-status';
+        statusEl.textContent = '';
+
+        populateConfirmPeriodTypeDropdown(company, periodType);
+
+        if (periodType) {
+            titleEl.textContent = `Edit Confirmation Template: ${periodType}`;
+            periodSelect.disabled = true;
+
+            try {
+                const templates = await API.adminGetCompanyConfirmationTemplates(company.company_id);
+                const match = (templates || []).find((t) => t.pricing_period_type === periodType);
+                bodyText.value = match ? match.body_text || '' : '';
+                entity.value = match ? match.agreed_accepted_entity || '' : '';
+            } catch {
+                bodyText.value = '';
+                entity.value = '';
+            }
+        } else {
+            titleEl.textContent = 'Add Confirmation Template';
+            periodSelect.disabled = false;
+            bodyText.value = '';
+            entity.value = '';
+        }
+
+        document.getElementById('confirm-template-modal-overlay').classList.add('visible');
+    }
+
+    function closeConfirmTemplateModal() {
+        document.getElementById('confirm-template-modal-overlay').classList.remove('visible');
+        confirmEditingPeriodType = null;
+        confirmEditingCompanyId = null;
+    }
+
+    async function handleConfirmTemplateSave() {
+        const statusEl = document.getElementById('confirm-template-modal-status');
+        const submitBtn = document.getElementById('confirm-template-modal-submit');
+
+        const companyId = confirmEditingCompanyId;
+        const periodType = confirmEditingPeriodType || document.getElementById('confirm-template-period-type').value;
+        const bodyText = document.getElementById('confirm-template-body-text').value;
+        const entity = document.getElementById('confirm-template-entity').value.trim();
+
+        if (!companyId) {
+            statusEl.className = 'modal-status error';
+            statusEl.textContent = 'Please select a company.';
+            return;
+        }
+        if (!periodType) {
+            statusEl.className = 'modal-status error';
+            statusEl.textContent = 'Please select a period type.';
+            return;
+        }
+        if (!bodyText.trim()) {
+            statusEl.className = 'modal-status error';
+            statusEl.textContent = 'Body text is required.';
+            return;
+        }
+        if (!entity) {
+            statusEl.className = 'modal-status error';
+            statusEl.textContent = 'Entity name is required.';
+            return;
+        }
+
+        statusEl.className = 'modal-status sending';
+        statusEl.textContent = 'Saving...';
+        submitBtn.disabled = true;
+
+        try {
+            await API.adminUpsertPurchaseConfirmationTemplate(companyId, periodType, {
+                body_text: bodyText,
+                agreed_accepted_entity: entity,
+            });
+            statusEl.className = 'modal-status success';
+            statusEl.textContent = 'Confirmation template saved.';
+            setTimeout(() => {
+                closeConfirmTemplateModal();
+                loadConfirmationTemplates();
+            }, 800);
+        } catch (err) {
+            statusEl.className = 'modal-status error';
+            statusEl.textContent = err.message || 'Failed to save template.';
+        } finally {
+            submitBtn.disabled = false;
+        }
+    }
+
+    async function initConfirmTemplateManagement() {
+        const addBtn = document.getElementById('add-confirm-template-btn');
+        if (addBtn) addBtn.addEventListener('click', () => openConfirmTemplateModal(null, null));
+
+        const closeBtn = document.getElementById('confirm-template-modal-close');
+        const cancelBtn = document.getElementById('confirm-template-modal-cancel');
+        if (closeBtn) closeBtn.addEventListener('click', closeConfirmTemplateModal);
+        if (cancelBtn) cancelBtn.addEventListener('click', closeConfirmTemplateModal);
+
+        const submitBtn = document.getElementById('confirm-template-modal-submit');
+        if (submitBtn) submitBtn.addEventListener('click', handleConfirmTemplateSave);
+
+        const companyFilter = document.getElementById('confirm-template-company-filter');
+        if (companyFilter) companyFilter.addEventListener('change', loadConfirmationTemplates);
+
+        await populateConfirmTemplateCompanyFilter();
+    }
+
     // ---- Signatories Tab ----
 
     let editingSignatoryNameId = null;
@@ -1194,6 +1413,7 @@ const Admin = (() => {
         initTabs();
         initUserManagement();
         await initTemplateManagement();
+        await initConfirmTemplateManagement();
         initSignatoryManagement();
         initVerificationManagement();
         loadCompanies();

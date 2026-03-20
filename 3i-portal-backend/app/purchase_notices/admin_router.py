@@ -117,3 +117,47 @@ async def delete_company_signatory(
     if not ok:
         raise HTTPException(status_code=404, detail="Signatory not found")
     return {"status": "deleted"}
+
+
+# ---- Purchase Confirmation Templates (admin CRUD) ----
+
+@router.get("/purchase-confirmation-templates")
+async def list_confirmation_templates(admin: UserInfo = Depends(require_admin)):
+    """List all purchase confirmation templates."""
+    logger.info("GET /purchase-confirmation-templates — admin=%s", admin.user_id)
+    templates = await repo.get_all_confirmation_templates()
+    return templates
+
+
+@router.get("/purchase-confirmation-templates/company/{company_id}")
+async def list_company_confirmation_templates(company_id: int, admin: UserInfo = Depends(require_admin)):
+    """List all purchase confirmation templates for a specific company."""
+    logger.info("GET /purchase-confirmation-templates/company/%s — admin=%s", company_id, admin.user_id)
+    templates = await repo.get_confirmation_templates_by_company(company_id)
+    return templates
+
+
+@router.get("/purchase-confirmation-templates/{company_id}/{period_type}")
+async def get_confirmation_template(company_id: int, period_type: str, admin: UserInfo = Depends(require_admin)):
+    """Get a purchase confirmation template by company and pricing period type."""
+    logger.info("GET /purchase-confirmation-templates/%s/%s — admin=%s", company_id, period_type, admin.user_id)
+    template = await repo.get_confirmation_template_by_period_type(period_type, company_id)
+    if not template:
+        raise HTTPException(status_code=404, detail=f"No confirmation template for company {company_id}, period type: {period_type}")
+    return template
+
+
+@router.put("/purchase-confirmation-templates/{company_id}/{period_type}")
+async def upsert_confirmation_template(
+    company_id: int,
+    period_type: str,
+    request: UpsertTemplateRequest,
+    admin: UserInfo = Depends(require_admin),
+):
+    """Create or update a purchase confirmation template for a company and pricing period type."""
+    logger.info("PUT /purchase-confirmation-templates/%s/%s — admin=%s, body_text_len=%d, entity=%s",
+                company_id, period_type, admin.user_id, len(request.body_text), request.agreed_accepted_entity)
+    result = await repo.upsert_confirmation_template(
+        period_type, request.body_text, request.agreed_accepted_entity, company_id
+    )
+    return result

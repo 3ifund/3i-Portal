@@ -295,9 +295,8 @@ const Dashboard = (() => {
     // ---- Action Items ----
 
     /**
-     * Check for pending action items on login.
-     * If items exist, flash the Action Items tab red.
-     * Stub: will be wired to GET /elocs/action-items later.
+     * Check for pending action items on login and after workflow updates.
+     * If items exist, flash the Action Items tab red and render the queue.
      */
     async function checkActionItems() {
         console.log('[Dashboard] Checking action items...');
@@ -306,14 +305,61 @@ const Dashboard = (() => {
             console.log('[Dashboard] Action items response:', items);
 
             const tab = document.getElementById('actions-tab');
+            const grid = document.getElementById('actions-grid');
+            const empty = document.getElementById('actions-empty');
+
             if (items && items.length > 0) {
                 console.log('[Dashboard] %d pending action items — flashing tab', items.length);
                 tab.classList.add('has-actions');
                 tab.textContent = `Action Items (${items.length})`;
+
+                // Render action items into the grid
+                grid.innerHTML = '';
+                empty.style.display = 'none';
+                items.forEach((item) => {
+                    const card = document.createElement('div');
+                    card.className = 'action-item-card';
+                    const priceDisplay = item.vwap_price
+                        ? `$${Number(item.vwap_price).toFixed(6)}`
+                        : 'Pending';
+                    const dateDisplay = item.created_at
+                        ? new Date(item.created_at).toLocaleDateString()
+                        : '';
+                    card.innerHTML = `
+                        <div class="action-item-header">
+                            <span class="action-item-type">${escapeHtml(item.label)}</span>
+                            <span class="action-item-date">${dateDisplay}</span>
+                        </div>
+                        <div class="action-item-details">
+                            <span class="action-item-symbol">${escapeHtml(item.symbol)}</span>
+                            <span class="action-item-eloc">${escapeHtml(item.eloc_id)}</span>
+                        </div>
+                        <div class="action-item-pricing">
+                            <span>Shares: ${Number(item.shares || 0).toLocaleString()}</span>
+                            <span>VWAP Price: ${priceDisplay}</span>
+                        </div>
+                        <button class="btn btn-primary action-item-btn"
+                            data-eloc-id="${escapeHtml(item.eloc_id)}"
+                            data-type="${escapeHtml(item.type)}">
+                            Countersign
+                        </button>
+                    `;
+                    grid.appendChild(card);
+                });
+
+                // Wire up countersign buttons
+                grid.querySelectorAll('.action-item-btn').forEach((btn) => {
+                    btn.addEventListener('click', () => {
+                        const elocId = btn.dataset.elocId;
+                        window.location.href = `purchase-confirmation.html?eloc_id=${encodeURIComponent(elocId)}`;
+                    });
+                });
             } else {
                 console.log('[Dashboard] No pending action items');
                 tab.classList.remove('has-actions');
                 tab.textContent = 'Action Items';
+                grid.innerHTML = '';
+                empty.style.display = 'block';
             }
         } catch (err) {
             console.warn('[Dashboard] Action items check failed:', err.message);
@@ -581,6 +627,8 @@ const Dashboard = (() => {
                     handleWorkflowUpdate(msg.workflow);
                     // Re-poll shares available — workflow state change may affect availability
                     pollSharesAvailable();
+                    // Re-check action items — workflow may have created new pending items
+                    checkActionItems();
                 } else if (msg.type === 'workflow_removed' && msg.eloc_id) {
                     handleWorkflowRemoved(msg.eloc_id);
                     pollSharesAvailable();

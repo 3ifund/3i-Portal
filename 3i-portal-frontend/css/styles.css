@@ -590,6 +590,69 @@ a:hover {
 }
 
 /* ============================================
+   Action Item Cards
+   ============================================ */
+
+.action-item-card {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--badge-red);
+    border-radius: 8px;
+    padding: 1rem 1.25rem;
+    margin-bottom: 0.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.action-item-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.action-item-type {
+    font-weight: 600;
+    color: var(--badge-red);
+    font-size: 0.95rem;
+}
+
+.action-item-date {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
+.action-item-details {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+}
+
+.action-item-symbol {
+    font-weight: 700;
+    font-size: 1.1rem;
+    color: var(--text-primary);
+}
+
+.action-item-eloc {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    font-family: monospace;
+}
+
+.action-item-pricing {
+    display: flex;
+    gap: 1.5rem;
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+}
+
+.action-item-btn {
+    align-self: flex-end;
+    margin-top: 0.25rem;
+}
+
+/* ============================================
    ELOC Detail — Pricing Table
    ============================================ */
 
