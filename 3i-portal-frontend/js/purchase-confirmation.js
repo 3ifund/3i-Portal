@@ -255,15 +255,73 @@
             const result = await API.submitCountersign(payload);
             console.log('[PurchaseConfirmation] Countersign result:', result);
 
-            // Success — redirect to dashboard
-            alert('Purchase Confirmation countersigned successfully.');
-            window.location.href = 'dashboard.html';
+            // Hide confirm dialog
+            document.getElementById('pc-confirm-overlay').style.display = 'none';
+
+            // Show success with download option
+            showSuccessWithDownload(prefillData.eloc_id);
         } catch (err) {
             console.error('[PurchaseConfirmation] Countersign error:', err);
             acceptBtn.disabled = false;
             acceptBtn.textContent = 'Accept and Submit';
             alert('Error: ' + (err.message || 'Failed to submit countersign.'));
         }
+    }
+
+    // ---- Success + Download ----
+
+    function showSuccessWithDownload(elocId) {
+        // Replace the document content with a success message + download button
+        const doc = document.getElementById('pc-document');
+        doc.innerHTML = `
+            <div style="text-align:center; padding:3rem 1rem;">
+                <h2 style="color:var(--badge-green); margin-bottom:1rem;">Purchase Confirmation Countersigned Successfully</h2>
+                <p style="color:var(--text-secondary); margin-bottom:2rem;">
+                    The countersigned Purchase Confirmation has been submitted and emailed to the relevant parties.
+                </p>
+                <div style="display:flex; gap:1rem; justify-content:center;">
+                    <button class="btn btn-primary" id="pc-download-btn">Download Countersigned PDF</button>
+                    <button class="btn btn-secondary" id="pc-return-btn">Return to Dashboard</button>
+                </div>
+                <p id="pc-download-status" style="color:var(--text-secondary); margin-top:1rem; font-size:0.9rem;"></p>
+            </div>
+        `;
+
+        document.getElementById('pc-return-btn').addEventListener('click', () => {
+            window.location.href = 'dashboard.html';
+        });
+
+        document.getElementById('pc-download-btn').addEventListener('click', async () => {
+            const statusEl = document.getElementById('pc-download-status');
+            statusEl.textContent = 'Downloading...';
+            try {
+                const docData = await API.getPortalElocDocument(elocId, 'CountersignedPurchaseConfirmation');
+                if (docData && docData.pdf_base64) {
+                    // Convert base64 to blob and trigger download
+                    const byteCharacters = atob(docData.pdf_base64);
+                    const byteNumbers = new Array(byteCharacters.length);
+                    for (let i = 0; i < byteCharacters.length; i++) {
+                        byteNumbers[i] = byteCharacters.charCodeAt(i);
+                    }
+                    const byteArray = new Uint8Array(byteNumbers);
+                    const blob = new Blob([byteArray], { type: 'application/pdf' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = docData.filename || elocId + '-CountersignedPurchaseConfirmation.pdf';
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                    statusEl.textContent = 'Download complete.';
+                } else {
+                    statusEl.textContent = 'PDF not yet available. Please try again in a moment.';
+                }
+            } catch (err) {
+                console.error('[PurchaseConfirmation] Download error:', err);
+                statusEl.textContent = 'Download failed: ' + (err.message || 'Unknown error');
+            }
+        });
     }
 
     // ---- Helpers ----
