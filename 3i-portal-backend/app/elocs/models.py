@@ -11,12 +11,15 @@ from datetime import date, time
 # ---- Workflow Enums ----
 
 class WorkflowStepEnum(str, Enum):
-    """The 5 sequential steps of the Portal ELOC workflow."""
+    """Sequential steps of the Portal ELOC workflow."""
     SignedContractToCompany = "SignedContractToCompany"
     SavedContractToSharePoint = "SavedContractToSharePoint"
     FinalVwapPricingCalculated = "FinalVwapPricingCalculated"
     VwapNotificationToCompany = "VwapNotificationToCompany"
+    VwapCountersignedToCompany = "VwapCountersignedToCompany"
     ReceivedCountersignedVwapNotification = "ReceivedCountersignedVwapNotification"
+    SavedVwapToSharePoint = "SavedVwapToSharePoint"
+    VwapNotificationToPrimeBroker = "VwapNotificationToPrimeBroker"
 
 
 class WorkflowStepState(str, Enum):
@@ -37,7 +40,10 @@ WORKFLOW_STEP_LABELS = {
     WorkflowStepEnum.SavedContractToSharePoint: "Saved Contract to SharePoint",
     WorkflowStepEnum.FinalVwapPricingCalculated: "Final VWAP Pricing Calculated",
     WorkflowStepEnum.VwapNotificationToCompany: "VWAP Notification to Company",
+    WorkflowStepEnum.VwapCountersignedToCompany: "VWAP Countersigned to Company",
     WorkflowStepEnum.ReceivedCountersignedVwapNotification: "Received Countersigned VWAP Notification",
+    WorkflowStepEnum.SavedVwapToSharePoint: "Saved VWAP to SharePoint",
+    WorkflowStepEnum.VwapNotificationToPrimeBroker: "VWAP Notification to Prime Broker",
 }
 
 

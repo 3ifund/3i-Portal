@@ -408,7 +408,10 @@ const Dashboard = (() => {
         SignedContractToCompany: '\u{1F4E5}',
         FinalVwapPricingCalculated: '\u{1F3AF}',
         VwapNotificationToCompany: '\u{1F4E7}',
+        VwapCountersignedToCompany: '\u{1F4DD}',
         ReceivedCountersignedVwapNotification: '\u{1F4E9}',
+        SavedVwapToSharePoint: '\u{1F4BE}',
+        VwapNotificationToPrimeBroker: '\u{1F4E4}',
     };
 
     // Map PascalCase status from backend to lowercase CSS class
