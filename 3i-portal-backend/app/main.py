@@ -39,6 +39,12 @@ async def lifespan(app: FastAPI):
     logger.info("On-prem base URL: %s", settings.onprem_base_url)
     logger.info("PostgreSQL: %s@%s:%s/%s", settings.pg_user, settings.pg_host, settings.pg_port, settings.pg_database)
 
+    if settings.jwt_secret == "CHANGE-ME-IN-PRODUCTION":
+        logger.warning("=" * 60)
+        logger.warning("  WARNING: Using default JWT secret!")
+        logger.warning("  Set JWT_SECRET environment variable for production.")
+        logger.warning("=" * 60)
+
     await connect_postgres()
     logger.info("PostgreSQL connected")
 
@@ -75,7 +81,6 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS — allow the S3-hosted frontend to call the API
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,

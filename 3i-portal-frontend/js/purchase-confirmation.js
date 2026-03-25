@@ -14,7 +14,7 @@
         console.log('[PurchaseConfirmation] Initializing...');
 
         // Auth check
-        const token = sessionStorage.getItem('token');
+        const token = sessionStorage.getItem('access_token');
         if (!token) {
             window.location.href = 'index.html';
             return;
@@ -223,15 +223,23 @@
         checkbox.checked = false;
         acceptBtn.disabled = true;
 
-        checkbox.addEventListener('change', () => {
-            acceptBtn.disabled = !checkbox.checked;
+        // Replace elements to remove old event listeners
+        const newCheckbox = checkbox.cloneNode(true);
+        checkbox.parentNode.replaceChild(newCheckbox, checkbox);
+        newCheckbox.addEventListener('change', () => {
+            acceptBtn.disabled = !newCheckbox.checked;
         });
 
-        document.getElementById('pc-confirm-cancel').addEventListener('click', () => {
+        const cancelBtn = document.getElementById('pc-confirm-cancel');
+        const newCancelBtn = cancelBtn.cloneNode(true);
+        cancelBtn.parentNode.replaceChild(newCancelBtn, cancelBtn);
+        newCancelBtn.addEventListener('click', () => {
             overlay.style.display = 'none';
         });
 
-        acceptBtn.addEventListener('click', handleCountersign);
+        const newAcceptBtn = acceptBtn.cloneNode(true);
+        acceptBtn.parentNode.replaceChild(newAcceptBtn, acceptBtn);
+        newAcceptBtn.addEventListener('click', handleCountersign);
     }
 
     // ---- Submit Countersign ----
