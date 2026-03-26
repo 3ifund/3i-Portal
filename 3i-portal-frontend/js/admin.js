@@ -1029,8 +1029,8 @@ const Admin = (() => {
                     <td>${escapeHtml(s.name)}</td>
                     <td><span class="eloc-card-status ${statusClass}">${statusLabel}</span></td>
                     <td>
-                        <button class="btn-action edit-sig-name-btn" data-id="${escapeHtml(s._id)}" data-name="${escapeHtml(s.name)}">Edit</button>
-                        <button class="btn-action delete-sig-btn" data-id="${escapeHtml(s._id)}" data-name="${escapeHtml(s.name)}">Delete</button>
+                        <button class="btn-action edit-sig-name-btn" data-id="${s.id}" data-name="${escapeHtml(s.name)}">Edit</button>
+                        <button class="btn-action delete-sig-btn" data-id="${s.id}" data-name="${escapeHtml(s.name)}">Delete</button>
                     </td>
                 `;
                 tbody.appendChild(tr);

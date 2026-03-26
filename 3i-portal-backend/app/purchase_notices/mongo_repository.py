@@ -1,6 +1,7 @@
 """
-3i Fund Portal — MongoDB Repository for Purchase Notice Templates & Signatories
-Collections: purchase_notice_templates, company_signatories (in three_i_fund_portal DB)
+3i Fund Portal — MongoDB Repository for Purchase Notice Templates & User Signatories
+Collections: purchase_notice_templates, user_signatories (in three_i_fund_portal DB)
+Company signatories have been migrated to PostgreSQL (see pg_repository.py).
 """
 
 import logging
@@ -234,93 +235,6 @@ async def delete_signatory(user_id: str, signatory_id: str) -> bool:
     modified = result.modified_count > 0
     logger.info("delete_signatory(user=%s, sig=%s) — matched=%d, modified=%s",
                 user_id, signatory_id, result.matched_count, modified)
-    return modified
-
-
-# ---- Company Signatories (admin-managed names, client-entered details) ----
-
-async def get_company_signatories(company_id: int) -> list[dict]:
-    """Get all signatories for a company."""
-    logger.debug("get_company_signatories(%s) — querying company_signatories collection", company_id)
-    db = get_db()
-    doc = await db.company_signatories.find_one({"company_id": company_id})
-    if not doc:
-        logger.debug("get_company_signatories(%s) — no document found, returning []", company_id)
-        return []
-    signatories = doc.get("signatories", [])
-    logger.debug("get_company_signatories(%s) — found %d signatories", company_id, len(signatories))
-    return signatories
-
-
-async def add_company_signatory(company_id: int, name: str) -> dict:
-    """Add a signatory name to a company's list (admin-only). Returns the created signatory."""
-    signatory_id = str(ObjectId())
-    logger.info("add_company_signatory(company=%s) — id=%s, name=%s", company_id, signatory_id, name)
-    db = get_db()
-    signatory = {
-        "_id": signatory_id,
-        "name": name,
-        "title": "",
-        "address": "",
-        "signature_image": None,
-    }
-    await db.company_signatories.update_one(
-        {"company_id": company_id},
-        {"$push": {"signatories": signatory}},
-        upsert=True,
-    )
-    logger.info("add_company_signatory(company=%s) — id=%s added", company_id, signatory_id)
-    return signatory
-
-
-async def update_company_signatory_name(company_id: int, signatory_id: str, name: str) -> bool:
-    """Update a signatory's name (admin-only). Returns True if modified."""
-    logger.info("update_company_signatory_name(company=%s, sig=%s) — name=%s",
-                company_id, signatory_id, name)
-    db = get_db()
-    result = await db.company_signatories.update_one(
-        {"company_id": company_id, "signatories._id": signatory_id},
-        {"$set": {"signatories.$.name": name}},
-    )
-    modified = result.modified_count > 0
-    logger.info("update_company_signatory_name(company=%s, sig=%s) — modified=%s",
-                company_id, signatory_id, modified)
-    return modified
-
-
-async def delete_company_signatory(company_id: int, signatory_id: str) -> bool:
-    """Remove a signatory from a company's list (admin-only). Returns True if modified."""
-    logger.info("delete_company_signatory(company=%s, sig=%s)", company_id, signatory_id)
-    db = get_db()
-    result = await db.company_signatories.update_one(
-        {"company_id": company_id},
-        {"$pull": {"signatories": {"_id": signatory_id}}},
-    )
-    modified = result.modified_count > 0
-    logger.info("delete_company_signatory(company=%s, sig=%s) — modified=%s",
-                company_id, signatory_id, modified)
-    return modified
-
-
-async def update_company_signatory_details(company_id: int, signatory_id: str, updates: dict) -> bool:
-    """Update signatory details (title, address, signature_image) — client-entered.
-    Returns True if modified."""
-    logger.info("update_company_signatory_details(company=%s, sig=%s) — keys=%s",
-                company_id, signatory_id, list(updates.keys()))
-    db = get_db()
-    # Only allow detail fields, not name
-    allowed = {"title", "address", "signature_image"}
-    set_fields = {f"signatories.$.{k}": v for k, v in updates.items() if k in allowed}
-    if not set_fields:
-        logger.warning("update_company_signatory_details — no valid fields to set")
-        return False
-    result = await db.company_signatories.update_one(
-        {"company_id": company_id, "signatories._id": signatory_id},
-        {"$set": set_fields},
-    )
-    modified = result.modified_count > 0
-    logger.info("update_company_signatory_details(company=%s, sig=%s) — modified=%s",
-                company_id, signatory_id, modified)
     return modified
 
 

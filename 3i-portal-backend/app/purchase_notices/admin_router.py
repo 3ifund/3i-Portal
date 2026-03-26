@@ -15,6 +15,7 @@ from app.purchase_notices.models import (
     AdminUpdateSignatoryNameRequest,
 )
 from app.purchase_notices import mongo_repository as repo
+from app.purchase_notices import pg_repository as sig_repo
 
 logger = logging.getLogger("portal.admin.templates")
 router = APIRouter()
@@ -72,7 +73,7 @@ async def upsert_template(
 async def list_company_signatories(company_id: int, admin: UserInfo = Depends(require_admin)):
     """List all signatories for a company."""
     logger.info("GET /signatories/%s — admin=%s", company_id, admin.user_id)
-    signatories = await repo.get_company_signatories(company_id)
+    signatories = await sig_repo.get_company_signatories(company_id)
     logger.debug("GET /signatories/%s — returned %d signatories", company_id, len(signatories))
     return signatories
 
@@ -85,21 +86,21 @@ async def add_company_signatory(
 ):
     """Add a signatory name to a company."""
     logger.info("POST /signatories/%s — admin=%s, name=%s", company_id, admin.user_id, request.name)
-    signatory = await repo.add_company_signatory(company_id, request.name)
+    signatory = await sig_repo.add_company_signatory(company_id, request.name)
     return signatory
 
 
 @router.put("/signatories/{company_id}/{signatory_id}")
 async def update_company_signatory(
     company_id: int,
-    signatory_id: str,
+    signatory_id: int,
     request: AdminUpdateSignatoryNameRequest,
     admin: UserInfo = Depends(require_admin),
 ):
     """Rename a signatory (admin-only)."""
     logger.info("PUT /signatories/%s/%s — admin=%s, name=%s",
                 company_id, signatory_id, admin.user_id, request.name)
-    ok = await repo.update_company_signatory_name(company_id, signatory_id, request.name)
+    ok = await sig_repo.update_company_signatory_name(company_id, signatory_id, request.name)
     if not ok:
         raise HTTPException(status_code=404, detail="Signatory not found")
     return {"status": "updated"}
@@ -108,12 +109,12 @@ async def update_company_signatory(
 @router.delete("/signatories/{company_id}/{signatory_id}")
 async def delete_company_signatory(
     company_id: int,
-    signatory_id: str,
+    signatory_id: int,
     admin: UserInfo = Depends(require_admin),
 ):
     """Remove a signatory from a company."""
     logger.info("DELETE /signatories/%s/%s — admin=%s", company_id, signatory_id, admin.user_id)
-    ok = await repo.delete_company_signatory(company_id, signatory_id)
+    ok = await sig_repo.delete_company_signatory(company_id, signatory_id)
     if not ok:
         raise HTTPException(status_code=404, detail="Signatory not found")
     return {"status": "deleted"}

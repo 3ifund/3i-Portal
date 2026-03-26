@@ -714,7 +714,7 @@ const Dashboard = (() => {
                         <span class="eloc-card-status ${statusClass}" style="margin-left:0.5rem; font-size:0.75rem;">${statusText}</span>
                         ${sigThumb}
                     </div>
-                    <button class="btn-action sig-edit-btn" data-id="${escapeHtml(s._id)}">Edit Details</button>
+                    <button class="btn-action sig-edit-btn" data-id="${s.id}">Edit Details</button>
                 `;
                 // Click anywhere on the row to edit
                 div.addEventListener('click', () => {
@@ -731,7 +731,7 @@ const Dashboard = (() => {
     }
 
     function startEditSignatory(sig) {
-        editingSignatoryId = sig._id;
+        editingSignatoryId = sig.id;
         editingSignatoryName = sig.name || '';
         const detailsForm = document.getElementById('signatory-details-form');
         detailsForm.style.display = '';
@@ -740,7 +740,8 @@ const Dashboard = (() => {
         document.getElementById('sig-name-display').textContent = sig.name || '';
         document.getElementById('sig-title').value = sig.title || '';
         document.getElementById('sig-address').value = sig.address || '';
-        document.getElementById('sig-editing-id').value = sig._id;
+        document.getElementById('sig-phone').value = sig.phone_number || '';
+        document.getElementById('sig-editing-id').value = sig.id;
         document.getElementById('signatory-modal-status').className = 'modal-status';
         document.getElementById('signatory-modal-status').textContent = '';
         currentSignatureImage = sig.signature_image || null;
@@ -754,6 +755,7 @@ const Dashboard = (() => {
         if (detailsForm) detailsForm.style.display = 'none';
         document.getElementById('sig-title').value = '';
         document.getElementById('sig-address').value = '';
+        document.getElementById('sig-phone').value = '';
         document.getElementById('sig-editing-id').value = '';
         document.getElementById('signatory-modal-status').className = 'modal-status';
         document.getElementById('signatory-modal-status').textContent = '';
@@ -766,6 +768,7 @@ const Dashboard = (() => {
         const submitBtn = document.getElementById('signatory-modal-submit');
         const title = document.getElementById('sig-title').value.trim();
         const address = document.getElementById('sig-address').value.trim();
+        const phone_number = document.getElementById('sig-phone').value.trim();
 
         if (!title) {
             statusEl.className = 'modal-status error';
@@ -790,7 +793,7 @@ const Dashboard = (() => {
             }
             const signature_image = currentSignatureImage || null;
 
-            await API.updateSignatory(editingSignatoryId, { title, address, signature_image });
+            await API.updateSignatory(editingSignatoryId, { title, address, phone_number, signature_image });
             statusEl.className = 'modal-status success';
             statusEl.textContent = 'Details saved.';
             await loadSignatories();

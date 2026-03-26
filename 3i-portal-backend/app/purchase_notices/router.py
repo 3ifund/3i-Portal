@@ -20,6 +20,7 @@ from app.purchase_notices.models import (
     UpdateSignatoryDetailsRequest,
 )
 from app.purchase_notices import mongo_repository as repo
+from app.purchase_notices import pg_repository as sig_repo
 from app.onprem import client as onprem
 from app.approval.repository import get_company_verification, get_included_contacts
 from app.approval.router import create_approval_token
@@ -38,18 +39,18 @@ async def list_signatories(user: UserInfo = Depends(get_current_user)):
         raise HTTPException(status_code=400, detail="User has no company assigned")
     company_id = int(user.company_id)
     logger.info("GET /signatories — user=%s, company_id=%s", user.user_id, company_id)
-    signatories = await repo.get_company_signatories(company_id)
+    signatories = await sig_repo.get_company_signatories(company_id)
     logger.debug("GET /signatories — company_id=%s — returned %d signatories", company_id, len(signatories))
     return signatories
 
 
 @router.put("/signatories/{signatory_id}")
 async def update_signatory_details(
-    signatory_id: str,
+    signatory_id: int,
     request: UpdateSignatoryDetailsRequest,
     user: UserInfo = Depends(get_current_user),
 ):
-    """Update signatory details (title, address, signature_image) — client-entered."""
+    """Update signatory details (title, address, phone_number, signature_image) — client-entered."""
     if not user.company_id:
         raise HTTPException(status_code=400, detail="User has no company assigned")
     company_id = int(user.company_id)
@@ -58,7 +59,7 @@ async def update_signatory_details(
                 signatory_id, user.user_id, company_id, list(updates.keys()))
     if not updates:
         raise HTTPException(status_code=400, detail="No fields to update")
-    ok = await repo.update_company_signatory_details(company_id, signatory_id, updates)
+    ok = await sig_repo.update_company_signatory_details(company_id, signatory_id, updates)
     if not ok:
         raise HTTPException(status_code=404, detail="Signatory not found")
     return {"status": "updated"}
@@ -75,7 +76,7 @@ async def get_prefill(
 ):
     """
     Get all data needed to render a purchase notice.
-    Merges DTS calculated fields + MongoDB template + user signatories.
+    Merges DTS calculated fields + MongoDB template + PostgreSQL signatories.
     """
     logger.info("GET /prefill/%s/%d?shares=%d — user=%s, company=%s",
                 symbol, pricing_period_id, shares, user.user_id, user.company_name)
@@ -103,9 +104,9 @@ async def get_prefill(
     logger.debug("Template found=%s, body_text_len=%d, entity=%s",
                  template is not None, len(body_text), agreed_entity)
 
-    # 3. Get company signatories (admin-managed names, client-entered details)
+    # 3. Get company signatories from PostgreSQL (admin-managed names, client-entered details)
     logger.debug("Loading company signatories for company_id=%s", company_id)
-    signatories = await repo.get_company_signatories(company_id) if company_id else []
+    signatories = await sig_repo.get_company_signatories(company_id) if company_id else []
     logger.debug("Found %d company signatories for company_id=%s", len(signatories), company_id)
 
     # 4. Return merged response
@@ -299,10 +300,10 @@ async def get_confirmation_prefill(
         "signature_image": eloc_data.get("firm_signatory_signature_image"),
     }
 
-    # 4. Load company signatories
+    # 4. Load company signatories from PostgreSQL
     signatories = []
     if company_id:
-        signatories = await repo.get_company_signatories(company_id)
+        signatories = await sig_repo.get_company_signatories(company_id)
 
     # 5. Build response
     result = {
@@ -376,7 +377,14 @@ async def submit_countersign(
     )
     logger.info("Countersign data stored for %s by %s", eloc_id, signatory_name)
 
-    # 2. Accept the current workflow step (VwapNotificationToCompany) via DTS
+    # 2. Supersede any pending SMS countersign tokens for this ELOC
+    try:
+        from app.countersign.repository import supersede_all_tokens_for_eloc
+        await supersede_all_tokens_for_eloc(eloc_id)
+    except Exception as sup_exc:
+        logger.warning("Failed to supersede countersign tokens for %s: %s", eloc_id, sup_exc)
+
+    # 3. Accept the current workflow step (VwapNotificationToCompany) via DTS
     try:
         result = await onprem.accept_portal_eloc(eloc_id)
         logger.info("Workflow advanced for %s: %s", eloc_id, result)

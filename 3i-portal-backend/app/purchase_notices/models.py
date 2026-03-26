@@ -13,7 +13,7 @@ class UpsertTemplateRequest(BaseModel):
     agreed_accepted_entity: str
 
 
-# ---- Signatories (user-managed, stored in MongoDB) ----
+# ---- Signatories (user-managed) ----
 
 class CreateSignatoryRequest(BaseModel):
     name: str
@@ -31,7 +31,7 @@ class UpdateSignatoryRequest(BaseModel):
     signature_image: str | None = None
 
 
-# ---- Company Signatories (admin-managed names, client-entered details) ----
+# ---- Company Signatories (admin-managed names, client-entered details, stored in PostgreSQL) ----
 
 class AdminAddSignatoryRequest(BaseModel):
     name: str
@@ -44,6 +44,7 @@ class AdminUpdateSignatoryNameRequest(BaseModel):
 class UpdateSignatoryDetailsRequest(BaseModel):
     title: str | None = None
     address: str | None = None
+    phone_number: str | None = None
     signature_image: str | None = None
 
 

@@ -146,7 +146,7 @@ const PurchaseNotice = (() => {
 
         signatories.forEach((sig) => {
             const opt = document.createElement('option');
-            opt.value = sig._id;
+            opt.value = sig.id;
             opt.textContent = `${sig.name} — ${sig.title}`;
             opt.dataset.name = sig.name;
             opt.dataset.title = sig.title;
