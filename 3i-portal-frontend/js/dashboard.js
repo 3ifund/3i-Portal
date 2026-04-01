@@ -146,15 +146,17 @@ const Dashboard = (() => {
                 console.log('[Dashboard]   %s: no data in response', periodType);
                 dataSpan.textContent = '\u2014';
                 dataSpan.className = 'period-data';
+            } else if (!period.isWithinAcceptanceWindow) {
+                // Time gate takes precedence — nothing can happen outside the window
+                console.log('[Dashboard]   %s: Outside of Notice Window', periodType);
+                dataSpan.textContent = 'Outside of Notice Window';
+                dataSpan.className = 'period-data outside-window';
             } else if (hasPending) {
+                // ELOC currently pricing — blocked by existing in-flight ELOC
                 var pendingLabel = data.pendingElocMessage || 'ELOC Currently Pricing';
                 console.log('[Dashboard]   %s: %s', periodType, pendingLabel);
                 dataSpan.textContent = pendingLabel;
                 dataSpan.className = 'period-data pending-eloc';
-            } else if (!period.isWithinAcceptanceWindow) {
-                console.log('[Dashboard]   %s: Outside of Notice Window', periodType);
-                dataSpan.textContent = 'Outside of Notice Window';
-                dataSpan.className = 'period-data outside-window';
             } else if (period.isBlocked) {
                 console.log('[Dashboard]   %s: Blocked — %s', periodType, period.blockReason);
                 dataSpan.textContent = period.blockReason || 'Blocked';
