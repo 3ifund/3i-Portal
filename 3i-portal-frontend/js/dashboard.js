@@ -147,8 +147,9 @@ const Dashboard = (() => {
                 dataSpan.textContent = '\u2014';
                 dataSpan.className = 'period-data';
             } else if (hasPending) {
-                console.log('[Dashboard]   %s: ELOC Currently Pricing', periodType);
-                dataSpan.textContent = 'ELOC Currently Pricing';
+                var pendingLabel = data.pendingElocMessage || 'ELOC Currently Pricing';
+                console.log('[Dashboard]   %s: %s', periodType, pendingLabel);
+                dataSpan.textContent = pendingLabel;
                 dataSpan.className = 'period-data pending-eloc';
             } else if (!period.isWithinAcceptanceWindow) {
                 console.log('[Dashboard]   %s: Outside of Notice Window', periodType);
@@ -634,6 +635,10 @@ const Dashboard = (() => {
                     checkActionItems();
                 } else if (msg.type === 'workflow_removed' && msg.eloc_id) {
                     handleWorkflowRemoved(msg.eloc_id);
+                    pollSharesAvailable();
+                } else if (msg.type === 'shares_refresh') {
+                    // 12-step ELOC state changed — refresh shares available (may affect blocking)
+                    console.log('[Dashboard] 12-step ELOC %s changed — refreshing shares', msg.eloc_id);
                     pollSharesAvailable();
                 }
             } catch (e) {

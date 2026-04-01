@@ -335,8 +335,21 @@ async def _handle_state_changed(msg: dict):
         await _handle_eloc_removed({"elocId": eloc_id})
         return
 
-    message = _build_workflow_message(state, source=source)
-    await _broadcast(int(company_id), message)
+    # Only broadcast Portal-initiated workflows as workflow cards.
+    # 12-step (DTS) ELOCs are managed in PRM — Portal clients only need
+    # to know they exist for the "ELOC Currently Pricing" blocking check.
+    if source == "portal":
+        message = _build_workflow_message(state, source=source)
+        await _broadcast(int(company_id), message)
+    else:
+        # For 12-step ELOCs, notify clients to refresh shares available
+        # (the pending ELOC status may have changed)
+        await _broadcast(int(company_id), {
+            "type": "shares_refresh",
+            "eloc_id": eloc_id,
+            "source": "dts",
+        })
+        logger.info("DTS WS: 12-step ELOC %s — sent shares_refresh (not workflow card)", eloc_id)
 
     # Trigger countersign SMS when Portal ELOC reaches VwapNotificationToCompany/Pending
     step = msg.get("step", "")

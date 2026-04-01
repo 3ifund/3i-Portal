@@ -292,28 +292,9 @@ async def get_pricing_workflows(company_id: int) -> list[dict]:
     logger.info("get_pricing_workflows company_id=%s", company_id)
     workflows = []
 
-    # DTS upstream workflows
-    all_states = await onprem.get_included_eloc_states()
-    for state in all_states:
-        if state.get("companyId") != company_id:
-            continue
-
-        workflow_step = state.get("workflowStep", "")
-        status = state.get("status", "Pending")
-        steps, can_remove = build_workflow_steps(workflow_step, status)
-
-        workflows.append({
-            "eloc_id": str(state.get("elocId", "")),
-            "company_id": state.get("companyId"),
-            "current_step": workflow_step,
-            "step_status": status,
-            "updated_at": str(state["modifiedAt"]) if state.get("modifiedAt") else None,
-            "can_remove": can_remove,
-            "steps": steps,
-            "source": "dts",
-        })
-
-    # Portal-initiated workflows
+    # Portal-initiated workflows only — 12-step ELOCs are shown in PRM, not here.
+    # Cross-workflow blocking is handled by eloc_status_tracker in PostgreSQL
+    # (the "ELOC Currently Pricing" message on the shares available cards).
     try:
         portal_states = await onprem.get_portal_eloc_states_included()
         for state in portal_states:
