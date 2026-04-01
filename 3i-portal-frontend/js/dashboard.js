@@ -381,17 +381,41 @@ const Dashboard = (() => {
             const workflows = await API.getPricingWorkflows();
             console.log('[Dashboard] Loaded %d pricing workflows', workflows?.length || 0);
 
-            if (!workflows || workflows.length === 0) {
+            // Remove existing workflow cards and status rows before rendering
+            container.querySelectorAll('.workflow-container, .external-eloc-row').forEach((c) => c.remove());
+
+            // Check for 12-step ELOCs via shares available (cross-workflow blocking)
+            let hasExternalEloc = false;
+            try {
+                const sharesData = await API.getSharesAvailable();
+                if (sharesData && sharesData.hasPendingEloc && sharesData.pendingElocId) {
+                    hasExternalEloc = true;
+                    const row = document.createElement('div');
+                    row.className = 'external-eloc-row';
+                    row.style.cssText = 'background:#1a3a1a; border:1px solid #2d5a2d; border-radius:8px; padding:12px 16px; margin-bottom:8px; display:flex; align-items:center; gap:10px;';
+                    row.innerHTML = `
+                        <span style="color:#4CAF50; font-size:1.2rem;">&#x1F4CA;</span>
+                        <span style="color:#4CAF50; font-weight:600; font-size:0.95rem;">${sharesData.pendingElocMessage || 'ELOC Currently Pricing'}</span>
+                        <span style="color:#888; font-size:0.85rem; margin-left:auto;">(External Workflow)</span>
+                    `;
+                    container.appendChild(row);
+                    console.log('[Dashboard] Added external ELOC status row: %s', sharesData.pendingElocId);
+                }
+            } catch (sharesErr) {
+                console.warn('[Dashboard] Could not check for external ELOCs:', sharesErr.message);
+            }
+
+            if ((!workflows || workflows.length === 0) && !hasExternalEloc) {
                 empty.style.display = 'block';
                 return;
             }
 
-            // Remove existing workflow cards before rendering fresh set
-            container.querySelectorAll('.workflow-container').forEach((c) => c.remove());
             empty.style.display = 'none';
-            workflows.forEach((wf) => {
-                container.appendChild(renderWorkflowCard(wf));
-            });
+            if (workflows) {
+                workflows.forEach((wf) => {
+                    container.appendChild(renderWorkflowCard(wf));
+                });
+            }
         } catch (err) {
             console.warn('[Dashboard] Pricing workflows load failed:', err.message);
         }
@@ -637,9 +661,10 @@ const Dashboard = (() => {
                     handleWorkflowRemoved(msg.eloc_id);
                     pollSharesAvailable();
                 } else if (msg.type === 'shares_refresh') {
-                    // 12-step ELOC state changed — refresh shares available (may affect blocking)
-                    console.log('[Dashboard] 12-step ELOC %s changed — refreshing shares', msg.eloc_id);
+                    // 12-step ELOC state changed — refresh shares and pricing workflows section
+                    console.log('[Dashboard] 12-step ELOC %s changed — refreshing shares and workflows', msg.eloc_id);
                     pollSharesAvailable();
+                    loadPricingWorkflows();
                 }
             } catch (e) {
                 console.warn('[Dashboard] Workflows WS parse error:', e);
