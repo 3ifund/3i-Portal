@@ -163,18 +163,11 @@ def _build_workflow_message(state: dict, source: str = "dts") -> dict:
 
 
 async def _send_initial_state(company_id: int, ws: WebSocket):
-    """Send all included workflows (DTS + portal) to a newly connected browser client."""
+    """Send Portal-initiated workflows to a newly connected browser client.
+    12-step ELOCs are not sent as workflow cards — they only affect shares available blocking."""
     count = 0
 
-    # DTS upstream workflows
-    states = await onprem.get_included_eloc_states()
-    for state in states:
-        if state.get("companyId") == company_id:
-            message = _build_workflow_message(state, source="dts")
-            await ws.send_text(json.dumps(message))
-            count += 1
-
-    # Portal-initiated workflows
+    # Portal-initiated workflows only
     try:
         portal_states = await onprem.get_portal_eloc_states_included()
         for state in portal_states:
@@ -198,15 +191,7 @@ async def _resync_all_clients():
 
     logger.info("DTS WS: resyncing all connected clients (%d companies)", len(_connections))
 
-    # DTS upstream workflows
-    states = await onprem.get_included_eloc_states()
-    for state in states:
-        company_id = state.get("companyId")
-        if company_id and company_id in _connections:
-            message = _build_workflow_message(state, source="dts")
-            await _broadcast(company_id, message)
-
-    # Portal-initiated workflows
+    # Portal-initiated workflows only — 12-step ELOCs are not workflow cards
     try:
         portal_states = await onprem.get_portal_eloc_states_included()
         for state in portal_states:
