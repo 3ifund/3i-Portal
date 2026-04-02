@@ -67,7 +67,15 @@ async def ensure_approval_tables() -> None:
         END $$;
     """)
     await pool.execute("""
-        ALTER TABLE approval_tokens ALTER COLUMN payload_json DROP NOT NULL
+        DO $$
+        BEGIN
+            IF EXISTS (
+                SELECT 1 FROM information_schema.columns
+                WHERE table_name = 'approval_tokens' AND column_name = 'payload_json'
+            ) THEN
+                ALTER TABLE approval_tokens ALTER COLUMN payload_json DROP NOT NULL;
+            END IF;
+        END $$;
     """)
     logger.info("approval_tokens table ensured (with eloc_id column)")
 
@@ -177,9 +185,11 @@ async def get_all_company_verifications() -> list[dict]:
     logger.debug("get_all_company_verifications() — querying companies with verification settings")
     pool = get_pool()
     rows = await pool.fetch("""
-        SELECT c.company_id, c.symbol, c.name,
+        SELECT DISTINCT c.company_id, c.symbol, c.name,
                COALESCE(v.require_verification, FALSE) AS require_verification
         FROM company c
+        INNER JOIN eloc_deal d ON c.company_id = d.company_id
+            AND d.expiration_date >= CURRENT_DATE
         LEFT JOIN company_verification_settings v ON c.company_id = v.company_id
         ORDER BY c.name
     """)
