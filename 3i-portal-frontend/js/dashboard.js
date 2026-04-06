@@ -371,27 +371,46 @@ const Dashboard = (() => {
 
     // ---- Pricing Workflows ----
 
+    // In-memory map of eloc_id → workflow data. Single source of truth
+    // shared by both REST loads and WebSocket updates to prevent duplicates.
+    const _workflowMap = new Map();
+
+    /**
+     * Re-render all workflow cards from _workflowMap.
+     */
+    function _renderAllWorkflows() {
+        const container = document.getElementById('pricing-elocs-container');
+        const empty = document.getElementById('pricing-empty');
+
+        container.querySelectorAll('.workflow-container').forEach((c) => c.remove());
+
+        _workflowMap.forEach((wf) => {
+            container.appendChild(renderWorkflowCard(wf));
+        });
+
+        const hasCards = _workflowMap.size > 0;
+        const hasExternal = container.querySelector('.external-eloc-row') !== null;
+        empty.style.display = (hasCards || hasExternal) ? 'none' : 'block';
+    }
+
     /**
      * Load workflow states for ELOCs currently pricing.
      */
     async function loadPricingWorkflows() {
         console.log('[Dashboard] Loading pricing workflows...');
         const container = document.getElementById('pricing-elocs-container');
-        const empty = document.getElementById('pricing-empty');
 
         try {
             const workflows = await API.getPricingWorkflows();
             console.log('[Dashboard] Loaded %d pricing workflows', workflows?.length || 0);
 
-            // Remove existing workflow cards and status rows before rendering
-            container.querySelectorAll('.workflow-container, .external-eloc-row').forEach((c) => c.remove());
+            // Remove external ELOC status rows before re-checking
+            container.querySelectorAll('.external-eloc-row').forEach((c) => c.remove());
 
             // Check for 12-step ELOCs via shares available (cross-workflow blocking)
-            let hasExternalEloc = false;
             try {
                 const sharesData = await API.getSharesAvailable();
                 if (sharesData && sharesData.hasPendingEloc && sharesData.pendingElocId) {
-                    hasExternalEloc = true;
                     const row = document.createElement('div');
                     row.className = 'external-eloc-row';
                     row.style.cssText = 'background:#1a3a1a; border:1px solid #2d5a2d; border-radius:8px; padding:12px 16px; margin-bottom:8px; display:flex; align-items:center; gap:10px;';
@@ -407,17 +426,14 @@ const Dashboard = (() => {
                 console.warn('[Dashboard] Could not check for external ELOCs:', sharesErr.message);
             }
 
-            if ((!workflows || workflows.length === 0) && !hasExternalEloc) {
-                empty.style.display = 'block';
-                return;
-            }
-
-            empty.style.display = 'none';
+            // Merge REST results into the shared map
             if (workflows) {
                 workflows.forEach((wf) => {
-                    container.appendChild(renderWorkflowCard(wf));
+                    _workflowMap.set(wf.eloc_id, wf);
                 });
             }
+
+            _renderAllWorkflows();
         } catch (err) {
             console.warn('[Dashboard] Pricing workflows load failed:', err.message);
         }
@@ -519,16 +535,15 @@ const Dashboard = (() => {
      * Update or add a workflow card from a WebSocket message.
      */
     function handleWorkflowUpdate(workflow) {
+        _workflowMap.set(workflow.eloc_id, workflow);
+
         const container = document.getElementById('pricing-elocs-container');
         const empty = document.getElementById('pricing-empty');
         const existing = container.querySelector(`.workflow-container[data-eloc-id="${workflow.eloc_id}"]`);
 
         if (existing) {
-            // Replace existing card
-            const newCard = renderWorkflowCard(workflow);
-            existing.replaceWith(newCard);
+            existing.replaceWith(renderWorkflowCard(workflow));
         } else {
-            // Add new card
             empty.style.display = 'none';
             container.appendChild(renderWorkflowCard(workflow));
         }
@@ -538,13 +553,16 @@ const Dashboard = (() => {
      * Remove a workflow card from the dashboard.
      */
     function handleWorkflowRemoved(elocId) {
+        _workflowMap.delete(elocId);
+
         const container = document.getElementById('pricing-elocs-container');
         const card = container.querySelector(`.workflow-container[data-eloc-id="${elocId}"]`);
         if (card) {
             card.remove();
         }
-        const remaining = container.querySelectorAll('.workflow-container');
-        if (remaining.length === 0) {
+        const hasCards = _workflowMap.size > 0;
+        const hasExternal = container.querySelector('.external-eloc-row') !== null;
+        if (!hasCards && !hasExternal) {
             document.getElementById('pricing-empty').style.display = 'block';
         }
     }
