@@ -38,6 +38,15 @@ async def ensure_countersign_tables() -> None:
     """)
     logger.info("countersign_tokens table ensured")
 
+    await pool.execute("""
+        CREATE TABLE IF NOT EXISTS company_countersign_settings (
+            company_id              INTEGER     PRIMARY KEY REFERENCES company(company_id),
+            enable_countersign_sms  BOOLEAN     NOT NULL DEFAULT FALSE,
+            updated_at              TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )
+    """)
+    logger.info("company_countersign_settings table ensured")
+
 
 # ---- Token CRUD ----
 
@@ -160,3 +169,52 @@ async def has_pending_countersign(eloc_id: str) -> bool:
     exists = row is not None
     logger.debug("has_pending_countersign — eloc_id=%s, exists=%s", eloc_id, exists)
     return exists
+
+
+# ---- Company Countersign SMS Settings ----
+
+async def get_countersign_sms_enabled(company_id: int) -> bool:
+    """Check if countersign SMS is enabled for a company."""
+    logger.debug("get_countersign_sms_enabled(company_id=%d)", company_id)
+    pool = get_pool()
+    row = await pool.fetchrow(
+        "SELECT enable_countersign_sms FROM company_countersign_settings WHERE company_id = $1",
+        company_id,
+    )
+    result = row["enable_countersign_sms"] if row else False
+    logger.debug("get_countersign_sms_enabled(company_id=%d) — row_found=%s, enabled=%s",
+                 company_id, row is not None, result)
+    return result
+
+
+async def set_countersign_sms_enabled(company_id: int, enabled: bool) -> None:
+    """Set whether countersign SMS is enabled for a company (upsert)."""
+    logger.info("set_countersign_sms_enabled(company_id=%d, enabled=%s)", company_id, enabled)
+    pool = get_pool()
+    await pool.execute("""
+        INSERT INTO company_countersign_settings (company_id, enable_countersign_sms, updated_at)
+        VALUES ($1, $2, NOW())
+        ON CONFLICT (company_id) DO UPDATE SET enable_countersign_sms = $2, updated_at = NOW()
+    """, company_id, enabled)
+    logger.info("set_countersign_sms_enabled(company_id=%d, enabled=%s) — upserted",
+                company_id, enabled)
+
+
+async def get_all_countersign_settings() -> list[dict]:
+    """List all companies with active ELOC deals and their countersign SMS settings."""
+    logger.debug("get_all_countersign_settings() — querying companies with countersign settings")
+    pool = get_pool()
+    rows = await pool.fetch("""
+        SELECT DISTINCT c.company_id, c.symbol, c.name,
+               COALESCE(cs.enable_countersign_sms, FALSE) AS enable_countersign_sms
+        FROM company c
+        INNER JOIN eloc_deal d ON c.company_id = d.company_id
+            AND d.expiration_date >= CURRENT_DATE
+        LEFT JOIN company_countersign_settings cs ON c.company_id = cs.company_id
+        ORDER BY c.name
+    """)
+    results = [dict(r) for r in rows]
+    enabled_count = sum(1 for r in results if r["enable_countersign_sms"])
+    logger.debug("get_all_countersign_settings() — %d companies, %d with countersign SMS enabled",
+                 len(results), enabled_count)
+    return results

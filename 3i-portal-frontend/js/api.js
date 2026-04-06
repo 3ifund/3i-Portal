@@ -513,6 +513,24 @@ const API = (() => {
         return handleResponse(response);
     }
 
+    // --- Admin Countersign SMS Settings ---
+
+    async function adminGetCountersignSettings() {
+        const response = await fetch(`${BASE_URL}/admin/countersign-settings`, {
+            headers: authHeaders(),
+        });
+        return handleResponse(response);
+    }
+
+    async function adminSetCountersignSms(companyId, enable_countersign_sms) {
+        const response = await fetch(`${BASE_URL}/admin/countersign-settings/${companyId}`, {
+            method: 'PUT',
+            headers: authHeaders(),
+            body: JSON.stringify({ enable_countersign_sms }),
+        });
+        return handleResponse(response);
+    }
+
     return {
         login,
         getMe,
@@ -560,5 +578,7 @@ const API = (() => {
         adminSetContactInclude,
         adminGetCompanyVerifications,
         adminSetCompanyVerification,
+        adminGetCountersignSettings,
+        adminSetCountersignSms,
     };
 })();

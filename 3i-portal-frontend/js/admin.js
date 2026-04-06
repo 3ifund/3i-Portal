@@ -1256,6 +1256,51 @@ const Admin = (() => {
         }
     }
 
+    async function loadCountersignSettings() {
+        const loading = document.getElementById('countersign-settings-loading');
+        const table = document.getElementById('countersign-settings-table');
+        const tbody = document.getElementById('countersign-settings-tbody');
+
+        loading.style.display = 'flex';
+        table.style.display = 'none';
+
+        try {
+            const companies = await API.adminGetCountersignSettings();
+            loading.style.display = 'none';
+
+            if (!companies || companies.length === 0) {
+                return;
+            }
+
+            tbody.innerHTML = '';
+            companies.forEach((c) => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${escapeHtml(c.name)}</td>
+                    <td>${escapeHtml(c.symbol)}</td>
+                    <td><input type="checkbox" class="countersign-sms-cb" data-id="${c.company_id}" ${c.enable_countersign_sms ? 'checked' : ''}></td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            // Bind countersign SMS checkboxes
+            tbody.querySelectorAll('.countersign-sms-cb').forEach((cb) => {
+                cb.addEventListener('change', async () => {
+                    try {
+                        await API.adminSetCountersignSms(parseInt(cb.dataset.id), cb.checked);
+                    } catch (err) {
+                        alert('Failed to update: ' + (err.message || err));
+                        cb.checked = !cb.checked;
+                    }
+                });
+            });
+
+            table.style.display = '';
+        } catch (err) {
+            loading.style.display = 'none';
+        }
+    }
+
     function openContactModal(contactId, contacts) {
         editingContactId = contactId;
         const titleEl = document.getElementById('contact-modal-title');
@@ -1362,6 +1407,7 @@ const Admin = (() => {
 
         loadApprovalContacts();
         loadCompanyVerifications();
+        loadCountersignSettings();
     }
 
     // ---- Utilities ----

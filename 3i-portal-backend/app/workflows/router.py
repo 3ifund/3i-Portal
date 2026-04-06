@@ -348,7 +348,7 @@ async def _handle_state_changed(msg: dict):
 
 async def _trigger_countersign_sms(eloc_id: str, state: dict):
     """Send SMS countersign links to company signatories with phone numbers."""
-    from app.countersign.repository import has_pending_countersign, create_countersign_token
+    from app.countersign.repository import has_pending_countersign, create_countersign_token, get_countersign_sms_enabled
     from app.countersign.sms import send_countersign_sms
     from app.purchase_notices.pg_repository import get_company_signatories
 
@@ -361,6 +361,13 @@ async def _trigger_countersign_sms(eloc_id: str, state: dict):
     company_name = state.get("companyName", "")
     if not company_id:
         logger.warning("No companyId in state for countersign SMS: %s", eloc_id)
+        return
+
+    # Check if countersign SMS is enabled for this company
+    sms_enabled = await get_countersign_sms_enabled(int(company_id))
+    if not sms_enabled:
+        logger.info("Countersign SMS not enabled for company %s (%s), skipping SMS",
+                     company_id, company_name)
         return
 
     # Get signatories with phone numbers

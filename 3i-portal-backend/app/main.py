@@ -28,6 +28,7 @@ from app.approval.repository import ensure_approval_tables
 from app.purchase_notices.pg_repository import ensure_company_signatories_table
 from app.countersign.repository import ensure_countersign_tables
 from app.countersign.router import router as countersign_router
+from app.countersign.admin_router import router as countersign_admin_router
 
 # Initialize logging before anything else
 setup_logging()
@@ -110,6 +111,7 @@ app.include_router(workflows_router, prefix="/ws", tags=["workflows"])
 app.include_router(approval_router, tags=["approval"])
 app.include_router(approval_admin_router, prefix="/admin", tags=["admin-approval"])
 app.include_router(countersign_router, tags=["countersign"])
+app.include_router(countersign_admin_router, prefix="/admin", tags=["admin-countersign"])
 
 
 @app.get("/health")
