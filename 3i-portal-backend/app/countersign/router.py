@@ -128,11 +128,16 @@ async def countersign_page(token: str):
     total_price = _fmt_currency(eloc_data.get("dollar_amount_calculated"))
 
     # 6. Firm signature (already signed during purchase notice submission)
+    #    DTS stores the signature image as raw base64 (no data URI prefix).
     firm_name = eloc_data.get("firm_signatory_name", "")
     firm_title = eloc_data.get("firm_signatory_title", "")
     firm_address = eloc_data.get("firm_signatory_address", "")
     firm_email = eloc_data.get("firm_signatory_email", "")
     firm_sig_image = eloc_data.get("firm_signatory_signature_image", "")
+    if firm_sig_image and not firm_sig_image.startswith("data:"):
+        firm_sig_image = f"data:image/png;base64,{firm_sig_image}"
+        logger.info("Countersign page %s: added data URI prefix to firm signature image", eloc_id)
+    logger.debug("Countersign page %s: firm_sig name=%s, has_image=%s", eloc_id, firm_name, bool(firm_sig_image))
 
     # To / Email from eloc_data
     to_name = eloc_data.get("company_signatory_name", signatory_name)

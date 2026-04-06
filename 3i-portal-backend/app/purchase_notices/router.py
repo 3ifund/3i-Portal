@@ -292,12 +292,21 @@ async def get_confirmation_prefill(
     agreed_accepted_entity = template.get("agreed_accepted_entity", company_name) if template else company_name
 
     # 3. Firm signature already stored in eloc_data from purchase notice submission
+    #    DTS stores the signature image as raw base64 (no data URI prefix).
+    #    The frontend needs a full data URI for <img> src rendering.
+    firm_sig_image = eloc_data.get("firm_signatory_signature_image") or ""
+    if firm_sig_image and not firm_sig_image.startswith("data:"):
+        firm_sig_image = f"data:image/png;base64,{firm_sig_image}"
+        logger.info("Confirmation prefill %s: added data URI prefix to firm signature image", eloc_id)
+    logger.debug("Confirmation prefill %s: firm_sig name=%s, has_image=%s",
+                 eloc_id, eloc_data.get("firm_signatory_name", ""), bool(firm_sig_image))
+
     firm_signature = {
         "name": eloc_data.get("firm_signatory_name", ""),
         "title": eloc_data.get("firm_signatory_title", ""),
         "address": eloc_data.get("firm_signatory_address", ""),
         "email": eloc_data.get("firm_signatory_email", ""),
-        "signature_image": eloc_data.get("firm_signatory_signature_image"),
+        "signature_image": firm_sig_image,
     }
 
     # 4. Load company signatories from PostgreSQL
