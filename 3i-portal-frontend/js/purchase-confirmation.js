@@ -224,10 +224,14 @@
         acceptBtn.disabled = true;
 
         // Replace elements to remove old event listeners
+        const newAcceptBtn = acceptBtn.cloneNode(true);
+        acceptBtn.parentNode.replaceChild(newAcceptBtn, acceptBtn);
+        newAcceptBtn.addEventListener('click', handleCountersign);
+
         const newCheckbox = checkbox.cloneNode(true);
         checkbox.parentNode.replaceChild(newCheckbox, checkbox);
         newCheckbox.addEventListener('change', () => {
-            acceptBtn.disabled = !newCheckbox.checked;
+            newAcceptBtn.disabled = !newCheckbox.checked;
         });
 
         const cancelBtn = document.getElementById('pc-confirm-cancel');
@@ -236,10 +240,6 @@
         newCancelBtn.addEventListener('click', () => {
             overlay.style.display = 'none';
         });
-
-        const newAcceptBtn = acceptBtn.cloneNode(true);
-        acceptBtn.parentNode.replaceChild(newAcceptBtn, acceptBtn);
-        newAcceptBtn.addEventListener('click', handleCountersign);
     }
 
     // ---- Submit Countersign ----
