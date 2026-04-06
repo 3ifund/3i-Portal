@@ -279,7 +279,6 @@ const Dashboard = (() => {
     function initTabs() {
         const tabs = document.querySelectorAll('.tab');
         const activePanel = document.getElementById('active-elocs-panel');
-        const historyPanel = document.getElementById('history-elocs-panel');
         const actionsPanel = document.getElementById('actions-panel');
 
         tabs.forEach((tab) => {
@@ -289,7 +288,6 @@ const Dashboard = (() => {
 
                 const target = tab.getAttribute('data-tab');
                 activePanel.style.display = target === 'active' ? 'block' : 'none';
-                historyPanel.style.display = target === 'history' ? 'block' : 'none';
                 actionsPanel.style.display = target === 'actions' ? 'block' : 'none';
             });
         });
@@ -410,7 +408,8 @@ const Dashboard = (() => {
             // Check for 12-step ELOCs via shares available (cross-workflow blocking)
             try {
                 const sharesData = await API.getSharesAvailable();
-                if (sharesData && sharesData.hasPendingEloc && sharesData.pendingElocId) {
+                if (sharesData && sharesData.hasPendingEloc && sharesData.pendingElocId
+                    && !_workflowMap.has(sharesData.pendingElocId)) {
                     const row = document.createElement('div');
                     row.className = 'external-eloc-row';
                     row.style.cssText = 'background:#1a3a1a; border:1px solid #2d5a2d; border-radius:8px; padding:12px 16px; margin-bottom:8px; display:flex; align-items:center; gap:10px;';
@@ -1027,7 +1026,6 @@ const Dashboard = (() => {
         console.log('[Dashboard] Initializing...');
         initTabs();
         loadElocs('active', 'active-elocs-grid', 'active-loading', 'active-empty');
-        loadElocs('history', 'history-elocs-grid', 'history-loading', 'history-empty');
 
         // Load pricing workflows
         loadPricingWorkflows();
