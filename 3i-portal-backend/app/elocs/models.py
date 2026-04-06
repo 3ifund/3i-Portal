@@ -2,10 +2,13 @@
 3i Fund Portal — ELOC Schemas
 """
 
+import logging
 from enum import Enum
 
 from pydantic import BaseModel
 from datetime import date, time
+
+logger = logging.getLogger("portal.elocs.models")
 
 
 # ---- Workflow Enums ----
@@ -46,6 +49,14 @@ WORKFLOW_STEP_LABELS = {
     WorkflowStepEnum.VwapNotificationToPrimeBroker: "VWAP Notification to Prime Broker",
 }
 
+# Steps visible to the client UI (internal/auto-processed steps are hidden)
+CLIENT_VISIBLE_STEPS = {
+    WorkflowStepEnum.SignedContractToCompany,
+    WorkflowStepEnum.FinalVwapPricingCalculated,
+    WorkflowStepEnum.VwapNotificationToCompany,
+    WorkflowStepEnum.ReceivedCountersignedVwapNotification,
+}
+
 
 def build_workflow_steps(current_step: str, step_status: str) -> tuple[list[dict], bool]:
     """
@@ -57,6 +68,8 @@ def build_workflow_steps(current_step: str, step_status: str) -> tuple[list[dict
     - current_step → step_status value (Pending/InProgress/Completed/Rejected/Failed)
     - Steps after current_step → "Awaiting" (not started)
     - can_remove = True if Rejected/Failed OR (last step AND Completed)
+    - Only client-visible steps are included in the returned list;
+      hidden steps inherit their status to the next visible step.
     """
     try:
         current_idx = WORKFLOW_STEPS_ORDERED.index(WorkflowStepEnum(current_step))
@@ -64,8 +77,9 @@ def build_workflow_steps(current_step: str, step_status: str) -> tuple[list[dict
         current_idx = -1
 
     last_idx = len(WORKFLOW_STEPS_ORDERED) - 1
-    steps = []
 
+    # Build full status for all 8 steps
+    all_steps = []
     for i, step in enumerate(WORKFLOW_STEPS_ORDERED):
         if i < current_idx:
             status = WorkflowStepState.Completed.value
@@ -73,17 +87,43 @@ def build_workflow_steps(current_step: str, step_status: str) -> tuple[list[dict
             status = step_status
         else:
             status = "Awaiting"
+        all_steps.append((step, status))
+
+    # Filter to client-visible steps only.
+    # A visible step's status is the latest status from itself and any
+    # hidden steps that follow it (before the next visible step).
+    steps = []
+    for i, (step, status) in enumerate(all_steps):
+        if step not in CLIENT_VISIBLE_STEPS:
+            continue
+
+        # Check if any hidden steps after this one (before the next visible step)
+        # have a non-Completed status — if so, this visible step inherits that status.
+        effective_status = status
+        for j in range(i + 1, len(all_steps)):
+            next_step, next_status = all_steps[j]
+            if next_step in CLIENT_VISIBLE_STEPS:
+                break
+            # If the current visible step is Completed but a hidden step after it
+            # is still processing, show the hidden step's status instead
+            if effective_status == WorkflowStepState.Completed.value and next_status != WorkflowStepState.Completed.value:
+                logger.debug("build_workflow_steps: %s inherits status %s from hidden step %s",
+                             step.value, next_status, next_step.value)
+                effective_status = next_status
 
         steps.append({
             "key": step.value,
             "label": WORKFLOW_STEP_LABELS[step],
-            "status": status,
+            "status": effective_status,
         })
 
     can_remove = (
         step_status in (WorkflowStepState.Rejected.value, WorkflowStepState.Failed.value)
         or (current_idx == last_idx and step_status == WorkflowStepState.Completed.value)
     )
+
+    logger.debug("build_workflow_steps: current=%s/%s → %d visible steps, can_remove=%s",
+                 current_step, step_status, len(steps), can_remove)
 
     return steps, can_remove
 
