@@ -327,6 +327,11 @@ async def _handle_state_changed(msg: dict):
         await _handle_eloc_removed({"elocId": eloc_id})
         return
 
+    # Check if hidden from client UI
+    if state.get("workflowVisible") is False:
+        logger.info("DTS WS: state_changed for hidden ELOC %s — suppressing broadcast", eloc_id)
+        return
+
     # Only broadcast Portal-initiated workflows as workflow cards.
     # 12-step (DTS) ELOCs are managed in PRM — Portal clients only need
     # to know they exist for the "ELOC Currently Pricing" blocking check.
