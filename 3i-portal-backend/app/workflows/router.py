@@ -172,6 +172,9 @@ async def _send_initial_state(company_id: int, ws: WebSocket):
         portal_states = await onprem.get_portal_eloc_states_included()
         for state in portal_states:
             if state.get("companyId") == company_id:
+                if state.get("workflowVisible") is False:
+                    logger.debug("WS /workflows: skipping hidden ELOC %s", state.get("elocId"))
+                    continue
                 message = _build_workflow_message(state, source="portal")
                 await ws.send_text(json.dumps(message))
                 count += 1
@@ -195,6 +198,8 @@ async def _resync_all_clients():
     try:
         portal_states = await onprem.get_portal_eloc_states_included()
         for state in portal_states:
+            if state.get("workflowVisible") is False:
+                continue
             company_id = state.get("companyId")
             if company_id and company_id in _connections:
                 message = _build_workflow_message(state, source="portal")
@@ -265,6 +270,8 @@ async def connect_dealterms_ws():
                     await _handle_eloc_added(msg)
                 elif msg_type == "eloc_removed":
                     await _handle_eloc_removed(msg)
+                elif msg_type == "eloc_hidden":
+                    await _handle_eloc_hidden(msg)
                 # Ignore: welcome, identified, pong, lock_changed, lock_result, etc.
 
             # If we get here, the DTS WebSocket closed
@@ -456,3 +463,35 @@ async def _handle_eloc_removed(msg: dict):
                 "type": "workflow_removed",
                 "eloc_id": eloc_id,
             })
+
+
+async def _handle_eloc_hidden(msg: dict):
+    """
+    Handle eloc_hidden from DealTermsServer.
+    Client clicked Remove — hide from Portal UI only (workflow continues).
+    Broadcast workflow_removed to browser clients so the card disappears.
+    """
+    eloc_id = msg.get("elocId", "")
+    company_id = msg.get("companyId")
+    logger.info("DTS WS: eloc_hidden eloc_id=%s company_id=%s", eloc_id, company_id)
+
+    if company_id:
+        await _broadcast(int(company_id), {
+            "type": "workflow_removed",
+            "eloc_id": eloc_id,
+        })
+    else:
+        # Try cached mapping
+        cached_company_id = _eloc_company_map.get(eloc_id)
+        if cached_company_id:
+            await _broadcast(cached_company_id, {
+                "type": "workflow_removed",
+                "eloc_id": eloc_id,
+            })
+        else:
+            logger.warning("DTS WS: no company_id for hidden eloc_id=%s, broadcasting to all", eloc_id)
+            for cid in list(_connections.keys()):
+                await _broadcast(cid, {
+                    "type": "workflow_removed",
+                    "eloc_id": eloc_id,
+                })

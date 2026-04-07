@@ -107,6 +107,21 @@ async def exclude_eloc(eloc_id: str) -> bool:
     return response.is_success
 
 
+async def hide_portal_eloc(eloc_id: str) -> bool:
+    """
+    POST /api/portal/eloc/states/{elocId}/hide — hide ELOC from client Portal UI.
+    Sets workflow_visible=false in MongoDB. Cosmetic only — workflow continues.
+    """
+    logger.info("POST /api/portal/eloc/states/%s/hide", eloc_id)
+    response = await _request_with_retry("POST", f"/api/portal/eloc/states/{eloc_id}/hide")
+    logger.info("  → %s (%d bytes)", response.status_code, len(response.content))
+    if response.is_success:
+        logger.info("  ELOC %s hidden from client Portal UI", eloc_id)
+    else:
+        logger.warning("  Hide failed for ELOC %s: %s", eloc_id, response.text[:200])
+    return response.is_success
+
+
 async def get_all_eloc_states() -> list[dict]:
     """
     GET /api/eloc/states — all ELOC workflow states (admin view).

@@ -301,6 +301,11 @@ async def get_pricing_workflows(company_id: int) -> list[dict]:
             if state.get("companyId") != company_id:
                 continue
 
+            # Skip ELOCs hidden from client UI (workflow_visible=false)
+            if state.get("workflowVisible") is False:
+                logger.debug("  Skipping hidden ELOC %s (workflow_visible=false)", state.get("elocId"))
+                continue
+
             workflow_step = state.get("workflowStep", "")
             status = state.get("status", "Pending")
             steps, can_remove = build_workflow_steps(workflow_step, status)
@@ -324,15 +329,15 @@ async def get_pricing_workflows(company_id: int) -> list[dict]:
 
 async def remove_pricing_workflow(eloc_id: str, company_id: int) -> bool:
     """
-    Exclude an ELOC from the workflow via DealTermsServer.
-    DealTermsServer handles the removal logic and validation.
+    Hide an ELOC from the client Portal UI via DealTermsServer.
+    Sets workflow_visible=false — cosmetic only, workflow continues.
     """
-    logger.info("remove_pricing_workflow eloc_id=%s company_id=%s", eloc_id, company_id)
-    success = await onprem.exclude_eloc(eloc_id)
+    logger.info("remove_pricing_workflow (hide) eloc_id=%s company_id=%s", eloc_id, company_id)
+    success = await onprem.hide_portal_eloc(eloc_id)
     if success:
-        logger.info("  Excluded eloc_id=%s", eloc_id)
+        logger.info("  Hidden eloc_id=%s from client Portal UI", eloc_id)
     else:
-        logger.warning("  Exclude failed for eloc_id=%s", eloc_id)
+        logger.warning("  Hide failed for eloc_id=%s", eloc_id)
     return success
 
 
