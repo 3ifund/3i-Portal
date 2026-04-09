@@ -121,17 +121,22 @@ async def countersign_page(token: str):
             "{{valuation_period_start}}": eloc_data.get("valuation_period_start", ""),
             "{{valuation_period_end}}": eloc_data.get("valuation_period_end", ""),
             "{{settlement_date}}": eloc_data.get("settlement_date", ""),
-            "{{vwap_purchase_price}}": _fmt_currency(vwap_price_val),
+            "{{vwap_purchase_price}}": f"${float(vwap_price_val):,.6f}" if vwap_price_val else "",
             "{{dollar_amount_calculated}}": _fmt_currency(total_val),
         }
-        logger.info("Countersign page %s: substituting %d placeholder tags in body_text",
-                     eloc_id, sum(1 for t in tag_values if t in body_text))
+        logger.info("Countersign page %s: body_text contains '{{' — scanning for placeholder tags", eloc_id)
+        logger.info("Countersign page %s: available tag values: %s",
+                     eloc_id, {k: v for k, v in tag_values.items() if v})
+        tag_count = sum(1 for t in tag_values if t in body_text)
+        logger.info("Countersign page %s: found %d placeholder tag(s) to substitute", eloc_id, tag_count)
         for tag, value in tag_values.items():
             if tag in body_text:
-                logger.info("  Substituting %s → %s", tag, value)
+                logger.info("Countersign page %s: substituting %s → '%s'", eloc_id, tag, value)
                 body_text = body_text.replace(tag, value)
+        logger.info("Countersign page %s: body_text substitution complete", eloc_id)
     else:
-        logger.debug("Countersign page %s: no placeholder tags in body_text", eloc_id)
+        logger.info("Countersign page %s: no placeholder tags in body_text (length=%d)",
+                     eloc_id, len(body_text) if body_text else 0)
 
     # 4. Load signatory details from PostgreSQL
     from app.purchase_notices.pg_repository import get_company_signatories

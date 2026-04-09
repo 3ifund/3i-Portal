@@ -306,14 +306,19 @@ async def get_confirmation_prefill(
             "{{vwap_purchase_price}}": f"${float(vwap_price_val):,.6f}" if vwap_price_val else "",
             "{{dollar_amount_calculated}}": f"${float(total_val):,.2f}" if total_val else "",
         }
-        logger.info("Confirmation prefill %s: substituting %d placeholder tags in body_text",
-                     eloc_id, sum(1 for t in tag_values if t in body_text))
+        logger.info("Confirmation prefill %s: body_text contains '{{' — scanning for placeholder tags", eloc_id)
+        logger.info("Confirmation prefill %s: available tag values: %s",
+                     eloc_id, {k: v for k, v in tag_values.items() if v})
+        tag_count = sum(1 for t in tag_values if t in body_text)
+        logger.info("Confirmation prefill %s: found %d placeholder tag(s) to substitute", eloc_id, tag_count)
         for tag, value in tag_values.items():
             if tag in body_text:
-                logger.info("  Substituting %s → %s", tag, value)
+                logger.info("Confirmation prefill %s: substituting %s → '%s'", eloc_id, tag, value)
                 body_text = body_text.replace(tag, value)
+        logger.info("Confirmation prefill %s: body_text substitution complete", eloc_id)
     else:
-        logger.debug("Confirmation prefill %s: no placeholder tags in body_text", eloc_id)
+        logger.info("Confirmation prefill %s: no placeholder tags in body_text (length=%d)",
+                     eloc_id, len(body_text) if body_text else 0)
 
     # 3. Firm signature already stored in eloc_data from purchase notice submission
     #    DTS stores the signature image as raw base64 (no data URI prefix).
