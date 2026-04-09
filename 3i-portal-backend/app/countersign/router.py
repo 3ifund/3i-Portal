@@ -109,6 +109,30 @@ async def countersign_page(token: str):
     body_text = template.get("body_text", "") if template else ""
     agreed_entity = template.get("agreed_accepted_entity", company_name) if template else company_name
 
+    # 3b. Substitute placeholder tags in body_text with ELOC values
+    if body_text and "{{" in body_text:
+        shares_val = eloc_data.get("shares", 0)
+        vwap_price_val = eloc_data.get("vwap_purchase_price")
+        total_val = eloc_data.get("dollar_amount_calculated")
+
+        tag_values = {
+            "{{shares}}": f"{int(shares_val):,}" if shares_val else "",
+            "{{exercise_date}}": eloc_data.get("exercise_date", ""),
+            "{{valuation_period_start}}": eloc_data.get("valuation_period_start", ""),
+            "{{valuation_period_end}}": eloc_data.get("valuation_period_end", ""),
+            "{{settlement_date}}": eloc_data.get("settlement_date", ""),
+            "{{vwap_purchase_price}}": _fmt_currency(vwap_price_val),
+            "{{dollar_amount_calculated}}": _fmt_currency(total_val),
+        }
+        logger.info("Countersign page %s: substituting %d placeholder tags in body_text",
+                     eloc_id, sum(1 for t in tag_values if t in body_text))
+        for tag, value in tag_values.items():
+            if tag in body_text:
+                logger.info("  Substituting %s → %s", tag, value)
+                body_text = body_text.replace(tag, value)
+    else:
+        logger.debug("Countersign page %s: no placeholder tags in body_text", eloc_id)
+
     # 4. Load signatory details from PostgreSQL
     from app.purchase_notices.pg_repository import get_company_signatories
     signatories = await get_company_signatories(company_id) if company_id else []

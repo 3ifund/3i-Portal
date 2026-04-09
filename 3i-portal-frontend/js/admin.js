@@ -846,6 +846,119 @@ const Admin = (() => {
         });
     }
 
+    // ---- Confirmation Template Placeholder Detection ----
+
+    const PLACEHOLDER_FIELDS = [
+        { tag: '{{shares}}', label: 'VWAP Purchase Share Amount (number of Shares)' },
+        { tag: '{{exercise_date}}', label: 'VWAP Purchase Exercise Date' },
+        { tag: '{{valuation_period_start}}', label: 'Valuation Period start date' },
+        { tag: '{{valuation_period_end}}', label: 'Valuation Period end date' },
+        { tag: '{{settlement_date}}', label: 'VWAP Purchase Settlement Date' },
+        { tag: '{{vwap_purchase_price}}', label: 'VWAP Purchase Price (per Share)' },
+        { tag: '{{dollar_amount_calculated}}', label: 'Aggregate VWAP Purchase Price' },
+    ];
+
+    /**
+     * Scan body text for underscore sequences (blanks) and existing {{tags}}.
+     * Returns array of { index, length, currentTag } for each placeholder found.
+     */
+    function detectPlaceholders(text) {
+        const placeholders = [];
+        // Match underscore sequences (3+) or existing {{tag}} placeholders
+        const regex = /_{3,}|\{\{[a-z_]+\}\}/g;
+        let match;
+        while ((match = regex.exec(text)) !== null) {
+            const isTag = match[0].startsWith('{{');
+            placeholders.push({
+                index: match.index,
+                length: match[0].length,
+                raw: match[0],
+                currentTag: isTag ? match[0] : null,
+            });
+        }
+        return placeholders;
+    }
+
+    /**
+     * Render placeholder dropdowns below the body text textarea.
+     */
+    function renderPlaceholderDropdowns() {
+        const bodyText = document.getElementById('confirm-template-body-text');
+        const container = document.getElementById('confirm-template-placeholders');
+        const text = bodyText.value;
+        const placeholders = detectPlaceholders(text);
+
+        container.innerHTML = '';
+        if (placeholders.length === 0) return;
+
+        const heading = document.createElement('p');
+        heading.style.cssText = 'font-size:0.85rem; font-weight:600; color:var(--text-secondary); margin-bottom:0.5rem;';
+        heading.textContent = `${placeholders.length} placeholder(s) detected — assign fields:`;
+        container.appendChild(heading);
+
+        placeholders.forEach((ph, idx) => {
+            const row = document.createElement('div');
+            row.style.cssText = 'display:flex; align-items:center; gap:0.5rem; margin-bottom:0.4rem;';
+
+            // Context preview: show surrounding text
+            const contextStart = Math.max(0, ph.index - 20);
+            const contextEnd = Math.min(text.length, ph.index + ph.length + 20);
+            const before = text.substring(contextStart, ph.index).replace(/\n/g, ' ');
+            const after = text.substring(ph.index + ph.length, contextEnd).replace(/\n/g, ' ');
+
+            const label = document.createElement('span');
+            label.style.cssText = 'font-size:0.8rem; color:var(--text-secondary); min-width:200px; font-family:monospace;';
+            label.textContent = `...${before}[___]${after}...`;
+
+            const select = document.createElement('select');
+            select.className = 'form-input';
+            select.style.cssText = 'font-size:0.85rem; padding:4px 8px; max-width:320px;';
+            select.dataset.placeholderIndex = idx;
+
+            const emptyOpt = document.createElement('option');
+            emptyOpt.value = '';
+            emptyOpt.textContent = '-- Select field --';
+            select.appendChild(emptyOpt);
+
+            PLACEHOLDER_FIELDS.forEach((f) => {
+                const opt = document.createElement('option');
+                opt.value = f.tag;
+                opt.textContent = f.label;
+                if (ph.currentTag === f.tag) opt.selected = true;
+                select.appendChild(opt);
+            });
+
+            select.addEventListener('change', () => {
+                applyPlaceholderSelection(idx, select.value);
+            });
+
+            row.appendChild(label);
+            row.appendChild(select);
+            container.appendChild(row);
+        });
+    }
+
+    /**
+     * Replace the placeholder at the given index with the selected tag.
+     */
+    function applyPlaceholderSelection(placeholderIdx, tag) {
+        const bodyText = document.getElementById('confirm-template-body-text');
+        const text = bodyText.value;
+        const placeholders = detectPlaceholders(text);
+
+        if (placeholderIdx >= placeholders.length) return;
+        const ph = placeholders[placeholderIdx];
+
+        if (!tag) return; // No selection — leave as-is
+
+        const before = text.substring(0, ph.index);
+        const after = text.substring(ph.index + ph.length);
+        bodyText.value = before + tag + after;
+
+        // Re-render dropdowns with updated text
+        renderPlaceholderDropdowns();
+    }
+
     async function openConfirmTemplateModal(periodType, companyId) {
         const company = getSelectedConfirmElocCompany();
         if (!company) return;
@@ -883,6 +996,13 @@ const Admin = (() => {
             bodyText.value = '';
             entity.value = '';
         }
+
+        // Detect and render placeholder dropdowns
+        renderPlaceholderDropdowns();
+
+        // Re-detect when body text changes
+        bodyText.removeEventListener('input', renderPlaceholderDropdowns);
+        bodyText.addEventListener('input', renderPlaceholderDropdowns);
 
         document.getElementById('confirm-template-modal-overlay').classList.add('visible');
     }

@@ -291,6 +291,30 @@ async def get_confirmation_prefill(
     body_text = template.get("body_text", "") if template else ""
     agreed_accepted_entity = template.get("agreed_accepted_entity", company_name) if template else company_name
 
+    # 2b. Substitute placeholder tags in body_text with ELOC values
+    if body_text and "{{" in body_text:
+        shares_val = eloc_data.get("shares", 0)
+        vwap_price_val = eloc_data.get("vwap_purchase_price")
+        total_val = eloc_data.get("dollar_amount_calculated")
+
+        tag_values = {
+            "{{shares}}": f"{int(shares_val):,}" if shares_val else "",
+            "{{exercise_date}}": eloc_data.get("exercise_date", ""),
+            "{{valuation_period_start}}": eloc_data.get("valuation_period_start", ""),
+            "{{valuation_period_end}}": eloc_data.get("valuation_period_end", ""),
+            "{{settlement_date}}": eloc_data.get("settlement_date", ""),
+            "{{vwap_purchase_price}}": f"${float(vwap_price_val):,.6f}" if vwap_price_val else "",
+            "{{dollar_amount_calculated}}": f"${float(total_val):,.2f}" if total_val else "",
+        }
+        logger.info("Confirmation prefill %s: substituting %d placeholder tags in body_text",
+                     eloc_id, sum(1 for t in tag_values if t in body_text))
+        for tag, value in tag_values.items():
+            if tag in body_text:
+                logger.info("  Substituting %s → %s", tag, value)
+                body_text = body_text.replace(tag, value)
+    else:
+        logger.debug("Confirmation prefill %s: no placeholder tags in body_text", eloc_id)
+
     # 3. Firm signature already stored in eloc_data from purchase notice submission
     #    DTS stores the signature image as raw base64 (no data URI prefix).
     #    The frontend needs a full data URI for <img> src rendering.
