@@ -239,12 +239,23 @@ async def list_companies_with_elocs(admin: UserInfo = Depends(require_admin)):
             continue
         try:
             shares_data = await onprem.get_shares_available(symbol)
-            period_types = [p.get("periodType", "") for p in shares_data.get("pricingPeriods", [])]
+            periods_raw = shares_data.get("pricingPeriods", [])
+            period_types = [p.get("periodType", "") for p in periods_raw]
+            pricing_periods = [
+                {
+                    "periodType": p.get("periodType", ""),
+                    "pricingDirection": p.get("pricingDirection", "Forward"),
+                    "isBackwardPricing": p.get("isBackwardPricing", False),
+                }
+                for p in periods_raw
+            ]
         except Exception as exc:
             logger.warning("  → shares-available failed for %s: %s", symbol, exc)
             period_types = []
+            pricing_periods = []
         company["pricing_period_types"] = period_types
+        company["pricing_periods"] = pricing_periods
         result.append(company)
-        logger.info("  → %s (%s): periods=%s", company["name"], symbol, period_types)
+        logger.info("  → %s (%s): periods=%s, pricing_periods=%s", company["name"], symbol, period_types, pricing_periods)
 
     return result

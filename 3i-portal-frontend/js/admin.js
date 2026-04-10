@@ -21,6 +21,7 @@ const Admin = (() => {
             users: document.getElementById('users-panel'),
             templates: document.getElementById('templates-panel'),
             signatories: document.getElementById('signatories-panel'),
+            'backward-templates': document.getElementById('backward-templates-panel'),
             'confirm-templates': document.getElementById('confirm-templates-panel'),
             verification: document.getElementById('verification-panel'),
         };
@@ -744,6 +745,301 @@ const Admin = (() => {
 
         // Populate company filter dropdown
         await populateTemplateCompanyFilter();
+    }
+
+    // ---- Backward Notice Templates Tab ----
+
+    let backwardEditingPeriodType = null;
+    let backwardEditingCompanyId = null;
+
+    function getSelectedBackwardElocCompany() {
+        const companyId = document.getElementById('backward-template-company-filter').value;
+        if (!companyId || !elocCompaniesCache) return null;
+        return elocCompaniesCache.find((c) => String(c.company_id) === String(companyId)) || null;
+    }
+
+    async function loadBackwardTemplates() {
+        const loading = document.getElementById('backward-templates-loading');
+        const table = document.getElementById('backward-templates-table');
+        const empty = document.getElementById('backward-templates-empty');
+        const tbody = document.getElementById('backward-templates-tbody');
+        const company = getSelectedBackwardElocCompany();
+
+        if (!company) {
+            loading.style.display = 'none';
+            table.style.display = 'none';
+            empty.style.display = 'block';
+            empty.querySelector('p').textContent = 'Select a company to view its backward pricing templates.';
+            return;
+        }
+
+        loading.style.display = 'flex';
+        table.style.display = 'none';
+        empty.style.display = 'none';
+
+        try {
+            const templates = await API.adminGetCompanyBackwardNoticeTemplates(company.company_id);
+            loading.style.display = 'none';
+
+            if (!templates || templates.length === 0) {
+                empty.querySelector('p').textContent = 'No backward pricing templates configured for this company. Click "+ Add Template" to create one.';
+                empty.style.display = 'block';
+                table.style.display = 'none';
+                return;
+            }
+
+            empty.style.display = 'none';
+            tbody.innerHTML = '';
+            templates.forEach((t) => {
+                const preview = (t.body_text || '').substring(0, 80) + ((t.body_text || '').length > 80 ? '...' : '');
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${escapeHtml(t.pricing_period_type)}</td>
+                    <td style="font-size:0.85rem; color:var(--text-secondary);">${escapeHtml(preview)}</td>
+                    <td>${escapeHtml(t.agreed_accepted_entity || '\u2014')}</td>
+                    <td>
+                        <button class="btn-action edit-backward-template-btn"
+                            data-period-type="${escapeHtml(t.pricing_period_type)}"
+                            data-company-id="${t.company_id || ''}">Edit</button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            tbody.querySelectorAll('.edit-backward-template-btn').forEach((btn) => {
+                btn.addEventListener('click', () => openBackwardTemplateModal(btn.dataset.periodType, btn.dataset.companyId || null));
+            });
+
+            table.style.display = 'table';
+        } catch (err) {
+            loading.style.display = 'none';
+            empty.style.display = 'block';
+            empty.querySelector('p').textContent = `Error: ${err.message}`;
+        }
+    }
+
+    async function populateBackwardTemplateCompanyFilter() {
+        const companies = await loadElocCompanies();
+        const filter = document.getElementById('backward-template-company-filter');
+        if (filter) {
+            const existing = filter.value;
+            while (filter.options.length > 1) filter.remove(1);
+            (companies || []).forEach((c) => {
+                const opt = document.createElement('option');
+                opt.value = c.company_id;
+                opt.textContent = `${c.name} (${c.symbol})`;
+                filter.appendChild(opt);
+            });
+            if (existing) filter.value = existing;
+        }
+    }
+
+    function populateBackwardPeriodTypeDropdown(company, selectedPeriodType) {
+        const periodSelect = document.getElementById('backward-template-period-type');
+        periodSelect.innerHTML = '<option value="">-- Select Period Type --</option>';
+        // Only show backward pricing periods
+        const periods = company && company.pricing_periods
+            ? company.pricing_periods.filter((p) => p.isBackwardPricing === true)
+            : [];
+        console.log('[Admin] Backward period types for %s: %o', company?.symbol, periods);
+        periods.forEach((p) => {
+            const opt = document.createElement('option');
+            opt.value = p.periodType;
+            opt.textContent = p.periodType;
+            if (p.periodType === selectedPeriodType) opt.selected = true;
+            periodSelect.appendChild(opt);
+        });
+    }
+
+    function renderBackwardPlaceholderDropdowns() {
+        const bodyText = document.getElementById('backward-template-body-text');
+        const container = document.getElementById('backward-template-placeholders');
+        const text = bodyText.value;
+        const placeholders = detectPlaceholders(text);
+
+        container.innerHTML = '';
+        if (placeholders.length === 0) return;
+
+        const heading = document.createElement('p');
+        heading.style.cssText = 'font-size:0.85rem; font-weight:600; color:var(--text-secondary); margin-bottom:0.5rem;';
+        heading.textContent = `${placeholders.length} placeholder(s) detected — assign fields:`;
+        container.appendChild(heading);
+
+        placeholders.forEach((ph, idx) => {
+            const row = document.createElement('div');
+            row.style.cssText = 'display:flex; align-items:center; gap:0.5rem; margin-bottom:0.4rem;';
+
+            const contextStart = Math.max(0, ph.index - 20);
+            const contextEnd = Math.min(text.length, ph.index + ph.length + 20);
+            const before = text.substring(contextStart, ph.index).replace(/\n/g, ' ');
+            const after = text.substring(ph.index + ph.length, contextEnd).replace(/\n/g, ' ');
+
+            const label = document.createElement('span');
+            label.style.cssText = 'font-size:0.8rem; color:var(--text-secondary); min-width:200px; font-family:monospace;';
+            label.textContent = `...${before}[___]${after}...`;
+
+            const select = document.createElement('select');
+            select.className = 'form-input';
+            select.style.cssText = 'font-size:0.85rem; padding:4px 8px; max-width:320px;';
+
+            const emptyOpt = document.createElement('option');
+            emptyOpt.value = '';
+            emptyOpt.textContent = '-- Select field --';
+            select.appendChild(emptyOpt);
+
+            PLACEHOLDER_FIELDS.forEach((f) => {
+                const opt = document.createElement('option');
+                opt.value = f.tag;
+                opt.textContent = f.label;
+                if (ph.currentTag === f.tag) opt.selected = true;
+                select.appendChild(opt);
+            });
+
+            select.addEventListener('change', () => {
+                applyBackwardPlaceholderSelection(idx, select.value);
+            });
+
+            row.appendChild(label);
+            row.appendChild(select);
+            container.appendChild(row);
+        });
+    }
+
+    function applyBackwardPlaceholderSelection(placeholderIdx, tag) {
+        const bodyText = document.getElementById('backward-template-body-text');
+        const text = bodyText.value;
+        const placeholders = detectPlaceholders(text);
+
+        if (placeholderIdx >= placeholders.length) return;
+        const ph = placeholders[placeholderIdx];
+        if (!tag) return;
+
+        const before = text.substring(0, ph.index);
+        const after = text.substring(ph.index + ph.length);
+        bodyText.value = before + tag + after;
+        renderBackwardPlaceholderDropdowns();
+    }
+
+    async function openBackwardTemplateModal(periodType, companyId) {
+        const company = getSelectedBackwardElocCompany();
+        if (!company) return;
+
+        backwardEditingPeriodType = periodType || null;
+        backwardEditingCompanyId = company.company_id;
+
+        const titleEl = document.getElementById('backward-template-modal-title');
+        const periodSelect = document.getElementById('backward-template-period-type');
+        const bodyText = document.getElementById('backward-template-body-text');
+        const entity = document.getElementById('backward-template-entity');
+        const statusEl = document.getElementById('backward-template-modal-status');
+
+        statusEl.className = 'modal-status';
+        statusEl.textContent = '';
+
+        populateBackwardPeriodTypeDropdown(company, periodType);
+
+        if (periodType) {
+            titleEl.textContent = `Edit Backward Template: ${periodType}`;
+            periodSelect.disabled = true;
+
+            try {
+                const templates = await API.adminGetCompanyBackwardNoticeTemplates(company.company_id);
+                const match = (templates || []).find((t) => t.pricing_period_type === periodType);
+                bodyText.value = match ? match.body_text || '' : '';
+                entity.value = match ? match.agreed_accepted_entity || '' : '';
+            } catch {
+                bodyText.value = '';
+                entity.value = '';
+            }
+        } else {
+            titleEl.textContent = 'Add Backward Template';
+            periodSelect.disabled = false;
+            bodyText.value = '';
+            entity.value = '';
+        }
+
+        renderBackwardPlaceholderDropdowns();
+        bodyText.removeEventListener('input', renderBackwardPlaceholderDropdowns);
+        bodyText.addEventListener('input', renderBackwardPlaceholderDropdowns);
+
+        document.getElementById('backward-template-modal-overlay').classList.add('visible');
+    }
+
+    function closeBackwardTemplateModal() {
+        document.getElementById('backward-template-modal-overlay').classList.remove('visible');
+        backwardEditingPeriodType = null;
+        backwardEditingCompanyId = null;
+    }
+
+    async function handleBackwardTemplateSave() {
+        const statusEl = document.getElementById('backward-template-modal-status');
+        const submitBtn = document.getElementById('backward-template-modal-submit');
+
+        const companyId = backwardEditingCompanyId;
+        const periodType = backwardEditingPeriodType || document.getElementById('backward-template-period-type').value;
+        const bodyText = document.getElementById('backward-template-body-text').value;
+        const entity = document.getElementById('backward-template-entity').value.trim();
+
+        if (!companyId) {
+            statusEl.className = 'modal-status error';
+            statusEl.textContent = 'Please select a company.';
+            return;
+        }
+        if (!periodType) {
+            statusEl.className = 'modal-status error';
+            statusEl.textContent = 'Please select a period type.';
+            return;
+        }
+        if (!bodyText.trim()) {
+            statusEl.className = 'modal-status error';
+            statusEl.textContent = 'Body text is required.';
+            return;
+        }
+        if (!entity) {
+            statusEl.className = 'modal-status error';
+            statusEl.textContent = 'Entity name is required.';
+            return;
+        }
+
+        statusEl.className = 'modal-status sending';
+        statusEl.textContent = 'Saving...';
+        submitBtn.disabled = true;
+
+        try {
+            await API.adminUpsertBackwardNoticeTemplate(companyId, periodType, {
+                body_text: bodyText,
+                agreed_accepted_entity: entity,
+            });
+            statusEl.className = 'modal-status success';
+            statusEl.textContent = 'Backward template saved.';
+            setTimeout(() => {
+                closeBackwardTemplateModal();
+                loadBackwardTemplates();
+            }, 800);
+        } catch (err) {
+            statusEl.className = 'modal-status error';
+            statusEl.textContent = err.message || 'Failed to save template.';
+        } finally {
+            submitBtn.disabled = false;
+        }
+    }
+
+    async function initBackwardTemplateManagement() {
+        const addBtn = document.getElementById('add-backward-template-btn');
+        if (addBtn) addBtn.addEventListener('click', () => openBackwardTemplateModal(null, null));
+
+        const closeBtn = document.getElementById('backward-template-modal-close');
+        const cancelBtn = document.getElementById('backward-template-modal-cancel');
+        if (closeBtn) closeBtn.addEventListener('click', closeBackwardTemplateModal);
+        if (cancelBtn) cancelBtn.addEventListener('click', closeBackwardTemplateModal);
+
+        const submitBtn = document.getElementById('backward-template-modal-submit');
+        if (submitBtn) submitBtn.addEventListener('click', handleBackwardTemplateSave);
+
+        const companyFilter = document.getElementById('backward-template-company-filter');
+        if (companyFilter) companyFilter.addEventListener('change', loadBackwardTemplates);
+
+        await populateBackwardTemplateCompanyFilter();
     }
 
     // ---- Confirmation Templates Tab ----
@@ -1579,6 +1875,7 @@ const Admin = (() => {
         initTabs();
         initUserManagement();
         await initTemplateManagement();
+        await initBackwardTemplateManagement();
         await initConfirmTemplateManagement();
         initSignatoryManagement();
         initVerificationManagement();

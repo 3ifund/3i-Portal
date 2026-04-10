@@ -513,6 +513,24 @@ const API = (() => {
         return handleResponse(response);
     }
 
+    // --- Admin Backward Purchase Notice Templates ---
+
+    async function adminGetCompanyBackwardNoticeTemplates(companyId) {
+        const response = await fetch(`${BASE_URL}/admin/purchase-notice-backward-templates/company/${encodeURIComponent(companyId)}`, {
+            headers: authHeaders(),
+        });
+        return handleResponse(response);
+    }
+
+    async function adminUpsertBackwardNoticeTemplate(companyId, periodType, data) {
+        const response = await fetch(`${BASE_URL}/admin/purchase-notice-backward-templates/${encodeURIComponent(companyId)}/${encodeURIComponent(periodType)}`, {
+            method: 'PUT',
+            headers: authHeaders(),
+            body: JSON.stringify(data),
+        });
+        return handleResponse(response);
+    }
+
     // --- Admin Countersign SMS Settings ---
 
     async function adminGetCountersignSettings() {
@@ -578,6 +596,8 @@ const API = (() => {
         adminSetContactInclude,
         adminGetCompanyVerifications,
         adminSetCompanyVerification,
+        adminGetCompanyBackwardNoticeTemplates,
+        adminUpsertBackwardNoticeTemplate,
         adminGetCountersignSettings,
         adminSetCountersignSms,
     };

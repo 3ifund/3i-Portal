@@ -67,6 +67,54 @@ async def upsert_template(
     return result
 
 
+# ---- Backward Purchase Notice Templates ----
+
+@router.get("/purchase-notice-backward-templates")
+async def list_backward_templates(admin: UserInfo = Depends(require_admin)):
+    """List all backward purchase notice templates."""
+    logger.info("GET /purchase-notice-backward-templates — admin=%s", admin.user_id)
+    templates = await repo.get_all_backward_notice_templates()
+    logger.debug("GET /purchase-notice-backward-templates — returned %d templates", len(templates))
+    return templates
+
+
+@router.get("/purchase-notice-backward-templates/company/{company_id}")
+async def list_company_backward_templates(company_id: int, admin: UserInfo = Depends(require_admin)):
+    """List all backward purchase notice templates for a specific company."""
+    logger.info("GET /purchase-notice-backward-templates/company/%s — admin=%s", company_id, admin.user_id)
+    templates = await repo.get_backward_notice_templates_by_company(company_id)
+    logger.debug("GET /purchase-notice-backward-templates/company/%s — returned %d templates", company_id, len(templates))
+    return templates
+
+
+@router.get("/purchase-notice-backward-templates/{company_id}/{period_type}")
+async def get_backward_template(company_id: int, period_type: str, admin: UserInfo = Depends(require_admin)):
+    """Get a backward purchase notice template by company and pricing period type."""
+    logger.info("GET /purchase-notice-backward-templates/%s/%s — admin=%s", company_id, period_type, admin.user_id)
+    template = await repo.get_backward_notice_template_by_period_type(period_type, company_id)
+    if not template:
+        logger.warning("GET /purchase-notice-backward-templates/%s/%s — not found", company_id, period_type)
+        raise HTTPException(status_code=404, detail=f"No backward template for company {company_id}, period type: {period_type}")
+    return template
+
+
+@router.put("/purchase-notice-backward-templates/{company_id}/{period_type}")
+async def upsert_backward_template(
+    company_id: int,
+    period_type: str,
+    request: UpsertTemplateRequest,
+    admin: UserInfo = Depends(require_admin),
+):
+    """Create or update a backward purchase notice template."""
+    logger.info("PUT /purchase-notice-backward-templates/%s/%s — admin=%s, body_text_len=%d, entity=%s",
+                company_id, period_type, admin.user_id, len(request.body_text), request.agreed_accepted_entity)
+    result = await repo.upsert_backward_notice_template(
+        period_type, request.body_text, request.agreed_accepted_entity, company_id
+    )
+    logger.debug("PUT /purchase-notice-backward-templates/%s/%s — upserted successfully", company_id, period_type)
+    return result
+
+
 # ---- Company Signatories (admin manages names) ----
 
 @router.get("/signatories/{company_id}")
