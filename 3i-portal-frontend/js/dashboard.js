@@ -958,91 +958,138 @@ const Dashboard = (() => {
     // ---- Shares Input Modal ----
 
     let sharesModalData = null;
+    let _sharesInputActive = true; // tracks which input the user last typed in
 
     function _fmtDollar(amount) {
         return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
     }
 
     function openSharesModal(symbol, pricingPeriodId, availableShares, backwardVwapPrice) {
-        sharesModalData = { symbol, pricingPeriodId, backwardVwapPrice: backwardVwapPrice || null };
-        console.log('[Dashboard] openSharesModal: symbol=%s, periodId=%s, shares=%s, vwapPrice=%s',
-            symbol, pricingPeriodId, availableShares, backwardVwapPrice);
+        const vwap = backwardVwapPrice != null ? backwardVwapPrice : null;
+        const maxDollars = vwap != null ? availableShares * vwap : null;
+        sharesModalData = { symbol, pricingPeriodId, backwardVwapPrice: vwap, availableShares, maxDollars };
+        _sharesInputActive = true;
 
+        console.log('[Dashboard] openSharesModal: symbol=%s, periodId=%s, shares=%s, vwapPrice=%s, maxDollars=%s',
+            symbol, pricingPeriodId, availableShares, vwap, maxDollars != null ? maxDollars.toFixed(2) : 'N/A');
+
+        // Title
+        const titleEl = document.getElementById('shares-modal-title');
+        titleEl.textContent = vwap != null ? 'Enter Share or Dollar Amount' : 'Enter Share Amount';
+
+        // Available shares
         document.getElementById('shares-modal-available').textContent =
             new Intl.NumberFormat('en-US').format(availableShares);
 
-        // Show available dollar amount for backward pricing
+        // Available dollars (backward pricing only)
         const availDollarsEl = document.getElementById('shares-modal-available-dollars');
         const availDollarsVal = document.getElementById('shares-modal-available-dollars-value');
-        if (backwardVwapPrice != null) {
-            const totalDollar = availableShares * backwardVwapPrice;
-            availDollarsVal.textContent = _fmtDollar(totalDollar);
+        if (vwap != null) {
+            availDollarsVal.textContent = _fmtDollar(maxDollars);
             availDollarsEl.style.display = '';
-            console.log('[Dashboard] openSharesModal: backward pricing — available $%s (VWAP $%s)',
-                totalDollar.toFixed(2), backwardVwapPrice);
+            console.log('[Dashboard] openSharesModal: backward pricing — maxDollars=%s (VWAP $%s)',
+                _fmtDollar(maxDollars), vwap);
         } else {
             availDollarsEl.style.display = 'none';
         }
 
-        const input = document.getElementById('shares-modal-input');
-        input.value = availableShares;
-        input.max = availableShares;
+        // Shares input
+        const sharesInput = document.getElementById('shares-modal-input');
+        sharesInput.value = availableShares;
+        sharesInput.max = availableShares;
+
+        // Dollar input (backward pricing only)
+        const dollarGroup = document.getElementById('shares-modal-dollar-group');
+        const dollarInput = document.getElementById('shares-modal-dollar-input');
+        if (vwap != null) {
+            dollarGroup.style.display = '';
+            dollarInput.value = maxDollars.toFixed(2);
+            dollarInput.max = maxDollars.toFixed(2);
+            console.log('[Dashboard] openSharesModal: showing dollar input, max=%s', _fmtDollar(maxDollars));
+        } else {
+            dollarGroup.style.display = 'none';
+            dollarInput.value = '';
+        }
+
+        // Status
         document.getElementById('shares-modal-status').className = 'modal-status';
         document.getElementById('shares-modal-status').textContent = '';
 
-        // Update dollar equivalent on input change
-        _updateDollarEquivalent();
-        input.removeEventListener('input', _updateDollarEquivalent);
-        input.addEventListener('input', _updateDollarEquivalent);
+        // Wire up cross-calculation listeners
+        sharesInput.removeEventListener('input', _onSharesInput);
+        sharesInput.addEventListener('input', _onSharesInput);
+        dollarInput.removeEventListener('input', _onDollarInput);
+        dollarInput.addEventListener('input', _onDollarInput);
 
         document.getElementById('shares-modal-overlay').classList.add('visible');
     }
 
-    function _updateDollarEquivalent() {
-        const equivEl = document.getElementById('shares-modal-dollar-equiv');
-        const equivVal = document.getElementById('shares-modal-dollar-equiv-value');
-        const vwapPrice = sharesModalData?.backwardVwapPrice;
+    function _onSharesInput() {
+        _sharesInputActive = true;
+        const vwap = sharesModalData?.backwardVwapPrice;
+        if (vwap == null) return;
 
-        if (vwapPrice == null) {
-            equivEl.style.display = 'none';
-            return;
-        }
+        const sharesInput = document.getElementById('shares-modal-input');
+        const dollarInput = document.getElementById('shares-modal-dollar-input');
+        const shares = parseInt(sharesInput.value) || 0;
+        const dollarAmt = shares * vwap;
 
-        const input = document.getElementById('shares-modal-input');
-        const shares = parseInt(input.value) || 0;
-        const dollarAmt = shares * vwapPrice;
-        equivVal.textContent = _fmtDollar(dollarAmt);
-        equivEl.style.display = '';
-        console.log('[Dashboard] Dollar equivalent: %d shares x $%s = %s',
-            shares, vwapPrice, _fmtDollar(dollarAmt));
+        dollarInput.value = dollarAmt.toFixed(2);
+        console.log('[Dashboard] _onSharesInput: %d shares x $%s = %s', shares, vwap, _fmtDollar(dollarAmt));
+    }
+
+    function _onDollarInput() {
+        _sharesInputActive = false;
+        const vwap = sharesModalData?.backwardVwapPrice;
+        if (vwap == null || vwap === 0) return;
+
+        const sharesInput = document.getElementById('shares-modal-input');
+        const dollarInput = document.getElementById('shares-modal-dollar-input');
+        const dollars = parseFloat(dollarInput.value) || 0;
+        const shares = Math.floor(dollars / vwap);
+
+        sharesInput.value = shares;
+        console.log('[Dashboard] _onDollarInput: %s / $%s = %d shares', _fmtDollar(dollars), vwap, shares);
     }
 
     function closeSharesModal() {
         document.getElementById('shares-modal-overlay').classList.remove('visible');
         document.getElementById('shares-modal-available-dollars').style.display = 'none';
-        document.getElementById('shares-modal-dollar-equiv').style.display = 'none';
+        document.getElementById('shares-modal-dollar-group').style.display = 'none';
         sharesModalData = null;
     }
 
     function handleSharesSubmit() {
         if (!sharesModalData) return;
-        const input = document.getElementById('shares-modal-input');
-        const shares = parseInt(input.value);
+        const sharesInput = document.getElementById('shares-modal-input');
+        const shares = parseInt(sharesInput.value);
         const statusEl = document.getElementById('shares-modal-status');
+        const { symbol, pricingPeriodId, backwardVwapPrice, availableShares, maxDollars } = sharesModalData;
 
         if (!shares || shares <= 0) {
             statusEl.className = 'modal-status error';
             statusEl.textContent = 'Enter a valid number of shares.';
+            console.log('[Dashboard] handleSharesSubmit: invalid shares=%s', sharesInput.value);
             return;
         }
-        if (input.max && shares > parseInt(input.max)) {
+        if (shares > availableShares) {
             statusEl.className = 'modal-status error';
-            statusEl.textContent = `Cannot exceed ${new Intl.NumberFormat('en-US').format(input.max)} available shares.`;
+            statusEl.textContent = `Cannot exceed ${new Intl.NumberFormat('en-US').format(availableShares)} available shares.`;
+            console.log('[Dashboard] handleSharesSubmit: shares %d exceeds available %d', shares, availableShares);
             return;
+        }
+        if (backwardVwapPrice != null && maxDollars != null) {
+            const dollarAmt = shares * backwardVwapPrice;
+            if (dollarAmt > maxDollars + 0.01) {
+                statusEl.className = 'modal-status error';
+                statusEl.textContent = `Dollar amount ${_fmtDollar(dollarAmt)} exceeds maximum ${_fmtDollar(maxDollars)}.`;
+                console.log('[Dashboard] handleSharesSubmit: dollar %s exceeds max %s', _fmtDollar(dollarAmt), _fmtDollar(maxDollars));
+                return;
+            }
         }
 
-        const { symbol, pricingPeriodId } = sharesModalData;
-        console.log('[Dashboard] handleSharesSubmit: symbol=%s, periodId=%s, shares=%d', symbol, pricingPeriodId, shares);
+        console.log('[Dashboard] handleSharesSubmit: symbol=%s, periodId=%s, shares=%d, vwap=%s',
+            symbol, pricingPeriodId, shares, backwardVwapPrice);
         window.location.href = `purchase-notice.html?symbol=${encodeURIComponent(symbol)}&periodId=${pricingPeriodId}&shares=${shares}`;
     }
 
