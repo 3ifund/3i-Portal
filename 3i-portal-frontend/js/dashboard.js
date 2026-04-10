@@ -163,8 +163,17 @@ const Dashboard = (() => {
                 dataSpan.className = 'period-data outside-window';
             } else if (period.availableShares != null && period.availableShares > 0) {
                 const shares = new Intl.NumberFormat('en-US').format(period.availableShares);
-                console.log('[Dashboard]   %s: %s shares available', periodType, shares);
-                dataSpan.textContent = `${shares} shares`;
+                // Show dollar amount for backward pricing periods with a VWAP price
+                if (period.isBackwardPricing && period.backwardVwapPrice != null) {
+                    const dollarAmt = period.availableShares * period.backwardVwapPrice;
+                    const dollarFmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(dollarAmt);
+                    console.log('[Dashboard]   %s: %s shares available (%s) — backward VWAP $%s',
+                        periodType, shares, dollarFmt, period.backwardVwapPrice);
+                    dataSpan.textContent = `${shares} shares (${dollarFmt})`;
+                } else {
+                    console.log('[Dashboard]   %s: %s shares available', periodType, shares);
+                    dataSpan.textContent = `${shares} shares`;
+                }
                 dataSpan.className = 'period-data has-data';
                 enableBtn = true;
             } else {
@@ -177,7 +186,7 @@ const Dashboard = (() => {
                 const canInitiate = enableBtn && hasSignatories;
                 btn.disabled = !canInitiate;
                 if (canInitiate && period) {
-                    btn.onclick = () => openSharesModal(symbol, period.pricingPeriodId, period.availableShares);
+                    btn.onclick = () => openSharesModal(symbol, period.pricingPeriodId, period.availableShares, period.backwardVwapPrice);
                 } else {
                     btn.onclick = null;
                 }
@@ -950,20 +959,68 @@ const Dashboard = (() => {
 
     let sharesModalData = null;
 
-    function openSharesModal(symbol, pricingPeriodId, availableShares) {
-        sharesModalData = { symbol, pricingPeriodId };
+    function _fmtDollar(amount) {
+        return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
+    }
+
+    function openSharesModal(symbol, pricingPeriodId, availableShares, backwardVwapPrice) {
+        sharesModalData = { symbol, pricingPeriodId, backwardVwapPrice: backwardVwapPrice || null };
+        console.log('[Dashboard] openSharesModal: symbol=%s, periodId=%s, shares=%s, vwapPrice=%s',
+            symbol, pricingPeriodId, availableShares, backwardVwapPrice);
+
         document.getElementById('shares-modal-available').textContent =
             new Intl.NumberFormat('en-US').format(availableShares);
+
+        // Show available dollar amount for backward pricing
+        const availDollarsEl = document.getElementById('shares-modal-available-dollars');
+        const availDollarsVal = document.getElementById('shares-modal-available-dollars-value');
+        if (backwardVwapPrice != null) {
+            const totalDollar = availableShares * backwardVwapPrice;
+            availDollarsVal.textContent = _fmtDollar(totalDollar);
+            availDollarsEl.style.display = '';
+            console.log('[Dashboard] openSharesModal: backward pricing — available $%s (VWAP $%s)',
+                totalDollar.toFixed(2), backwardVwapPrice);
+        } else {
+            availDollarsEl.style.display = 'none';
+        }
+
         const input = document.getElementById('shares-modal-input');
         input.value = availableShares;
         input.max = availableShares;
         document.getElementById('shares-modal-status').className = 'modal-status';
         document.getElementById('shares-modal-status').textContent = '';
+
+        // Update dollar equivalent on input change
+        _updateDollarEquivalent();
+        input.removeEventListener('input', _updateDollarEquivalent);
+        input.addEventListener('input', _updateDollarEquivalent);
+
         document.getElementById('shares-modal-overlay').classList.add('visible');
+    }
+
+    function _updateDollarEquivalent() {
+        const equivEl = document.getElementById('shares-modal-dollar-equiv');
+        const equivVal = document.getElementById('shares-modal-dollar-equiv-value');
+        const vwapPrice = sharesModalData?.backwardVwapPrice;
+
+        if (vwapPrice == null) {
+            equivEl.style.display = 'none';
+            return;
+        }
+
+        const input = document.getElementById('shares-modal-input');
+        const shares = parseInt(input.value) || 0;
+        const dollarAmt = shares * vwapPrice;
+        equivVal.textContent = _fmtDollar(dollarAmt);
+        equivEl.style.display = '';
+        console.log('[Dashboard] Dollar equivalent: %d shares x $%s = %s',
+            shares, vwapPrice, _fmtDollar(dollarAmt));
     }
 
     function closeSharesModal() {
         document.getElementById('shares-modal-overlay').classList.remove('visible');
+        document.getElementById('shares-modal-available-dollars').style.display = 'none';
+        document.getElementById('shares-modal-dollar-equiv').style.display = 'none';
         sharesModalData = null;
     }
 
@@ -985,6 +1042,7 @@ const Dashboard = (() => {
         }
 
         const { symbol, pricingPeriodId } = sharesModalData;
+        console.log('[Dashboard] handleSharesSubmit: symbol=%s, periodId=%s, shares=%d', symbol, pricingPeriodId, shares);
         window.location.href = `purchase-notice.html?symbol=${encodeURIComponent(symbol)}&periodId=${pricingPeriodId}&shares=${shares}`;
     }
 

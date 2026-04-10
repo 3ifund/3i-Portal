@@ -195,13 +195,19 @@
                 <button class="modal-close" id="shares-modal-close">&times;</button>
             </div>
             <div class="modal-body">
-                <p style="color:var(--text-secondary); margin-bottom:1rem;">
+                <p style="color:var(--text-secondary); margin-bottom:0.5rem;">
                     Available: <strong id="shares-modal-available">—</strong> shares
+                </p>
+                <p id="shares-modal-available-dollars" style="color:var(--text-secondary); margin-bottom:1rem; display:none;">
+                    Dollar equivalent: <strong id="shares-modal-available-dollars-value">—</strong>
                 </p>
                 <div class="form-group">
                     <label class="form-label" for="shares-modal-input">Shares to Purchase</label>
                     <input type="number" id="shares-modal-input" class="form-input" min="1">
                 </div>
+                <p id="shares-modal-dollar-equiv" style="color:var(--accent-blue); font-weight:600; margin-top:0.5rem; display:none;">
+                    Dollar equivalent: <span id="shares-modal-dollar-equiv-value">—</span>
+                </p>
                 <div class="modal-status" id="shares-modal-status"></div>
             </div>
             <div class="modal-footer">
