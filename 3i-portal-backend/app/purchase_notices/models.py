@@ -72,3 +72,6 @@ class PortalPurchaseNoticeRequest(BaseModel):
     period_type: str
     total_commitment_remaining: float | None = None
     dollar_cap_per_notice: float | None = None
+    # Pricing direction
+    pricing_direction: str = "Forward"  # "Forward" or "Backward"
+    backward_vwap_price: float | None = None  # Pre-calculated VWAP for backward pricing
