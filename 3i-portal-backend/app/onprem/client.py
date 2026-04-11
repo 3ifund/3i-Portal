@@ -32,6 +32,22 @@ def _get_client() -> httpx.AsyncClient:
     return _client
 
 
+async def warm_client():
+    """Pre-create the HTTP client and test connectivity to DTS.
+    Called during app startup to avoid cold-start latency on first user request."""
+    import time
+    t_start = time.monotonic()
+    logger.info("Warming on-prem HTTP client → %s", settings.onprem_base_url)
+    client = _get_client()
+    try:
+        response = await client.get("/api/companies")
+        t_elapsed = (time.monotonic() - t_start) * 1000
+        logger.info("On-prem client warm-up complete: %s in %.1fms", response.status_code, t_elapsed)
+    except Exception as exc:
+        t_elapsed = (time.monotonic() - t_start) * 1000
+        logger.warning("On-prem client warm-up failed (%.1fms): %s — will retry on first request", t_elapsed, exc)
+
+
 async def _request_with_retry(method: str, url: str, **kwargs) -> httpx.Response:
     """
     Make an HTTP request with retry and exponential backoff.

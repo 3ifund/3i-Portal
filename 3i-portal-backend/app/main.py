@@ -67,6 +67,10 @@ async def lifespan(app: FastAPI):
     await connect_mongo()
     logger.info("MongoDB connected")
 
+    # Warm the DTS HTTP client (avoids cold-start latency on first user request)
+    from app.onprem.client import warm_client
+    await warm_client()
+
     # Connect to DealTermsServer WebSocket for workflow state updates
     watcher_task = asyncio.create_task(connect_dealterms_ws())
     logger.info("DealTermsServer WebSocket client started")

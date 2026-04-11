@@ -1874,9 +1874,15 @@ const Admin = (() => {
 
         initTabs();
         initUserManagement();
-        await initTemplateManagement();
-        await initBackwardTemplateManagement();
-        await initConfirmTemplateManagement();
+
+        // Pre-load ELOC companies once, then init all template tabs in parallel
+        await loadElocCompanies();
+        await Promise.all([
+            initTemplateManagement(),
+            initBackwardTemplateManagement(),
+            initConfirmTemplateManagement(),
+        ]);
+
         initSignatoryManagement();
         initVerificationManagement();
         loadCompanies();

@@ -3,7 +3,9 @@
 CRUD endpoints for managing portal user accounts.
 """
 
+import asyncio
 import logging
+import time
 
 import bcrypt
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -230,15 +232,30 @@ async def list_companies_with_elocs(admin: UserInfo = Depends(require_admin)):
     )
     company_map = {r["symbol"]: dict(r) for r in rows}
 
-    # Fetch pricing periods for each active company
-    result = []
-    for symbol in active_symbols:
-        company = company_map.get(symbol)
-        if not company:
-            logger.warning("  → symbol %s not found in company table, skipping", symbol)
-            continue
+    # Fetch pricing periods for all active companies in parallel
+    valid_symbols = [s for s in active_symbols if s in company_map]
+    logger.info("  Fetching shares-available for %d companies in parallel", len(valid_symbols))
+    t_start = time.monotonic()
+
+    async def _fetch_shares(symbol: str):
         try:
-            shares_data = await onprem.get_shares_available(symbol)
+            return symbol, await onprem.get_shares_available(symbol), None
+        except Exception as exc:
+            return symbol, None, exc
+
+    fetch_results = await asyncio.gather(*[_fetch_shares(s) for s in valid_symbols])
+
+    t_elapsed = (time.monotonic() - t_start) * 1000
+    logger.info("  Parallel shares-available completed in %.1fms for %d companies", t_elapsed, len(valid_symbols))
+
+    result = []
+    for symbol, shares_data, err in fetch_results:
+        company = company_map[symbol]
+        if err:
+            logger.warning("  → shares-available failed for %s: %s", symbol, err)
+            period_types = []
+            pricing_periods = []
+        else:
             periods_raw = shares_data.get("pricingPeriods", [])
             period_types = [p.get("periodType", "") for p in periods_raw]
             pricing_periods = [
@@ -249,13 +266,9 @@ async def list_companies_with_elocs(admin: UserInfo = Depends(require_admin)):
                 }
                 for p in periods_raw
             ]
-        except Exception as exc:
-            logger.warning("  → shares-available failed for %s: %s", symbol, exc)
-            period_types = []
-            pricing_periods = []
         company["pricing_period_types"] = period_types
         company["pricing_periods"] = pricing_periods
         result.append(company)
-        logger.info("  → %s (%s): periods=%s, pricing_periods=%s", company["name"], symbol, period_types, pricing_periods)
+        logger.info("  → %s (%s): periods=%s", company["name"], symbol, period_types)
 
     return result
