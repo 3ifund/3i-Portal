@@ -1889,34 +1889,32 @@ const Admin = (() => {
 
         initTabs();
         initUserManagement();
-
-        // Pre-load ELOC companies once, then init all template tabs in parallel
-        const t1 = performance.now();
-        console.log('[Admin] init() — loading ELOC companies...');
-        await loadElocCompanies();
-        console.log('[Admin] init() — ELOC companies loaded in %.0fms', performance.now() - t1);
-
-        const t2 = performance.now();
-        console.log('[Admin] init() — initializing template tabs in parallel...');
-        await Promise.all([
-            initTemplateManagement(),
-            initBackwardTemplateManagement(),
-            initConfirmTemplateManagement(),
-        ]);
-        console.log('[Admin] init() — template tabs initialized in %.0fms', performance.now() - t2);
-
         initSignatoryManagement();
         initVerificationManagement();
 
-        // Fire all data loads in parallel
-        const t3 = performance.now();
-        console.log('[Admin] init() — firing data loads (companies, elocs, notices, users)...');
+        // Fire visible data loads immediately (don't wait for template inits)
+        console.log('[Admin] init() — dispatching data loads (companies, elocs, notices, users)...');
         loadCompanies();
         loadElocs();
         loadPurchaseNotices();
         loadUsers();
-        console.log('[Admin] init() — data loads dispatched in %.0fms', performance.now() - t3);
-        console.log('[Admin] init() — TOTAL init time: %.0fms', performance.now() - t0);
+        console.log('[Admin] init() — data loads dispatched in %.0fms', performance.now() - t0);
+
+        // Template inits run in background (they call slow companies-with-elocs)
+        const t1 = performance.now();
+        console.log('[Admin] init() — loading ELOC companies + template tabs in background...');
+        loadElocCompanies().then(() => {
+            console.log('[Admin] init() — ELOC companies loaded in %.0fms', performance.now() - t1);
+            return Promise.all([
+                initTemplateManagement(),
+                initBackwardTemplateManagement(),
+                initConfirmTemplateManagement(),
+            ]);
+        }).then(() => {
+            console.log('[Admin] init() — template tabs initialized in %.0fms', performance.now() - t1);
+        });
+
+        console.log('[Admin] init() — TOTAL sync init time: %.0fms', performance.now() - t0);
     }
 
     document.addEventListener('DOMContentLoaded', init);
