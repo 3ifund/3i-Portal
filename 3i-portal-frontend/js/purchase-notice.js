@@ -123,7 +123,23 @@ const PurchaseNotice = (() => {
         setText('pn-trading-days', data.tradingDays || '');
         setText('pn-settlement-date', formatDate(data.settlementDate));
         setText('pn-commitment-remaining', formatCurrency(data.totalCommitmentRemaining));
-        setText('pn-dollar-cap', formatCurrency(data.dollarCapPerNotice));
+
+        // Backward pricing fields
+        const vwapPriceRow = document.getElementById('pn-vwap-price-row');
+        const totalPriceRow = document.getElementById('pn-total-price-row');
+        if (data.pricingDirection === 'Backward' && data.backwardVwapPrice != null) {
+            const vwapPrice = data.backwardVwapPrice;
+            const totalPrice = data.shares * vwapPrice;
+            setText('pn-vwap-price', '$' + Number(vwapPrice).toFixed(6));
+            setText('pn-total-price', formatCurrency(totalPrice));
+            if (vwapPriceRow) vwapPriceRow.style.display = '';
+            if (totalPriceRow) totalPriceRow.style.display = '';
+            console.log('[PurchaseNotice] Backward pricing: vwap=$%s, total=%s',
+                vwapPrice.toFixed(6), formatCurrency(totalPrice));
+        } else {
+            if (vwapPriceRow) vwapPriceRow.style.display = 'none';
+            if (totalPriceRow) totalPriceRow.style.display = 'none';
+        }
 
         // Company signature block
         const companyName = sessionStorage.getItem('company_name') || data.companyName || '';
