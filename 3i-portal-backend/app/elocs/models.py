@@ -58,7 +58,12 @@ CLIENT_VISIBLE_STEPS = {
 }
 
 
-def build_workflow_steps(current_step: str, step_status: str) -> tuple[list[dict], bool]:
+def build_workflow_steps(
+    current_step: str,
+    step_status: str,
+    pricing_direction: str = "Forward",
+    workflow_complete: bool = False,
+) -> tuple[list[dict], bool]:
     """
     Derive all step statuses from the current step and its status.
     Returns (steps_list, can_remove).
@@ -67,10 +72,34 @@ def build_workflow_steps(current_step: str, step_status: str) -> tuple[list[dict
     - Steps before current_step → "Completed"
     - current_step → step_status value (Pending/InProgress/Completed/Rejected/Failed)
     - Steps after current_step → "Awaiting" (not started)
-    - can_remove = True if Rejected/Failed OR (last step AND Completed)
+    - can_remove = True if workflow_complete or Rejected/Failed
     - Only client-visible steps are included in the returned list;
       hidden steps inherit their status to the next visible step.
+    - Backward pricing: show only 1 step (SignedContractToCompany / "Purchase Notice")
     """
+    logger.debug("build_workflow_steps: current=%s/%s, pricing_direction=%s, workflow_complete=%s",
+                 current_step, step_status, pricing_direction, workflow_complete)
+
+    # Backward pricing: single step display
+    if pricing_direction == "Backward":
+        if workflow_complete:
+            effective_status = WorkflowStepState.Completed.value
+        else:
+            effective_status = step_status
+        steps = [{
+            "key": WorkflowStepEnum.SignedContractToCompany.value,
+            "label": "Purchase Notice",
+            "status": effective_status,
+        }]
+        can_remove = (
+            workflow_complete
+            or step_status in (WorkflowStepState.Rejected.value, WorkflowStepState.Failed.value)
+        )
+        logger.debug("build_workflow_steps: backward → 1 step, status=%s, can_remove=%s",
+                     effective_status, can_remove)
+        return steps, can_remove
+
+    # Forward pricing: 4 client-visible steps with status inheritance
     try:
         current_idx = WORKFLOW_STEPS_ORDERED.index(WorkflowStepEnum(current_step))
     except (ValueError, KeyError):
@@ -104,8 +133,6 @@ def build_workflow_steps(current_step: str, step_status: str) -> tuple[list[dict
             next_step, next_status = all_steps[j]
             if next_step in CLIENT_VISIBLE_STEPS:
                 break
-            # If the current visible step is Completed but a hidden step after it
-            # is still processing, show the hidden step's status instead
             if effective_status == WorkflowStepState.Completed.value and next_status != WorkflowStepState.Completed.value:
                 logger.debug("build_workflow_steps: %s inherits status %s from hidden step %s",
                              step.value, next_status, next_step.value)
@@ -118,12 +145,13 @@ def build_workflow_steps(current_step: str, step_status: str) -> tuple[list[dict
         })
 
     can_remove = (
-        step_status in (WorkflowStepState.Rejected.value, WorkflowStepState.Failed.value)
+        workflow_complete
+        or step_status in (WorkflowStepState.Rejected.value, WorkflowStepState.Failed.value)
         or (current_idx == last_idx and step_status == WorkflowStepState.Completed.value)
     )
 
-    logger.debug("build_workflow_steps: current=%s/%s → %d visible steps, can_remove=%s",
-                 current_step, step_status, len(steps), can_remove)
+    logger.debug("build_workflow_steps: forward → %d visible steps, can_remove=%s",
+                 len(steps), can_remove)
 
     return steps, can_remove
 

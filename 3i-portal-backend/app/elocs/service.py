@@ -308,7 +308,13 @@ async def get_pricing_workflows(company_id: int) -> list[dict]:
 
             workflow_step = state.get("workflowStep", "")
             status = state.get("status", "Pending")
-            steps, can_remove = build_workflow_steps(workflow_step, status)
+            pricing_direction = state.get("pricingDirection", "Forward")
+            workflow_complete = state.get("workflowComplete", False)
+            steps, can_remove = build_workflow_steps(
+                workflow_step, status, pricing_direction, workflow_complete)
+
+            logger.debug("  ELOC %s: step=%s, status=%s, direction=%s, complete=%s, can_remove=%s",
+                         state.get("elocId"), workflow_step, status, pricing_direction, workflow_complete, can_remove)
 
             workflows.append({
                 "eloc_id": str(state.get("elocId", "")),
@@ -319,6 +325,8 @@ async def get_pricing_workflows(company_id: int) -> list[dict]:
                 "can_remove": can_remove,
                 "steps": steps,
                 "source": "portal",
+                "pricing_direction": pricing_direction,
+                "workflow_complete": workflow_complete,
             })
     except Exception as exc:
         logger.warning("  Failed to fetch portal workflows: %s", exc)

@@ -140,8 +140,11 @@ def _build_workflow_message(state: dict, source: str = "dts") -> dict:
     workflow_step = state.get("workflowStep", "")
     status = state.get("status", "Pending")
     modified_at = state.get("modifiedAt")
+    pricing_direction = state.get("pricingDirection", "Forward")
+    workflow_complete = state.get("workflowComplete", False)
 
-    steps, can_remove = build_workflow_steps(workflow_step, status)
+    steps, can_remove = build_workflow_steps(
+        workflow_step, status, pricing_direction, workflow_complete)
 
     # Cache the eloc→company mapping for routing eloc_removed events
     if eloc_id and company_id:
@@ -158,6 +161,8 @@ def _build_workflow_message(state: dict, source: str = "dts") -> dict:
             "can_remove": can_remove,
             "steps": steps,
             "source": source,
+            "pricing_direction": pricing_direction,
+            "workflow_complete": workflow_complete,
         },
     }
 

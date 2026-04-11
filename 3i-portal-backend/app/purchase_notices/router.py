@@ -72,14 +72,16 @@ async def get_prefill(
     symbol: str,
     pricing_period_id: int,
     shares: int = Query(..., gt=0),
+    backward: bool = Query(False),
     user: UserInfo = Depends(get_current_user),
 ):
     """
     Get all data needed to render a purchase notice.
     Merges DTS calculated fields + MongoDB template + PostgreSQL signatories.
+    Pass backward=true for backward pricing to fetch from the backward template collection.
     """
-    logger.info("GET /prefill/%s/%d?shares=%d — user=%s, company=%s",
-                symbol, pricing_period_id, shares, user.user_id, user.company_name)
+    logger.info("GET /prefill/%s/%d?shares=%d&backward=%s — user=%s, company=%s",
+                symbol, pricing_period_id, shares, backward, user.user_id, user.company_name)
 
     # 1. Get calculated fields from DTS
     logger.debug("Calling DTS get_purchase_notice_fields(%s, %d)", symbol, pricing_period_id)
@@ -95,14 +97,19 @@ async def get_prefill(
                  fields.get("isWithinAcceptanceWindow"), fields.get("signerName"))
 
     # 2. Get template from MongoDB (company-specific, with legacy fallback)
+    #    Use backward collection for backward pricing
     period_type = fields.get("periodType", "")
     company_id = int(user.company_id) if user.company_id else None
-    logger.debug("Looking up template for company_id=%s, period_type=%s", company_id, period_type)
-    template = await repo.get_template_by_period_type(period_type, company_id)
+    if backward:
+        logger.info("Prefill %s/%d: using backward template collection", symbol, pricing_period_id)
+        template = await repo.get_backward_notice_template_by_period_type(period_type, company_id)
+    else:
+        logger.debug("Prefill %s/%d: using forward template collection", symbol, pricing_period_id)
+        template = await repo.get_template_by_period_type(period_type, company_id)
     body_text = template.get("body_text", "") if template else ""
     agreed_entity = template.get("agreed_accepted_entity", "") if template else ""
-    logger.debug("Template found=%s, body_text_len=%d, entity=%s",
-                 template is not None, len(body_text), agreed_entity)
+    logger.info("Prefill %s/%d: template found=%s, backward=%s, body_text_len=%d, entity=%s",
+                symbol, pricing_period_id, template is not None, backward, len(body_text), agreed_entity)
 
     # 3. Get company signatories from PostgreSQL (admin-managed names, client-entered details)
     logger.debug("Loading company signatories for company_id=%s", company_id)

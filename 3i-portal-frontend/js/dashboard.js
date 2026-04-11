@@ -1090,7 +1090,12 @@ const Dashboard = (() => {
 
         console.log('[Dashboard] handleSharesSubmit: symbol=%s, periodId=%s, shares=%d, vwap=%s',
             symbol, pricingPeriodId, shares, backwardVwapPrice);
-        window.location.href = `purchase-notice.html?symbol=${encodeURIComponent(symbol)}&periodId=${pricingPeriodId}&shares=${shares}`;
+        let url = `purchase-notice.html?symbol=${encodeURIComponent(symbol)}&periodId=${pricingPeriodId}&shares=${shares}`;
+        if (backwardVwapPrice != null) {
+            url += `&backward=true&backwardVwapPrice=${backwardVwapPrice}`;
+            console.log('[Dashboard] handleSharesSubmit: backward pricing — appending vwap=%s', backwardVwapPrice);
+        }
+        window.location.href = url;
     }
 
     function initSharesModal() {

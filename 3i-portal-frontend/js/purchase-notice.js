@@ -19,6 +19,8 @@ const PurchaseNotice = (() => {
         const symbol = url.get('symbol');
         const periodId = url.get('periodId');
         const shares = url.get('shares');
+        const backward = url.get('backward') === 'true';
+        const backwardVwapPrice = url.get('backwardVwapPrice') ? parseFloat(url.get('backwardVwapPrice')) : null;
 
         if (!symbol || !periodId || !shares) {
             showError('Missing required parameters. Please return to the dashboard.');
@@ -29,7 +31,11 @@ const PurchaseNotice = (() => {
             symbol: symbol,
             periodId: parseInt(periodId, 10),
             shares: parseInt(shares, 10),
+            backward: backward,
+            backwardVwapPrice: backwardVwapPrice,
         };
+
+        console.log('[PurchaseNotice] backward=%s, backwardVwapPrice=%s', backward, backwardVwapPrice);
 
         console.log('[PurchaseNotice] Params:', params);
 
@@ -65,7 +71,7 @@ const PurchaseNotice = (() => {
     async function loadPrefill() {
         try {
             const data = await API.getPurchaseNoticePrefill(
-                params.symbol, params.periodId, params.shares
+                params.symbol, params.periodId, params.shares, params.backward
             );
             console.log('[PurchaseNotice] Prefill data loaded');
 
@@ -358,7 +364,13 @@ const PurchaseNotice = (() => {
                 period_type: currentData.periodType || '',
                 total_commitment_remaining: currentData.totalCommitmentRemaining || null,
                 dollar_cap_per_notice: currentData.dollarCapPerNotice || null,
+                // Pricing direction
+                pricing_direction: params.backward ? 'Backward' : 'Forward',
+                backward_vwap_price: params.backward ? params.backwardVwapPrice : null,
             };
+
+            console.log('[PurchaseNotice] pricing_direction=%s, backward_vwap_price=%s',
+                payload.pricing_direction, payload.backward_vwap_price);
 
             console.log('[PurchaseNotice] Submitting portal purchase notice: symbol=%s periodId=%d shares=%d signatory=%s',
                 params.symbol, params.periodId, params.shares, payload.signatory_name);

@@ -397,11 +397,10 @@ const API = (() => {
 
     // --- Purchase notice prefill ---
 
-    async function getPurchaseNoticePrefill(symbol, pricingPeriodId, shares) {
-        const response = await fetch(
-            `${BASE_URL}/purchase-notices/prefill/${encodeURIComponent(symbol)}/${pricingPeriodId}?shares=${shares}`,
-            { headers: authHeaders() }
-        );
+    async function getPurchaseNoticePrefill(symbol, pricingPeriodId, shares, backward) {
+        let url = `${BASE_URL}/purchase-notices/prefill/${encodeURIComponent(symbol)}/${pricingPeriodId}?shares=${shares}`;
+        if (backward) url += '&backward=true';
+        const response = await fetch(url, { headers: authHeaders() });
         return handleResponse(response);
     }
 
