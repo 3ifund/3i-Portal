@@ -96,11 +96,27 @@ async def get_prefill(
                  fields.get("periodType"), fields.get("exerciseDate"),
                  fields.get("isWithinAcceptanceWindow"), fields.get("signerName"))
 
+    # 1b. Auto-detect backward pricing from shares-available if frontend didn't pass it
+    is_backward = backward
+    if not is_backward:
+        try:
+            shares_data = await onprem.get_shares_available(symbol)
+            for p in shares_data.get("pricingPeriods", []):
+                if p.get("pricingPeriodId") == pricing_period_id and p.get("isBackwardPricing"):
+                    is_backward = True
+                    logger.info("Prefill %s/%d: auto-detected backward pricing from shares-available", symbol, pricing_period_id)
+                    break
+        except Exception as exc:
+            logger.warning("Prefill %s/%d: shares-available lookup failed (using backward=%s): %s",
+                           symbol, pricing_period_id, backward, exc)
+    logger.info("Prefill %s/%d: is_backward=%s (frontend=%s, auto-detect=%s)",
+                symbol, pricing_period_id, is_backward, backward, is_backward and not backward)
+
     # 2. Get template from MongoDB (company-specific, with legacy fallback)
     #    Use backward collection for backward pricing
     period_type = fields.get("periodType", "")
     company_id = int(user.company_id) if user.company_id else None
-    if backward:
+    if is_backward:
         logger.info("Prefill %s/%d: using backward template collection", symbol, pricing_period_id)
         template = await repo.get_backward_notice_template_by_period_type(period_type, company_id)
     else:
@@ -108,8 +124,8 @@ async def get_prefill(
         template = await repo.get_template_by_period_type(period_type, company_id)
     body_text = template.get("body_text", "") if template else ""
     agreed_entity = template.get("agreed_accepted_entity", "") if template else ""
-    logger.info("Prefill %s/%d: template found=%s, backward=%s, body_text_len=%d, entity=%s",
-                symbol, pricing_period_id, template is not None, backward, len(body_text), agreed_entity)
+    logger.info("Prefill %s/%d: template found=%s, is_backward=%s, body_text_len=%d, entity=%s",
+                symbol, pricing_period_id, template is not None, is_backward, len(body_text), agreed_entity)
 
     # 3. Get company signatories from PostgreSQL (admin-managed names, client-entered details)
     logger.debug("Loading company signatories for company_id=%s", company_id)
@@ -159,6 +175,21 @@ async def submit_portal_purchase_notice(
         "company_name": user.company_name or "",
         "submitted_by": user.user_id,
     }
+
+    # Auto-detect backward pricing if frontend didn't set it
+    if payload.get("pricing_direction") != "Backward":
+        try:
+            shares_data = await onprem.get_shares_available(request.symbol)
+            for p in shares_data.get("pricingPeriods", []):
+                if p.get("pricingPeriodId") == request.pricing_period_id and p.get("isBackwardPricing"):
+                    logger.info("POST /submit — auto-correcting pricing_direction to Backward for %s period %d",
+                                request.symbol, request.pricing_period_id)
+                    payload["pricing_direction"] = "Backward"
+                    payload["backward_vwap_price"] = p.get("backwardVwapPrice")
+                    logger.info("POST /submit — backward_vwap_price=%s", payload["backward_vwap_price"])
+                    break
+        except Exception as exc:
+            logger.warning("POST /submit — shares-available lookup for auto-detect failed: %s", exc)
 
     logger.debug(
         "POST /submit payload keys: %s",
