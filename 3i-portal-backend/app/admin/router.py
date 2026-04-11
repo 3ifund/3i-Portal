@@ -4,7 +4,9 @@ Admin-only endpoints for viewing all companies, ELOCs, and purchase notices.
 Data sourced from DealTermsServer REST API.
 """
 
+import asyncio
 import logging
+import time
 
 from fastapi import APIRouter, Depends
 
@@ -19,13 +21,17 @@ router = APIRouter()
 @router.get("/companies")
 async def list_companies(admin: UserInfo = Depends(require_admin)):
     """List all companies with ELOC counts."""
-    logger.info("GET /admin/companies by user=%s", admin.user_id)
+    t_start = time.monotonic()
+    logger.info("GET /admin/companies by user=%s — START", admin.user_id)
 
-    # Get company list from DealTermsServer shares-available endpoint
-    summaries = await onprem.get_all_company_summaries()
-
-    # Get all ELOC states to count per company and derive last_activity
-    all_states = await onprem.get_all_eloc_states()
+    # Get company list and ELOC states in parallel
+    t_dts = time.monotonic()
+    summaries, all_states = await asyncio.gather(
+        onprem.get_all_company_summaries(),
+        onprem.get_all_eloc_states(),
+    )
+    logger.info("GET /admin/companies — DTS calls completed in %.1fms (summaries=%d, states=%d)",
+                (time.monotonic() - t_dts) * 1000, len(summaries), len(all_states))
 
     # Build counts per companyId
     company_counts: dict[int, dict] = {}
@@ -71,16 +77,20 @@ async def list_companies(admin: UserInfo = Depends(require_admin)):
 
     # Enrich with counts where we can match by companyId
     # (CompanySummary doesn't include companyId, so counts are best-effort)
-    logger.info("  → returned %d companies", len(companies))
+    t_total = (time.monotonic() - t_start) * 1000
+    logger.info("GET /admin/companies — DONE in %.1fms, returned %d companies", t_total, len(companies))
     return companies
 
 
 @router.get("/elocs")
 async def list_all_elocs(admin: UserInfo = Depends(require_admin)):
     """List all ELOCs across all companies."""
-    logger.info("GET /admin/elocs by user=%s", admin.user_id)
+    t_start = time.monotonic()
+    logger.info("GET /admin/elocs by user=%s — START", admin.user_id)
 
     all_states = await onprem.get_all_eloc_states()
+    logger.info("GET /admin/elocs — DTS states fetched in %.1fms (%d states)",
+                (time.monotonic() - t_start) * 1000, len(all_states))
 
     elocs = []
     for state in all_states:
@@ -95,24 +105,32 @@ async def list_all_elocs(admin: UserInfo = Depends(require_admin)):
             "modified_at": state.get("modifiedAt"),
         })
 
-    logger.info("  → returned %d ELOCs", len(elocs))
+    t_total = (time.monotonic() - t_start) * 1000
+    logger.info("GET /admin/elocs — DONE in %.1fms, returned %d ELOCs", t_total, len(elocs))
     return elocs
 
 
 @router.get("/purchase-notices")
 async def list_purchase_notices(admin: UserInfo = Depends(require_admin)):
     """List all purchase notices across all companies."""
-    logger.info("GET /admin/purchase-notices by user=%s", admin.user_id)
+    t_start = time.monotonic()
+    logger.info("GET /admin/purchase-notices by user=%s — START", admin.user_id)
 
     all_states = await onprem.get_all_eloc_states()
+    logger.info("GET /admin/purchase-notices — states fetched in %.1fms (%d states)",
+                (time.monotonic() - t_start) * 1000, len(all_states))
     notices = []
 
+    # N+1 WARNING: fetches ELOC data for each state sequentially
+    t_data = time.monotonic()
+    fetch_count = 0
     for state in all_states:
         eloc_id = str(state.get("elocId", ""))
         if not eloc_id:
             continue
 
         # Fetch ELOC data for purchase notice info
+        fetch_count += 1
         data = await onprem.get_eloc_data(eloc_id)
         if not data:
             continue
@@ -138,5 +156,7 @@ async def list_purchase_notices(admin: UserInfo = Depends(require_admin)):
             "received_at": data.get("receivedAt"),
         })
 
-    logger.info("  → returned %d purchase notices", len(notices))
+    t_total = (time.monotonic() - t_start) * 1000
+    logger.info("GET /admin/purchase-notices — DONE in %.1fms (fetched %d ELOC data docs, returned %d notices)",
+                t_total, fetch_count, len(notices))
     return notices

@@ -43,6 +43,8 @@ const Admin = (() => {
      * Load and render companies table.
      */
     async function loadCompanies() {
+        const t = performance.now();
+        console.log('[Admin] loadCompanies — START');
         const loading = document.getElementById('companies-loading');
         const table = document.getElementById('companies-table');
         const empty = document.getElementById('companies-empty');
@@ -50,6 +52,7 @@ const Admin = (() => {
 
         try {
             const companies = await API.adminGetCompanies();
+            console.log('[Admin] loadCompanies — API returned %d companies in %.0fms', companies?.length || 0, performance.now() - t);
             loading.style.display = 'none';
 
             if (!companies || companies.length === 0) {
@@ -80,6 +83,8 @@ const Admin = (() => {
      * Load and render all ELOCs table.
      */
     async function loadElocs() {
+        const t = performance.now();
+        console.log('[Admin] loadElocs — START');
         const loading = document.getElementById('elocs-loading');
         const table = document.getElementById('elocs-table');
         const empty = document.getElementById('elocs-empty');
@@ -87,6 +92,7 @@ const Admin = (() => {
 
         try {
             const elocs = await API.adminGetElocs();
+            console.log('[Admin] loadElocs — API returned %d ELOCs in %.0fms', elocs?.length || 0, performance.now() - t);
             loading.style.display = 'none';
 
             if (!elocs || elocs.length === 0) {
@@ -123,6 +129,8 @@ const Admin = (() => {
      * Load and render purchase notices table.
      */
     async function loadPurchaseNotices() {
+        const t = performance.now();
+        console.log('[Admin] loadPurchaseNotices — START');
         const loading = document.getElementById('notices-loading');
         const table = document.getElementById('notices-table');
         const empty = document.getElementById('notices-empty');
@@ -130,6 +138,7 @@ const Admin = (() => {
 
         try {
             const notices = await API.adminGetPurchaseNotices();
+            console.log('[Admin] loadPurchaseNotices — API returned %d notices in %.0fms', notices?.length || 0, performance.now() - t);
             loading.style.display = 'none';
 
             if (!notices || notices.length === 0) {
@@ -169,6 +178,8 @@ const Admin = (() => {
      * Load and render users table.
      */
     async function loadUsers() {
+        const t = performance.now();
+        console.log('[Admin] loadUsers — START');
         const loading = document.getElementById('users-loading');
         const table = document.getElementById('users-table');
         const empty = document.getElementById('users-empty');
@@ -176,6 +187,7 @@ const Admin = (() => {
 
         try {
             const users = await API.adminGetUsers();
+            console.log('[Admin] loadUsers — API returned %d users in %.0fms', users?.length || 0, performance.now() - t);
             loading.style.display = 'none';
 
             if (!users || users.length === 0) {
@@ -1872,23 +1884,39 @@ const Admin = (() => {
             adminUserEl.textContent = sessionStorage.getItem('user_id') || 'Admin';
         }
 
+        const t0 = performance.now();
+        console.log('[Admin] init() — START');
+
         initTabs();
         initUserManagement();
 
         // Pre-load ELOC companies once, then init all template tabs in parallel
+        const t1 = performance.now();
+        console.log('[Admin] init() — loading ELOC companies...');
         await loadElocCompanies();
+        console.log('[Admin] init() — ELOC companies loaded in %.0fms', performance.now() - t1);
+
+        const t2 = performance.now();
+        console.log('[Admin] init() — initializing template tabs in parallel...');
         await Promise.all([
             initTemplateManagement(),
             initBackwardTemplateManagement(),
             initConfirmTemplateManagement(),
         ]);
+        console.log('[Admin] init() — template tabs initialized in %.0fms', performance.now() - t2);
 
         initSignatoryManagement();
         initVerificationManagement();
+
+        // Fire all data loads in parallel
+        const t3 = performance.now();
+        console.log('[Admin] init() — firing data loads (companies, elocs, notices, users)...');
         loadCompanies();
         loadElocs();
         loadPurchaseNotices();
         loadUsers();
+        console.log('[Admin] init() — data loads dispatched in %.0fms', performance.now() - t3);
+        console.log('[Admin] init() — TOTAL init time: %.0fms', performance.now() - t0);
     }
 
     document.addEventListener('DOMContentLoaded', init);

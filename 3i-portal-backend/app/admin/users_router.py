@@ -213,7 +213,8 @@ async def list_companies_for_dropdown(admin: UserInfo = Depends(require_admin)):
 @router.get("/companies-with-elocs")
 async def list_companies_with_elocs(admin: UserInfo = Depends(require_admin)):
     """Return companies with active ELOCs and their pricing period types."""
-    logger.info("GET /admin/companies-with-elocs by admin=%s", admin.user_id)
+    t_start = time.monotonic()
+    logger.info("GET /admin/companies-with-elocs by admin=%s — START", admin.user_id)
     pool = get_pool()
 
     # Get all company summaries from DealTermsServer shares-available
@@ -271,4 +272,6 @@ async def list_companies_with_elocs(admin: UserInfo = Depends(require_admin)):
         result.append(company)
         logger.info("  → %s (%s): periods=%s", company["name"], symbol, period_types)
 
+    t_total = (time.monotonic() - t_start) * 1000
+    logger.info("GET /admin/companies-with-elocs — DONE in %.1fms, returned %d companies", t_total, len(result))
     return result

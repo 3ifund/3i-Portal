@@ -53,31 +53,40 @@ async def _request_with_retry(method: str, url: str, **kwargs) -> httpx.Response
     Make an HTTP request with retry and exponential backoff.
     Retries on connection errors, timeouts, and 5xx responses.
     """
+    import time
     client = _get_client()
     delay = INITIAL_RETRY_DELAY
+    t_start = time.monotonic()
 
     for attempt in range(1, MAX_RETRIES + 1):
         try:
+            t_req = time.monotonic()
             response = await client.request(method, url, **kwargs)
+            t_req_elapsed = (time.monotonic() - t_req) * 1000
             if response.status_code >= 500 and attempt < MAX_RETRIES:
                 logger.warning(
-                    "  → %s %s returned %s (attempt %d/%d, retry in %ds)",
-                    method, url, response.status_code, attempt, MAX_RETRIES, delay,
+                    "  → %s %s returned %s in %.1fms (attempt %d/%d, retry in %ds)",
+                    method, url, response.status_code, t_req_elapsed, attempt, MAX_RETRIES, delay,
                 )
                 await asyncio.sleep(delay)
                 delay = min(delay * 2, MAX_RETRY_DELAY)
                 continue
+            t_total = (time.monotonic() - t_start) * 1000
+            logger.info("  → %s %s → %s in %.1fms (total %.1fms, attempt %d)",
+                        method, url, response.status_code, t_req_elapsed, t_total, attempt)
             return response
         except (httpx.ConnectError, httpx.ConnectTimeout, httpx.ReadTimeout, OSError) as exc:
+            t_req_elapsed = (time.monotonic() - t_req) * 1000
             if attempt == MAX_RETRIES:
+                t_total = (time.monotonic() - t_start) * 1000
                 logger.error(
-                    "  → %s %s failed after %d attempts: %s",
-                    method, url, MAX_RETRIES, exc,
+                    "  → %s %s failed after %d attempts in %.1fms: %s",
+                    method, url, MAX_RETRIES, t_total, exc,
                 )
                 raise
             logger.warning(
-                "  → %s %s failed (attempt %d/%d): %s (retry in %ds)",
-                method, url, attempt, MAX_RETRIES, exc, delay,
+                "  → %s %s failed in %.1fms (attempt %d/%d): %s (retry in %ds)",
+                method, url, t_req_elapsed, attempt, MAX_RETRIES, exc, delay,
             )
             await asyncio.sleep(delay)
             delay = min(delay * 2, MAX_RETRY_DELAY)
