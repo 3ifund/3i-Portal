@@ -117,6 +117,21 @@ async def check_group_responded(group_id: str) -> dict | None:
     return None
 
 
+async def try_claim_token(token: str, status: str) -> bool:
+    """Atomically claim a token — UPDATE only if still pending.
+    Returns True if this call claimed it, False if already claimed (race-safe)."""
+    logger.info("try_claim_token — token=%s, status=%s", token[:12] + "...", status)
+    now = datetime.now(timezone.utc)
+    pool = get_pool()
+    row = await pool.fetchrow(
+        "UPDATE countersign_tokens SET status = $1, responded_at = $2 WHERE token = $3 AND status = 'pending' RETURNING token",
+        status, now, token,
+    )
+    claimed = row is not None
+    logger.info("try_claim_token — token=%s, claimed=%s", token[:12] + "...", claimed)
+    return claimed
+
+
 async def mark_token_responded(token: str, status: str) -> None:
     """Mark a token as approved or rejected."""
     logger.info("mark_token_responded — token=%s, status=%s", token[:12] + "...", status)

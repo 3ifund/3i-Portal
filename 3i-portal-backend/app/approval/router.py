@@ -24,6 +24,13 @@ router = APIRouter()
 TOKEN_EXPIRY_HOURS = 24
 
 
+def _esc(s):
+    """Basic HTML entity escaping to prevent XSS."""
+    if not s:
+        return ""
+    return str(s).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
+
+
 async def create_approval_token(
     group_id: str,
     contact_name: str,
@@ -127,7 +134,7 @@ async def approval_page(token: str):
 <body>
     <div class="card">
         <div class="logo">3i Fund</div>
-        <p class="question">Do you agree to accept a purchase notice from <span class="company">{company_name}</span> in the amount <span class="amount">${amount}</span>?</p>
+        <p class="question">Do you agree to accept a purchase notice from <span class="company">{_esc(company_name)}</span> in the amount <span class="amount">${_esc(amount)}</span>?</p>
         <div class="buttons">
             <form method="POST" action="/approve/{token}/respond" style="flex:1;display:flex">
                 <input type="hidden" name="action" value="approved">
@@ -173,22 +180,25 @@ async def approval_respond(token: str, action: str = Form(...)):
     eloc_id = row["eloc_id"]
     now = datetime.now(timezone.utc)
 
-    # Check if another token in the group was already used (race condition guard)
-    group_responded = await pool.fetchrow(
-        "SELECT contact_name, status FROM approval_tokens WHERE group_id = $1 AND status IN ('approved', 'rejected')",
-        group_id,
-    )
-    if group_responded:
-        return _done_page(
-            "Already Responded",
-            f"This purchase notice was already {group_responded['status']} by {group_responded['contact_name']}.",
-        )
-
-    # Mark this token as responded
-    await pool.execute(
-        "UPDATE approval_tokens SET status = $1, responded_at = $2 WHERE token = $3",
+    # Atomic claim: UPDATE only if still pending (eliminates TOCTOU race)
+    claimed = await pool.fetchrow(
+        "UPDATE approval_tokens SET status = $1, responded_at = $2 WHERE token = $3 AND status = 'pending' RETURNING token, contact_name",
         action, now, token,
     )
+    if not claimed:
+        # Token was already claimed by another concurrent request
+        logger.info("Approval atomic claim failed — token %s already claimed", token)
+        group_responded = await pool.fetchrow(
+            "SELECT contact_name, status FROM approval_tokens WHERE group_id = $1 AND status IN ('approved', 'rejected')",
+            group_id,
+        )
+        if group_responded:
+            return _done_page(
+                "Already Responded",
+                f"This purchase notice was already {group_responded['status']} by {group_responded['contact_name']}.",
+            )
+        return _done_page("Already Responded", "This purchase notice has already been responded to.")
+    logger.info("Approval atomic claim succeeded: token=%s, action=%s, contact=%s", token, action, contact_name)
 
     # Mark all other tokens in the group as superseded
     await pool.execute(
@@ -236,15 +246,15 @@ async def approval_respond(token: str, action: str = Form(...)):
 def _error_page(title, message):
     return f"""<!DOCTYPE html>
 <html lang="en">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>{title}</title>
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>{_esc(title)}</title>
 <style>* {{ box-sizing: border-box; margin: 0; padding: 0; }} body {{ font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #f4f6f8; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }} .card {{ background: #fff; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); padding: 32px 24px; max-width: 400px; width: 100%; text-align: center; }} h2 {{ color: #c0392b; margin-bottom: 12px; }} p {{ color: #666; }}</style>
-</head><body><div class="card"><h2>{title}</h2><p>{message}</p></div></body></html>"""
+</head><body><div class="card"><h2>{_esc(title)}</h2><p>{_esc(message)}</p></div></body></html>"""
 
 
 def _done_page(title, message):
     color = "#27ae60" if "Accepted" in title else "#c0392b" if "Rejected" in title else "#1a3a5c"
     return f"""<!DOCTYPE html>
 <html lang="en">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>{title}</title>
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>{_esc(title)}</title>
 <style>* {{ box-sizing: border-box; margin: 0; padding: 0; }} body {{ font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #f4f6f8; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }} .card {{ background: #fff; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); padding: 32px 24px; max-width: 400px; width: 100%; text-align: center; }} h2 {{ color: {color}; margin-bottom: 12px; }} p {{ color: #666; }}</style>
-</head><body><div class="card"><h2>{title}</h2><p>{message}</p></div></body></html>"""
+</head><body><div class="card"><h2>{_esc(title)}</h2><p>{_esc(message)}</p></div></body></html>"""

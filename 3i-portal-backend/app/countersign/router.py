@@ -247,16 +247,21 @@ async def countersign_respond(token: str):
     company_name = token_data["company_name"]
     eloc_id = token_data["eloc_id"]
 
-    # 2. First-responder-wins: check if another signatory already responded
-    group_responded = await check_group_responded(group_id)
-    if group_responded:
-        return _done_page(
-            "Already Countersigned",
-            f"This Purchase Confirmation was already countersigned by {group_responded['signatory_name']}.",
-        )
+    # 2. Atomic claim: UPDATE only if still pending (eliminates TOCTOU race)
+    from app.countersign.repository import try_claim_token
+    claimed = await try_claim_token(token, "approved")
+    if not claimed:
+        logger.info("Countersign atomic claim failed — token %s already claimed", token[:12] + "...")
+        group_responded = await check_group_responded(group_id)
+        if group_responded:
+            return _done_page(
+                "Already Countersigned",
+                f"This Purchase Confirmation was already countersigned by {group_responded['signatory_name']}.",
+            )
+        return _done_page("Already Countersigned", "This Purchase Confirmation has already been countersigned.")
+    logger.info("Countersign atomic claim succeeded: token=%s, signatory=%s", token[:12] + "...", signatory_name)
 
-    # 3. Mark this token as approved, supersede others
-    await mark_token_responded(token, "approved")
+    # 3. Supersede other tokens in the group
     await supersede_group_tokens(group_id, token)
 
     # 4. Load signatory details for countersign data
@@ -395,7 +400,7 @@ def _countersign_page(
                 </div>
             </div>
 
-            <div class="body-text">{body_text}</div>
+            <div class="body-text">{_esc(body_text).replace(chr(10), '<br>')}</div>
 
             <table class="fields-table">
                 <tr><td>VWAP Purchase Share Amount (number of Shares):</td><td>{_esc(shares)}</td></tr>
