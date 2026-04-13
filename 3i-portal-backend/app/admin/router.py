@@ -24,49 +24,18 @@ async def list_companies(admin: UserInfo = Depends(require_admin)):
     t_start = time.monotonic()
     logger.info("GET /admin/companies by user=%s — START", admin.user_id)
 
-    # Get company list and ELOC states in parallel
+    # Get company list from DealTermsServer
     t_dts = time.monotonic()
-    summaries, all_states = await asyncio.gather(
-        onprem.get_all_company_summaries(),
-        onprem.get_all_eloc_states(),
-    )
-    logger.info("GET /admin/companies — DTS calls completed in %.1fms (summaries=%d, states=%d)",
-                (time.monotonic() - t_dts) * 1000, len(summaries), len(all_states))
-
-    # Build counts per companyId
-    company_counts: dict[int, dict] = {}
-    for state in all_states:
-        cid = state.get("companyId")
-        if cid is None:
-            continue
-        if cid not in company_counts:
-            company_counts[cid] = {"total": 0, "active": 0, "last_activity": None}
-        company_counts[cid]["total"] += 1
-        if state.get("include", False):
-            company_counts[cid]["active"] += 1
-        modified = state.get("modifiedAt")
-        if modified:
-            existing = company_counts[cid]["last_activity"]
-            if existing is None or str(modified) > str(existing):
-                company_counts[cid]["last_activity"] = modified
+    summaries = await onprem.get_all_company_summaries()
+    logger.info("GET /admin/companies — DTS call completed in %.1fms (summaries=%d)",
+                (time.monotonic() - t_dts) * 1000, len(summaries))
 
     companies = []
     for s in summaries:
-        # CompanySummary has symbol and companyName but not companyId
-        # Match by looking through states for this company's name
         symbol = s.get("symbol", "")
         name = s.get("companyName", "")
-
-        # Find companyId from states that match this company
-        matched_cid = None
-        for state in all_states:
-            # ElocData extractedFields has company info, but state only has companyId
-            # We can't easily match symbol to companyId here without additional data
-            # For now, include all companies from summaries
-            pass
-
         companies.append({
-            "company_id": symbol,  # Use symbol as identifier
+            "company_id": symbol,
             "name": name,
             "symbol": symbol,
             "has_active_eloc": s.get("hasActiveEloc", False),
@@ -74,9 +43,6 @@ async def list_companies(admin: UserInfo = Depends(require_admin)):
             "total_elocs": 0,
             "last_activity": None,
         })
-
-    # Enrich with counts where we can match by companyId
-    # (CompanySummary doesn't include companyId, so counts are best-effort)
     t_total = (time.monotonic() - t_start) * 1000
     logger.info("GET /admin/companies — DONE in %.1fms, returned %d companies", t_total, len(companies))
     return companies
@@ -121,17 +87,25 @@ async def list_purchase_notices(admin: UserInfo = Depends(require_admin)):
                 (time.monotonic() - t_start) * 1000, len(all_states))
     notices = []
 
-    # N+1 WARNING: fetches ELOC data for each state sequentially
+    # Fetch all ELOC data in parallel instead of N+1 sequential
+    eloc_ids = [str(s.get("elocId", "")) for s in all_states if s.get("elocId")]
+    logger.info("GET /admin/purchase-notices — fetching %d ELOC data docs in parallel", len(eloc_ids))
     t_data = time.monotonic()
-    fetch_count = 0
+
+    async def _fetch_data(eid):
+        try:
+            return eid, await onprem.get_eloc_data(eid)
+        except Exception:
+            return eid, None
+
+    data_results = await asyncio.gather(*[_fetch_data(eid) for eid in eloc_ids])
+    data_map = {eid: data for eid, data in data_results if data}
+    logger.info("GET /admin/purchase-notices — parallel fetch completed in %.1fms (%d docs)",
+                (time.monotonic() - t_data) * 1000, len(data_map))
+
     for state in all_states:
         eloc_id = str(state.get("elocId", ""))
-        if not eloc_id:
-            continue
-
-        # Fetch ELOC data for purchase notice info
-        fetch_count += 1
-        data = await onprem.get_eloc_data(eloc_id)
+        data = data_map.get(eloc_id)
         if not data:
             continue
 

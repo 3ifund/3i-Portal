@@ -215,35 +215,6 @@ async def get_purchase_notice_fields(symbol: str, pricing_period_id: int) -> dic
     return response.json()
 
 
-async def submit_purchase_notice(
-    eloc_id: str,
-    company_id: str,
-    pricing_period: str,
-    shares: int,
-) -> dict:
-    """
-    Submit a purchase notice to the on-prem server.
-    Returns acknowledgment response.
-    """
-    logger.info(
-        "POST /api/elocs/%s/purchase-notice company_id=%s period=%s shares=%d",
-        eloc_id, company_id, pricing_period, shares,
-    )
-    client = _get_client()
-    response = await client.post(
-        f"/api/elocs/{eloc_id}/purchase-notice",
-        json={
-            "company_id": company_id,
-            "pricing_period": pricing_period,
-            "shares": shares,
-        },
-    )
-    logger.info("  → %s (%d bytes)", response.status_code, len(response.content))
-    logger.debug("  → body: %s", response.text[:2000])
-    response.raise_for_status()
-    return response.json()
-
-
 # ---- Portal-Initiated Purchase Notice Endpoints ----
 
 async def submit_portal_purchase_notice(payload: dict) -> dict:

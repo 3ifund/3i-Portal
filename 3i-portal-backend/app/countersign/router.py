@@ -240,6 +240,12 @@ async def countersign_respond(token: str):
             f"This Purchase Confirmation has already been {token_data['status']}.",
         )
 
+    # Check expiry
+    expires = token_data.get("expires_at")
+    if expires and datetime.now(timezone.utc) > expires.replace(tzinfo=timezone.utc):
+        logger.warning("Countersign token expired on POST: %s", token[:12] + "...")
+        return _error_page("Link Expired", "This countersign link has expired.")
+
     group_id = token_data["group_id"]
     signatory_id = token_data["signatory_id"]
     signatory_name = token_data["signatory_name"]

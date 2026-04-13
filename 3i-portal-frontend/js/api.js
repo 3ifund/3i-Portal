@@ -109,24 +109,6 @@ const API = (() => {
     }
 
     /**
-     * POST /elocs/:id/purchase-notice — submit purchase notice
-     */
-    async function submitPurchaseNotice(elocId, pricingPeriod, shares) {
-        const response = await fetch(
-            `${BASE_URL}/elocs/${encodeURIComponent(elocId)}/purchase-notice`,
-            {
-                method: 'POST',
-                headers: authHeaders(),
-                body: JSON.stringify({
-                    pricing_period: pricingPeriod,
-                    shares: shares,
-                }),
-            }
-        );
-        return handleResponse(response);
-    }
-
-    /**
      * GET /elocs/shares-available — available shares for all pricing periods
      */
     async function getSharesAvailable() {
@@ -559,7 +541,6 @@ const API = (() => {
         removePricingWorkflow,
         getElocWorkflow,
         getElocDocument,
-        submitPurchaseNotice,
         submitPortalPurchaseNotice,
         getPortalElocDocument,
         changePassword,

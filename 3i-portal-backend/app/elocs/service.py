@@ -349,17 +349,3 @@ async def remove_pricing_workflow(eloc_id: str, company_id: int) -> bool:
     return success
 
 
-async def submit_purchase_notice(
-    eloc_id: str,
-    company_id: str,
-    pricing_period: str,
-    shares: int,
-) -> dict:
-    """
-    Forward purchase notice to on-prem server and return acknowledgment.
-    """
-    logger.info("submit_purchase_notice eloc=%s company=%s period=%s shares=%d",
-                eloc_id, company_id, pricing_period, shares)
-    result = await onprem.submit_purchase_notice(eloc_id, company_id, pricing_period, shares)
-    logger.info("  On-prem result: %s", result)
-    return result

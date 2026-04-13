@@ -123,7 +123,7 @@ async def remove_pricing_workflow(
 
 @router.get("/{eloc_id}", response_model=ElocDetail)
 async def get_eloc(
-    eloc_id: int,
+    eloc_id: str,
     user: UserInfo = Depends(get_current_user),
 ):
     """Get ELOC detail: pricing periods, shares, deal terms."""
@@ -176,36 +176,3 @@ async def get_document(
     return doc
 
 
-@router.post("/{eloc_id}/purchase-notice", response_model=PurchaseNoticeResponse)
-async def submit_purchase_notice(
-    eloc_id: str,
-    request: PurchaseNoticeRequest,
-    user: UserInfo = Depends(get_current_user),
-):
-    """Submit a purchase notice to the on-prem server."""
-    logger.info(
-        "POST /elocs/%s/purchase-notice user=%s period=%s shares=%d",
-        eloc_id, user.user_id, request.pricing_period, request.shares,
-    )
-    if request.shares < 1:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Shares must be at least 1",
-        )
-
-    try:
-        result = await service.submit_purchase_notice(
-            eloc_id, user.company_id, request.pricing_period, request.shares
-        )
-    except Exception as exc:
-        logger.error("  → purchase notice FAILED: %s", exc, exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"Unable to submit purchase notice: {exc}",
-        )
-
-    logger.info("  → purchase notice result: %s", result)
-    return PurchaseNoticeResponse(
-        status=result.get("status", "acknowledged"),
-        message=result.get("message", "Purchase notice submitted successfully"),
-    )

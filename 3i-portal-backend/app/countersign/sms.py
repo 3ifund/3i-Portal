@@ -5,13 +5,24 @@ from app.config import settings
 
 logger = logging.getLogger("portal.countersign.sms")
 
+_twilio_client = None
+
+
+def _get_twilio_client():
+    """Get or create a cached Twilio client (reuses HTTP connections)."""
+    global _twilio_client
+    if _twilio_client is None:
+        from twilio.rest import Client
+        logger.info("Creating Twilio client (countersign) — account_sid=%s...",
+                     settings.twilio_account_sid[:8] if settings.twilio_account_sid else "N/A")
+        _twilio_client = Client(settings.twilio_account_sid, settings.twilio_auth_token)
+    return _twilio_client
+
 
 async def send_countersign_sms(
     phone_number: str, company_name: str, countersign_url: str
 ):
     """Send SMS with countersign link via Twilio."""
-    from twilio.rest import Client
-
     logger.info("send_countersign_sms — to=%s, company=%s", phone_number, company_name)
     logger.debug("send_countersign_sms — url=%s", countersign_url)
     logger.debug("send_countersign_sms — twilio from=%s, account_sid=%s...",
@@ -25,7 +36,7 @@ async def send_countersign_sms(
     logger.debug("send_countersign_sms — message body length=%d chars", len(body))
 
     try:
-        client = Client(settings.twilio_account_sid, settings.twilio_auth_token)
+        client = _get_twilio_client()
         message = client.messages.create(
             body=body,
             from_=settings.twilio_from_number,

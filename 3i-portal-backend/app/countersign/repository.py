@@ -173,16 +173,18 @@ async def supersede_all_tokens_for_eloc(eloc_id: str) -> None:
 
 
 async def has_pending_countersign(eloc_id: str) -> bool:
-    """Check if countersign SMS tokens have already been created for this ELOC.
-    Prevents duplicate sends on WebSocket reconnect."""
+    """Check if active (pending) countersign SMS tokens exist for this ELOC.
+    Prevents duplicate sends on WebSocket reconnect.
+    Only checks pending tokens — superseded/expired tokens are ignored so
+    SMS can be re-sent if the workflow re-enters VwapNotificationToCompany."""
     logger.debug("has_pending_countersign — eloc_id=%s", eloc_id)
     pool = get_pool()
     row = await pool.fetchrow(
-        "SELECT 1 FROM countersign_tokens WHERE eloc_id = $1 LIMIT 1",
+        "SELECT 1 FROM countersign_tokens WHERE eloc_id = $1 AND status = 'pending' LIMIT 1",
         eloc_id,
     )
     exists = row is not None
-    logger.debug("has_pending_countersign — eloc_id=%s, exists=%s", eloc_id, exists)
+    logger.debug("has_pending_countersign — eloc_id=%s, has_pending=%s", eloc_id, exists)
     return exists
 
 
