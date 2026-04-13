@@ -82,6 +82,12 @@ def build_workflow_steps(
 
     # Backward pricing: single step display
     if pricing_direction == "Backward":
+        # Fallback: if DTS didn't set workflow_complete but the last backward step is Completed,
+        # treat it as complete (DeemedToOwnPosition is the last step for backward pricing)
+        if not workflow_complete and current_step == "DeemedToOwnPosition" and step_status == WorkflowStepState.Completed.value:
+            logger.info("build_workflow_steps: backward fallback — DeemedToOwnPosition/Completed → treating as workflow_complete")
+            workflow_complete = True
+
         if workflow_complete:
             effective_status = WorkflowStepState.Completed.value
         else:
@@ -95,8 +101,8 @@ def build_workflow_steps(
             workflow_complete
             or step_status in (WorkflowStepState.Rejected.value, WorkflowStepState.Failed.value)
         )
-        logger.debug("build_workflow_steps: backward → 1 step, status=%s, can_remove=%s",
-                     effective_status, can_remove)
+        logger.debug("build_workflow_steps: backward → 1 step, status=%s, can_remove=%s, workflow_complete=%s",
+                     effective_status, can_remove, workflow_complete)
         return steps, can_remove
 
     # Forward pricing: 4 client-visible steps with status inheritance
