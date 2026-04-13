@@ -313,6 +313,19 @@ const PurchaseNotice = (() => {
 
     // ---- Confirmation Dialog ----
 
+    function _onDisclaimerScroll(e) {
+        const el = e.target;
+        const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 10;
+        if (atBottom) {
+            const checkbox = document.getElementById('pn-confirm-checkbox');
+            const checkboxLabel = document.getElementById('pn-confirm-checkbox-label');
+            checkbox.disabled = false;
+            checkboxLabel.style.opacity = '1';
+            checkboxLabel.style.pointerEvents = 'auto';
+            console.log('[PurchaseNotice] Disclaimer scrolled to bottom — checkbox enabled');
+        }
+    }
+
     function openConfirmDialog() {
         // Populate dynamic fields in the confirmation modal
         const companyName = sessionStorage.getItem('company_name') || currentData.companyName || '';
@@ -325,12 +338,21 @@ const PurchaseNotice = (() => {
         setText('pn-confirm-settlement', formatDate(currentData.settlementDate));
 
         // Reset checkbox and button state
-        document.getElementById('pn-confirm-checkbox').checked = false;
+        const checkbox = document.getElementById('pn-confirm-checkbox');
+        const checkboxLabel = document.getElementById('pn-confirm-checkbox-label');
+        checkbox.checked = false;
+        checkbox.disabled = true;
+        checkboxLabel.style.opacity = '0.5';
+        checkboxLabel.style.pointerEvents = 'none';
         document.getElementById('pn-confirm-accept').disabled = true;
 
-        // Scroll the legal text back to top
+        // Scroll the legal text back to top and require full scroll before enabling checkbox
         const scrollArea = document.querySelector('.pn-confirm-scroll');
-        if (scrollArea) scrollArea.scrollTop = 0;
+        if (scrollArea) {
+            scrollArea.scrollTop = 0;
+            scrollArea.removeEventListener('scroll', _onDisclaimerScroll);
+            scrollArea.addEventListener('scroll', _onDisclaimerScroll);
+        }
 
         document.getElementById('pn-confirm-overlay').style.display = 'flex';
     }

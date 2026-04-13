@@ -201,6 +201,19 @@
 
     // ---- Confirm Dialog ----
 
+    function _onPcDisclaimerScroll(e) {
+        const el = e.target;
+        const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 10;
+        if (atBottom) {
+            const checkbox = document.getElementById('pc-confirm-checkbox');
+            const checkboxLabel = document.getElementById('pc-confirm-checkbox-label');
+            checkbox.disabled = false;
+            checkboxLabel.style.opacity = '1';
+            checkboxLabel.style.pointerEvents = 'auto';
+            console.log('[PurchaseConfirmation] Disclaimer scrolled to bottom — checkbox enabled');
+        }
+    }
+
     function openConfirmDialog() {
         const overlay = document.getElementById('pc-confirm-overlay');
         overlay.style.display = 'flex';
@@ -219,9 +232,21 @@
         document.getElementById('pc-confirm-settlement').textContent = prefillData.settlement_date || '';
 
         const checkbox = document.getElementById('pc-confirm-checkbox');
+        const checkboxLabel = document.getElementById('pc-confirm-checkbox-label');
         const acceptBtn = document.getElementById('pc-confirm-accept');
         checkbox.checked = false;
+        checkbox.disabled = true;
+        checkboxLabel.style.opacity = '0.5';
+        checkboxLabel.style.pointerEvents = 'none';
         acceptBtn.disabled = true;
+
+        // Scroll disclaimer back to top and require full scroll
+        const scrollArea = overlay.querySelector('.pn-confirm-scroll');
+        if (scrollArea) {
+            scrollArea.scrollTop = 0;
+            scrollArea.removeEventListener('scroll', _onPcDisclaimerScroll);
+            scrollArea.addEventListener('scroll', _onPcDisclaimerScroll);
+        }
 
         // Replace elements to remove old event listeners
         const newAcceptBtn = acceptBtn.cloneNode(true);
@@ -229,6 +254,7 @@
         newAcceptBtn.addEventListener('click', handleCountersign);
 
         const newCheckbox = checkbox.cloneNode(true);
+        newCheckbox.disabled = true;
         checkbox.parentNode.replaceChild(newCheckbox, checkbox);
         newCheckbox.addEventListener('change', () => {
             newAcceptBtn.disabled = !newCheckbox.checked;
