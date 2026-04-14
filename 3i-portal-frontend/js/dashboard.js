@@ -278,9 +278,10 @@ const Dashboard = (() => {
     }
 
     function formatPrice(num) {
-        return new Intl.NumberFormat('en-US', {
-            style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2,
+        const formatted = new Intl.NumberFormat('en-US', {
+            style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 4,
         }).format(num);
+        return formatted;
     }
 
     // ---- Tabs ----
