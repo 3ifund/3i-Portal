@@ -5,7 +5,7 @@
 
 const API = (() => {
     // Base URL of the FastAPI backend — update for each environment
-    const BASE_URL = window.PORTAL_CONFIG?.apiBaseUrl || 'http://localhost:8000';
+    const BASE_URL = window.PORTAL_CONFIG?.apiBaseUrl || `http://${window.location.hostname}:8000`;
 
     /**
      * Get the stored JWT token.
