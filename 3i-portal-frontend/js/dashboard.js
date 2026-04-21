@@ -215,7 +215,7 @@ const Dashboard = (() => {
             return;
         }
 
-        const baseUrl = window.PORTAL_CONFIG?.apiBaseUrl || 'http://localhost:8000';
+        const baseUrl = window.PORTAL_CONFIG?.apiBaseUrl || `http://${window.location.hostname}:8000`;
         const wsUrl = baseUrl.replace(/^http/, 'ws') + `/ws/quotes?token=${encodeURIComponent(token)}`;
         console.log('[Dashboard] Connecting to quote WS:', wsUrl.replace(/token=[^&]+/, 'token=***'));
 
@@ -665,7 +665,7 @@ const Dashboard = (() => {
             return;
         }
 
-        const baseUrl = window.PORTAL_CONFIG?.apiBaseUrl || 'http://localhost:8000';
+        const baseUrl = window.PORTAL_CONFIG?.apiBaseUrl || `http://${window.location.hostname}:8000`;
         const wsUrl = baseUrl.replace(/^http/, 'ws') + `/ws/workflows?token=${encodeURIComponent(token)}`;
         console.log('[Dashboard] Connecting to workflows WS');
 
