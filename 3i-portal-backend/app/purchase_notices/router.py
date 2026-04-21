@@ -14,9 +14,7 @@ from app.auth.dependencies import get_current_user
 from app.auth.models import UserInfo
 from app.config import settings
 from app.purchase_notices.models import (
-    CreateSignatoryRequest,
     PortalPurchaseNoticeRequest,
-    UpdateSignatoryRequest,
     UpdateSignatoryDetailsRequest,
 )
 from app.purchase_notices import mongo_repository as repo
@@ -28,6 +26,45 @@ from app.approval.sms import send_approval_sms
 
 logger = logging.getLogger("portal.purchase_notices")
 router = APIRouter()
+
+
+async def _verify_eloc_ownership(eloc_id: str, user: UserInfo) -> None:
+    """Check that the ELOC belongs to the user's company. Raises 403 if not."""
+    if not user.company_id:
+        raise HTTPException(status_code=400, detail="User has no company assigned")
+
+    # Check portal_3i MongoDB first (portal-initiated ELOCs)
+    try:
+        from app.database.mongo import get_db, is_connected
+        if is_connected():
+            db = get_db()
+            eloc_data = await db.eloc_data.find_one({"eloc_id": eloc_id}, {"company_id": 1})
+            if eloc_data:
+                if eloc_data.get("company_id") != int(user.company_id):
+                    logger.warning("Ownership denied: user company_id=%s, ELOC company_id=%s, eloc_id=%s",
+                                    user.company_id, eloc_data.get("company_id"), eloc_id)
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="Access denied: ELOC belongs to a different company",
+                    )
+                return  # Ownership confirmed
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.warning("Ownership check via MongoDB failed for eloc_id=%s: %s", eloc_id, exc)
+
+    # Fallback: check DTS state
+    state = await onprem.get_eloc_state_by_id(eloc_id)
+    if not state:
+        logger.warning("Ownership check: ELOC %s not found", eloc_id)
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="ELOC not found")
+    if state.get("companyId") != int(user.company_id):
+        logger.warning("Ownership denied: user company_id=%s, ELOC company_id=%s, eloc_id=%s",
+                        user.company_id, state.get("companyId"), eloc_id)
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied: ELOC belongs to a different company",
+        )
 
 
 # ---- Company Signatories (names managed by admin, details entered by client) ----
@@ -285,6 +322,7 @@ async def get_portal_document(
     Returns PDF data from three_i_fund_portal.eloc_data via DTS.
     """
     logger.info("GET /documents/%s/%s — user=%s", eloc_id, step, user.user_id)
+    await _verify_eloc_ownership(eloc_id, user)
 
     doc = await onprem.get_portal_eloc_document(eloc_id, step)
     if not doc:
@@ -310,6 +348,7 @@ async def get_confirmation_prefill(
     Reads VWAP pricing data + template + firm signature + company signatories.
     """
     logger.info("GET /confirmation-prefill/%s — user=%s company_id=%s", eloc_id, user.user_id, user.company_id)
+    await _verify_eloc_ownership(eloc_id, user)
 
     from app.database.mongo import get_db
     db = get_db()
@@ -426,6 +465,8 @@ async def submit_countersign(
 
     if not eloc_id:
         raise HTTPException(status_code=400, detail="eloc_id is required")
+
+    await _verify_eloc_ownership(eloc_id, user)
 
     signatory_name = payload.get("signatory_name", "")
     signatory_title = payload.get("signatory_title", "")

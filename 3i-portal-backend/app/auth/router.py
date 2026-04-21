@@ -20,6 +20,7 @@ from app.auth.models import (
     UserInfo,
 )
 from app.auth.dependencies import get_current_user
+from app.config import settings
 from app.dealterms import repository as dealterms
 from app.users import repository as users_repo
 
@@ -101,6 +102,13 @@ async def login(request: LoginRequest):
         )
 
     # --- Path 2: Test convention fallback ({symbol}123) ---
+    if not settings.allow_test_login:
+        logger.warning("Login FAILED for user_id=%s (not in portal_users, test login disabled)", user_id)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid User ID or password",
+        )
+
     symbol = _extract_symbol(request.user_id)
     if not symbol:
         logger.warning("Login FAILED for user_id=%s (not in portal_users, invalid test format)", user_id)

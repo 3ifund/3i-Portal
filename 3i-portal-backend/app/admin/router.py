@@ -132,5 +132,5 @@ async def list_purchase_notices(admin: UserInfo = Depends(require_admin)):
 
     t_total = (time.monotonic() - t_start) * 1000
     logger.info("GET /admin/purchase-notices — DONE in %.1fms (fetched %d ELOC data docs, returned %d notices)",
-                t_total, fetch_count, len(notices))
+                t_total, len(data_map), len(notices))
     return notices

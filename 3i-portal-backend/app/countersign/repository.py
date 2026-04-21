@@ -132,17 +132,6 @@ async def try_claim_token(token: str, status: str) -> bool:
     return claimed
 
 
-async def mark_token_responded(token: str, status: str) -> None:
-    """Mark a token as approved or rejected."""
-    logger.info("mark_token_responded — token=%s, status=%s", token[:12] + "...", status)
-    now = datetime.now(timezone.utc)
-    pool = get_pool()
-    await pool.execute(
-        "UPDATE countersign_tokens SET status = $1, responded_at = $2 WHERE token = $3",
-        status, now, token,
-    )
-
-
 async def supersede_group_tokens(group_id: str, except_token: str) -> None:
     """Mark all other pending tokens in the group as superseded."""
     logger.info("supersede_group_tokens — group=%s, except=%s", group_id, except_token[:12] + "...")

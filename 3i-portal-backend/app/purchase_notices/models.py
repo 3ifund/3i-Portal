@@ -13,24 +13,6 @@ class UpsertTemplateRequest(BaseModel):
     agreed_accepted_entity: str
 
 
-# ---- Signatories (user-managed) ----
-
-class CreateSignatoryRequest(BaseModel):
-    name: str
-    title: str
-    address: str
-    email: str
-    signature_image: str | None = None
-
-
-class UpdateSignatoryRequest(BaseModel):
-    name: str | None = None
-    title: str | None = None
-    address: str | None = None
-    email: str | None = None
-    signature_image: str | None = None
-
-
 # ---- Company Signatories (admin-managed names, client-entered details, stored in PostgreSQL) ----
 
 class AdminAddSignatoryRequest(BaseModel):

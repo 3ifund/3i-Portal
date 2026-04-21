@@ -15,7 +15,6 @@ from fastapi.responses import HTMLResponse
 from app.countersign.repository import (
     get_countersign_token,
     check_group_responded,
-    mark_token_responded,
     supersede_group_tokens,
 )
 from app.onprem import client as onprem

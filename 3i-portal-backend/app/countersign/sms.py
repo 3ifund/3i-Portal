@@ -1,5 +1,6 @@
 """Twilio SMS sender for Purchase Confirmation countersign notifications."""
 
+import asyncio
 import logging
 from app.config import settings
 
@@ -37,7 +38,8 @@ async def send_countersign_sms(
 
     try:
         client = _get_twilio_client()
-        message = client.messages.create(
+        message = await asyncio.to_thread(
+            client.messages.create,
             body=body,
             from_=settings.twilio_from_number,
             to=phone_number,

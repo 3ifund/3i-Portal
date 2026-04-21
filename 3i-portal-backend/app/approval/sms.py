@@ -1,5 +1,6 @@
 """Twilio SMS sender for purchase notice approval notifications."""
 
+import asyncio
 import logging
 from app.config import settings
 
@@ -31,7 +32,8 @@ async def send_approval_sms(phone_number: str, company_name: str, amount: str, a
 
     try:
         client = _get_twilio_client()
-        message = client.messages.create(
+        message = await asyncio.to_thread(
+            client.messages.create,
             body=body,
             from_=settings.twilio_from_number,
             to=phone_number,

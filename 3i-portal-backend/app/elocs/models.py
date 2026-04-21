@@ -207,27 +207,10 @@ class ElocDetail(BaseModel):
     pricing_periods: list[PricingPeriod] = []
 
 
-class WorkflowStep(BaseModel):
-    key: str
-    state: str  # "Awaiting", "Pending", "Completed", "Rejected"
-    event_datetime: str | None = None
-    has_document: bool = False
-
-
 class WorkflowResponse(BaseModel):
     eloc_id: str
     steps: dict[str, str]  # step_key -> state
     events: dict[str, dict] = {}  # step_key -> {event_datetime, ...}
-
-
-class PurchaseNoticeRequest(BaseModel):
-    pricing_period: str
-    shares: int
-
-
-class PurchaseNoticeResponse(BaseModel):
-    status: str
-    message: str
 
 
 class PricingWorkflowState(BaseModel):

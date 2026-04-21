@@ -42,6 +42,9 @@ class Settings(BaseSettings):
     # Approval page base URL (for links in SMS)
     approval_base_url: str = "http://localhost:8001"
 
+    # Test login convention ({symbol}123) — disable in production
+    allow_test_login: bool = True
+
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 
 

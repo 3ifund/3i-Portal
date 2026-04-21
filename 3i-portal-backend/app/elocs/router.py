@@ -14,13 +14,32 @@ from app.elocs.models import (
     ElocDetail,
     ElocSummary,
     PricingWorkflowState,
-    PurchaseNoticeRequest,
-    PurchaseNoticeResponse,
     WorkflowResponse,
 )
 
+from app.onprem import client as onprem
+
 logger = logging.getLogger("portal.elocs")
 router = APIRouter()
+
+
+async def _verify_eloc_ownership(eloc_id: str, company_id: int) -> None:
+    """Check that the ELOC belongs to the user's company. Raises 403 if not."""
+    state = await onprem.get_eloc_state_by_id(eloc_id)
+    if not state:
+        logger.warning("Ownership check: ELOC %s not found", eloc_id)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="ELOC not found",
+        )
+    eloc_company_id = state.get("companyId")
+    if eloc_company_id != company_id:
+        logger.warning("Ownership denied: user company_id=%s, ELOC company_id=%s, eloc_id=%s",
+                        company_id, eloc_company_id, eloc_id)
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied: ELOC belongs to a different company",
+        )
 
 
 @router.get("", response_model=list[ElocSummary])
@@ -111,6 +130,7 @@ async def remove_pricing_workflow(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="User has no company_id assigned",
         )
+    await _verify_eloc_ownership(eloc_id, company_id)
     hidden = await service.remove_pricing_workflow(eloc_id, company_id)
     if not hidden:
         raise HTTPException(
@@ -152,6 +172,13 @@ async def get_workflow(
 ):
     """Get workflow state and event data from DealTermsServer."""
     logger.info("GET /elocs/%s/workflow user=%s", eloc_id, user.user_id)
+    company_id = int(user.company_id) if user.company_id else None
+    if company_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User has no company_id assigned",
+        )
+    await _verify_eloc_ownership(eloc_id, company_id)
     workflow = await service.get_eloc_workflow(eloc_id)
     logger.info("  → workflow steps: %s", list(workflow.get("steps", {}).keys()))
     return workflow
@@ -165,6 +192,13 @@ async def get_document(
 ):
     """Get the document for a specific workflow step."""
     logger.info("GET /elocs/%s/documents/%s user=%s", eloc_id, step, user.user_id)
+    company_id = int(user.company_id) if user.company_id else None
+    if company_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User has no company_id assigned",
+        )
+    await _verify_eloc_ownership(eloc_id, company_id)
     doc = await service.get_eloc_document(eloc_id, step)
     if not doc:
         logger.warning("  → document not found for eloc=%s step=%s", eloc_id, step)
