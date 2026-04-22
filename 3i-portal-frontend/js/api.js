@@ -234,6 +234,14 @@ const API = (() => {
         return handleResponse(response);
     }
 
+    async function adminPermanentDeleteUser(userId) {
+        const response = await fetch(`${BASE_URL}/admin/users/${encodeURIComponent(userId)}/permanent`, {
+            method: 'DELETE',
+            headers: authHeaders(),
+        });
+        return handleResponse(response);
+    }
+
     /**
      * GET /admin/companies-list — lightweight list for dropdowns
      */
@@ -495,6 +503,7 @@ const API = (() => {
         adminUpdateUser,
         adminResetPassword,
         adminDeleteUser,
+        adminPermanentDeleteUser,
         adminGetCompaniesList,
         adminGetCompaniesWithElocs,
         adminGetPurchaseNoticeTemplates,

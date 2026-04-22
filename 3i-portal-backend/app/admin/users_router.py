@@ -203,6 +203,43 @@ async def delete_user(
     return {"message": "User deactivated"}
 
 
+@router.delete("/users/{user_id}/permanent")
+async def permanent_delete_user(
+    user_id: str,
+    admin: UserInfo = Depends(require_admin),
+):
+    """Permanently delete a portal user."""
+    logger.info("DELETE /admin/users/%s/permanent by admin=%s", user_id, admin.user_id)
+
+    if user_id.lower() == admin.user_id.lower():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot delete your own account",
+        )
+
+    target_user = await users_repo.get_user_by_id(user_id)
+    if not target_user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found",
+        )
+    if target_user.get("role") == "admin":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot delete an admin account",
+        )
+
+    success = await users_repo.hard_delete_user(user_id)
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found",
+        )
+
+    logger.info("  → user permanently deleted: %s", user_id)
+    return {"message": "User permanently deleted"}
+
+
 @router.get("/companies-list")
 async def list_companies_for_dropdown(admin: UserInfo = Depends(require_admin)):
     """Lightweight company list for user assignment dropdowns."""

@@ -125,7 +125,10 @@ const Admin = (() => {
                         <button class="btn-action reset-pwd-btn" data-user-id="${escapeHtml(u.user_id)}">Reset Pwd</button>
                         ${u.role === 'admin' ? '' : `<button class="btn-action toggle-active-btn"
                                 data-user-id="${escapeHtml(u.user_id)}"
-                                data-active="${u.is_active}">${u.is_active ? 'Deactivate' : 'Activate'}</button>`}
+                                data-active="${u.is_active}">${u.is_active ? 'Deactivate' : 'Activate'}</button>
+                            <button class="btn-action delete-user-btn"
+                                data-user-id="${escapeHtml(u.user_id)}"
+                                style="color:#ef4444;">Delete</button>`}
                     </td>
                 `;
                 tbody.appendChild(tr);
@@ -140,6 +143,9 @@ const Admin = (() => {
             });
             tbody.querySelectorAll('.toggle-active-btn').forEach((btn) => {
                 btn.addEventListener('click', () => toggleUserActive(btn.dataset.userId, btn.dataset.active === 'true'));
+            });
+            tbody.querySelectorAll('.delete-user-btn').forEach((btn) => {
+                btn.addEventListener('click', () => handleDeleteUser(btn.dataset.userId));
             });
 
             table.style.display = 'table';
@@ -401,6 +407,16 @@ const Admin = (() => {
             loadUsers();
         } catch (err) {
             alert(err.message || `Failed to ${action} user.`);
+        }
+    }
+
+    async function handleDeleteUser(userId) {
+        if (!confirm(`PERMANENTLY DELETE user "${userId}"?\n\nThis cannot be undone.`)) return;
+        try {
+            await API.adminPermanentDeleteUser(userId);
+            loadUsers();
+        } catch (err) {
+            alert(err.message || 'Failed to delete user.');
         }
     }
 

@@ -230,6 +230,16 @@ async def deactivate_user(user_id: str) -> bool:
     return result == "UPDATE 1"
 
 
+async def hard_delete_user(user_id: str) -> bool:
+    """Permanently delete a user from the database."""
+    pool = get_pool()
+    result = await pool.execute(
+        "DELETE FROM portal_users WHERE LOWER(user_id) = LOWER($1)",
+        user_id,
+    )
+    return result == "DELETE 1"
+
+
 async def list_users() -> list[dict]:
     """Return all users joined with company info."""
     pool = get_pool()
