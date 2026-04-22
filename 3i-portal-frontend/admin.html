@@ -33,7 +33,6 @@
             <!-- Tabs -->
             <div class="tabs">
                 <button class="tab active" data-tab="companies">Companies</button>
-                <button class="tab" data-tab="elocs">All ELOCs</button>
                 <button class="tab" data-tab="notices">Purchase Notices</button>
                 <button class="tab" data-tab="users">Users</button>
                 <button class="tab" data-tab="templates">Notice Templates</button>
@@ -62,30 +61,6 @@
                 </table>
                 <div class="empty-state" id="companies-empty" style="display:none;">
                     <p>No companies found.</p>
-                </div>
-            </div>
-
-            <!-- All ELOCs Panel -->
-            <div id="elocs-panel" style="display:none;">
-                <div class="loading-container" id="elocs-loading">
-                    <div class="loading-spinner"></div>
-                    <span>Loading ELOCs...</span>
-                </div>
-                <table class="admin-table" id="elocs-table" style="display:none;">
-                    <thead>
-                        <tr>
-                            <th>ELOC ID</th>
-                            <th>Company</th>
-                            <th>Type</th>
-                            <th>Status</th>
-                            <th>Workflow Step</th>
-                            <th>Created</th>
-                        </tr>
-                    </thead>
-                    <tbody id="elocs-tbody"></tbody>
-                </table>
-                <div class="empty-state" id="elocs-empty" style="display:none;">
-                    <p>No ELOCs found.</p>
                 </div>
             </div>
 

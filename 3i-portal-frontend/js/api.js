@@ -176,16 +176,6 @@ const API = (() => {
     }
 
     /**
-     * GET /admin/elocs
-     */
-    async function adminGetElocs() {
-        const response = await fetch(`${BASE_URL}/admin/elocs`, {
-            headers: authHeaders(),
-        });
-        return handleResponse(response);
-    }
-
-    /**
      * GET /admin/purchase-notices
      */
     async function adminGetPurchaseNotices() {
@@ -545,7 +535,6 @@ const API = (() => {
         getPortalElocDocument,
         changePassword,
         adminGetCompanies,
-        adminGetElocs,
         adminGetPurchaseNotices,
         adminGetUsers,
         adminCreateUser,

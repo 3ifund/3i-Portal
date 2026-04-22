@@ -48,34 +48,6 @@ async def list_companies(admin: UserInfo = Depends(require_admin)):
     return companies
 
 
-@router.get("/elocs")
-async def list_all_elocs(admin: UserInfo = Depends(require_admin)):
-    """List all ELOCs across all companies."""
-    t_start = time.monotonic()
-    logger.info("GET /admin/elocs by user=%s — START", admin.user_id)
-
-    all_states = await onprem.get_all_eloc_states()
-    logger.info("GET /admin/elocs — DTS states fetched in %.1fms (%d states)",
-                (time.monotonic() - t_start) * 1000, len(all_states))
-
-    elocs = []
-    for state in all_states:
-        elocs.append({
-            "eloc_id": str(state.get("elocId", "")),
-            "company_id": state.get("companyId", ""),
-            "company_name": "",  # Not available in ElocStateDto
-            "status": state.get("status", "Pending"),
-            "current_workflow_step": state.get("workflowStep", ""),
-            "include": state.get("include", False),
-            "created_at": state.get("createdAt"),
-            "modified_at": state.get("modifiedAt"),
-        })
-
-    t_total = (time.monotonic() - t_start) * 1000
-    logger.info("GET /admin/elocs — DONE in %.1fms, returned %d ELOCs", t_total, len(elocs))
-    return elocs
-
-
 @router.get("/purchase-notices")
 async def list_purchase_notices(admin: UserInfo = Depends(require_admin)):
     """List all purchase notices across all companies."""

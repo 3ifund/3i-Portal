@@ -80,52 +80,6 @@ const Admin = (() => {
     }
 
     /**
-     * Load and render all ELOCs table.
-     */
-    async function loadElocs() {
-        const t = performance.now();
-        console.log('[Admin] loadElocs — START');
-        const loading = document.getElementById('elocs-loading');
-        const table = document.getElementById('elocs-table');
-        const empty = document.getElementById('elocs-empty');
-        const tbody = document.getElementById('elocs-tbody');
-
-        try {
-            const elocs = await API.adminGetElocs();
-            console.log('[Admin] loadElocs — API returned %d ELOCs in %.0fms', elocs?.length || 0, performance.now() - t);
-            loading.style.display = 'none';
-
-            if (!elocs || elocs.length === 0) {
-                empty.style.display = 'block';
-                return;
-            }
-
-            tbody.innerHTML = '';
-            elocs.forEach((e) => {
-                const statusClass = e.status === 'active' ? 'active'
-                    : e.status === 'rejected' ? 'rejected'
-                    : 'completed';
-
-                const tr = document.createElement('tr');
-                tr.innerHTML = `
-                    <td><a href="eloc.html?id=${encodeURIComponent(e.eloc_id)}">${escapeHtml(e.eloc_id)}</a></td>
-                    <td>${escapeHtml(e.company_name)}</td>
-                    <td>${escapeHtml(e.type || '—')}</td>
-                    <td><span class="eloc-card-status ${statusClass}">${escapeHtml(e.status)}</span></td>
-                    <td>${escapeHtml(e.current_workflow_step || '—')}</td>
-                    <td>${escapeHtml(formatDateTime(e.created_at))}</td>
-                `;
-                tbody.appendChild(tr);
-            });
-            table.style.display = 'table';
-        } catch (err) {
-            loading.style.display = 'none';
-            empty.style.display = 'block';
-            empty.querySelector('p').textContent = `Error: ${err.message}`;
-        }
-    }
-
-    /**
      * Load and render purchase notices table.
      */
     async function loadPurchaseNotices() {
@@ -1893,9 +1847,8 @@ const Admin = (() => {
         initVerificationManagement();
 
         // Fire visible data loads immediately (don't wait for template inits)
-        console.log('[Admin] init() — dispatching data loads (companies, elocs, notices, users)...');
+        console.log('[Admin] init() — dispatching data loads (companies, notices, users)...');
         loadCompanies();
-        loadElocs();
         loadPurchaseNotices();
         loadUsers();
         console.log('[Admin] init() — data loads dispatched in %.0fms', performance.now() - t0);
