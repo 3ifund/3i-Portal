@@ -965,6 +965,18 @@ const Dashboard = (() => {
         return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
     }
 
+    function _fmtInt(n) {
+        return new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(n);
+    }
+
+    function _fmtDecimal(n) {
+        return new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
+    }
+
+    function _parseNum(str) {
+        return str.replace(/,/g, '');
+    }
+
     function openSharesModal(symbol, pricingPeriodId, availableShares, backwardVwapPrice) {
         const vwap = backwardVwapPrice != null ? backwardVwapPrice : null;
         const maxDollars = vwap != null ? availableShares * vwap : null;
@@ -996,16 +1008,14 @@ const Dashboard = (() => {
 
         // Shares input
         const sharesInput = document.getElementById('shares-modal-input');
-        sharesInput.value = availableShares;
-        sharesInput.max = availableShares;
+        sharesInput.value = _fmtInt(availableShares);
 
         // Dollar input (backward pricing only)
         const dollarGroup = document.getElementById('shares-modal-dollar-group');
         const dollarInput = document.getElementById('shares-modal-dollar-input');
         if (vwap != null) {
             dollarGroup.style.display = '';
-            dollarInput.value = maxDollars.toFixed(2);
-            dollarInput.max = maxDollars.toFixed(2);
+            dollarInput.value = _fmtDecimal(maxDollars);
             console.log('[Dashboard] openSharesModal: showing dollar input, max=%s', _fmtDollar(maxDollars));
         } else {
             dollarGroup.style.display = 'none';
@@ -1027,15 +1037,27 @@ const Dashboard = (() => {
 
     function _onSharesInput() {
         _sharesInputActive = true;
+        const sharesInput = document.getElementById('shares-modal-input');
+
+        // Format shares with commas as user types
+        const raw = _parseNum(sharesInput.value);
+        const caretPos = sharesInput.selectionStart;
+        const prevLen = sharesInput.value.length;
+        const shares = parseInt(raw) || 0;
+        if (raw && shares > 0) {
+            sharesInput.value = _fmtInt(shares);
+            // Adjust caret position for added/removed commas
+            const newLen = sharesInput.value.length;
+            sharesInput.setSelectionRange(caretPos + (newLen - prevLen), caretPos + (newLen - prevLen));
+        }
+
+        // Cross-calculate dollar amount for backward pricing
         const vwap = sharesModalData?.backwardVwapPrice;
         if (vwap == null) return;
 
-        const sharesInput = document.getElementById('shares-modal-input');
         const dollarInput = document.getElementById('shares-modal-dollar-input');
-        const shares = parseInt(sharesInput.value) || 0;
         const dollarAmt = shares * vwap;
-
-        dollarInput.value = dollarAmt.toFixed(2);
+        dollarInput.value = _fmtDecimal(dollarAmt);
         console.log('[Dashboard] _onSharesInput: %d shares x $%s = %s', shares, vwap, _fmtDollar(dollarAmt));
     }
 
@@ -1044,12 +1066,24 @@ const Dashboard = (() => {
         const vwap = sharesModalData?.backwardVwapPrice;
         if (vwap == null || vwap === 0) return;
 
-        const sharesInput = document.getElementById('shares-modal-input');
         const dollarInput = document.getElementById('shares-modal-dollar-input');
-        const dollars = parseFloat(dollarInput.value) || 0;
-        const shares = Math.floor(dollars / vwap);
 
-        sharesInput.value = shares;
+        // Format dollars with commas as user types
+        const raw = _parseNum(dollarInput.value);
+        const caretPos = dollarInput.selectionStart;
+        const prevLen = dollarInput.value.length;
+        const dollars = parseFloat(raw) || 0;
+        // Only reformat if not actively typing a decimal portion
+        if (raw && !raw.endsWith('.') && !/\.\d?$/.test(raw)) {
+            dollarInput.value = _fmtDecimal(dollars);
+            const newLen = dollarInput.value.length;
+            dollarInput.setSelectionRange(caretPos + (newLen - prevLen), caretPos + (newLen - prevLen));
+        }
+
+        // Cross-calculate shares
+        const sharesInput = document.getElementById('shares-modal-input');
+        const shares = Math.floor(dollars / vwap);
+        sharesInput.value = _fmtInt(shares);
         console.log('[Dashboard] _onDollarInput: %s / $%s = %d shares', _fmtDollar(dollars), vwap, shares);
     }
 
@@ -1063,7 +1097,7 @@ const Dashboard = (() => {
     function handleSharesSubmit() {
         if (!sharesModalData) return;
         const sharesInput = document.getElementById('shares-modal-input');
-        const shares = parseInt(sharesInput.value);
+        const shares = parseInt(_parseNum(sharesInput.value));
         const statusEl = document.getElementById('shares-modal-status');
         const { symbol, pricingPeriodId, backwardVwapPrice, availableShares, maxDollars } = sharesModalData;
 

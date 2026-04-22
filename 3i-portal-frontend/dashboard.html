@@ -206,12 +206,12 @@
                 </p>
                 <div class="form-group">
                     <label class="form-label" for="shares-modal-input">Shares to Purchase</label>
-                    <input type="number" id="shares-modal-input" class="form-input" min="1">
+                    <input type="text" id="shares-modal-input" class="form-input" inputmode="numeric">
                 </div>
                 <!-- Dollar input (backward pricing only) -->
                 <div class="form-group" id="shares-modal-dollar-group" style="display:none;">
                     <label class="form-label" for="shares-modal-dollar-input">— or Dollar Amount —</label>
-                    <input type="number" id="shares-modal-dollar-input" class="form-input" min="0.01" step="0.01">
+                    <input type="text" id="shares-modal-dollar-input" class="form-input" inputmode="decimal">
                 </div>
                 <div class="modal-status" id="shares-modal-status"></div>
             </div>
