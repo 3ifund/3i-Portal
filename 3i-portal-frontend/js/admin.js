@@ -79,53 +79,6 @@ const Admin = (() => {
         }
     }
 
-    /**
-     * Load and render purchase notices table.
-     */
-    async function loadPurchaseNotices() {
-        const t = performance.now();
-        console.log('[Admin] loadPurchaseNotices — START');
-        const loading = document.getElementById('notices-loading');
-        const table = document.getElementById('notices-table');
-        const empty = document.getElementById('notices-empty');
-        const tbody = document.getElementById('notices-tbody');
-
-        try {
-            const notices = await API.adminGetPurchaseNotices();
-            console.log('[Admin] loadPurchaseNotices — API returned %d notices in %.0fms', notices?.length || 0, performance.now() - t);
-            loading.style.display = 'none';
-
-            if (!notices || notices.length === 0) {
-                empty.style.display = 'block';
-                return;
-            }
-
-            tbody.innerHTML = '';
-            notices.forEach((n) => {
-                const statusClass = n.status === 'acknowledged' ? 'active'
-                    : n.status === 'rejected' ? 'rejected'
-                    : 'completed';
-
-                const tr = document.createElement('tr');
-                tr.innerHTML = `
-                    <td>${escapeHtml(n.notice_id || '—')}</td>
-                    <td>${escapeHtml(n.company_name)}</td>
-                    <td><a href="eloc.html?id=${encodeURIComponent(n.eloc_id)}">${escapeHtml(n.eloc_id)}</a></td>
-                    <td>${escapeHtml(formatNumber(n.shares))}</td>
-                    <td>${escapeHtml(formatCurrency(n.estimated_value))}</td>
-                    <td><span class="eloc-card-status ${statusClass}">${escapeHtml(n.status)}</span></td>
-                    <td>${escapeHtml(formatDateTime(n.submitted_at))}</td>
-                `;
-                tbody.appendChild(tr);
-            });
-            table.style.display = 'table';
-        } catch (err) {
-            loading.style.display = 'none';
-            empty.style.display = 'block';
-            empty.querySelector('p').textContent = `Error: ${err.message}`;
-        }
-    }
-
     // ---- Users Tab ----
 
     /**
@@ -1847,9 +1800,8 @@ const Admin = (() => {
         initVerificationManagement();
 
         // Fire visible data loads immediately (don't wait for template inits)
-        console.log('[Admin] init() — dispatching data loads (companies, notices, users)...');
+        console.log('[Admin] init() — dispatching data loads (companies, users)...');
         loadCompanies();
-        loadPurchaseNotices();
         loadUsers();
         console.log('[Admin] init() — data loads dispatched in %.0fms', performance.now() - t0);
 

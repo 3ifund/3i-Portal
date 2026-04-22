@@ -147,17 +147,6 @@ async def hide_portal_eloc(eloc_id: str) -> bool:
     return response.is_success
 
 
-async def get_all_eloc_states() -> list[dict]:
-    """
-    GET /api/eloc/states — all ELOC workflow states (admin view).
-    """
-    logger.info("GET /api/eloc/states")
-    response = await _request_with_retry("GET", "/api/eloc/states")
-    logger.info("  → %s (%d bytes)", response.status_code, len(response.content))
-    response.raise_for_status()
-    return response.json()
-
-
 async def get_eloc_data(eloc_id: str) -> dict | None:
     """
     GET /api/eloc/data/{elocId} — full ELOC data (extracted fields, documents, timestamps).

@@ -36,7 +36,6 @@
             <!-- Tabs -->
             <div class="tabs">
                 <button class="tab active" data-tab="companies">Companies</button>
-                <button class="tab" data-tab="notices">Purchase Notices</button>
                 <button class="tab" data-tab="users">Users</button>
                 <button class="tab" data-tab="templates">Notice Templates</button>
                 <button class="tab" data-tab="backward-templates">Notice Templates (Backward)</button>
@@ -67,30 +66,6 @@
                 </div>
             </div>
 
-            <!-- Purchase Notices Panel -->
-            <div id="notices-panel" style="display:none;">
-                <div class="loading-container" id="notices-loading">
-                    <div class="loading-spinner"></div>
-                    <span>Loading purchase notices...</span>
-                </div>
-                <table class="admin-table" id="notices-table" style="display:none;">
-                    <thead>
-                        <tr>
-                            <th>Notice ID</th>
-                            <th>Company</th>
-                            <th>ELOC ID</th>
-                            <th>Shares</th>
-                            <th>Est. Value</th>
-                            <th>Status</th>
-                            <th>Submitted</th>
-                        </tr>
-                    </thead>
-                    <tbody id="notices-tbody"></tbody>
-                </table>
-                <div class="empty-state" id="notices-empty" style="display:none;">
-                    <p>No purchase notices found.</p>
-                </div>
-            </div>
 
             <!-- Users Panel -->
             <div id="users-panel" style="display:none;">

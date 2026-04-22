@@ -175,16 +175,6 @@ const API = (() => {
         return handleResponse(response);
     }
 
-    /**
-     * GET /admin/purchase-notices
-     */
-    async function adminGetPurchaseNotices() {
-        const response = await fetch(`${BASE_URL}/admin/purchase-notices`, {
-            headers: authHeaders(),
-        });
-        return handleResponse(response);
-    }
-
     // --- Admin: user management ---
 
     /**
@@ -535,7 +525,6 @@ const API = (() => {
         getPortalElocDocument,
         changePassword,
         adminGetCompanies,
-        adminGetPurchaseNotices,
         adminGetUsers,
         adminCreateUser,
         adminUpdateUser,
