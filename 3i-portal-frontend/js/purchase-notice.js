@@ -396,7 +396,7 @@ const PurchaseNotice = (() => {
             } else {
                 showAlert(
                     'Purchase Notice Submitted',
-                    'Your VWAP Purchase Notice has been submitted successfully. You will be redirected to the dashboard.'
+                    'Your Purchase Notice has been submitted successfully. You will be redirected to the dashboard.'
                 );
             }
         } catch (err) {
