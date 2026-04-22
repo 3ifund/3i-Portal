@@ -18,8 +18,8 @@ from app.purchase_notices.models import (
     UpdateSignatoryDetailsRequest,
 )
 from app.purchase_notices import mongo_repository as repo
-from app.purchase_notices import pg_repository as sig_repo
 from app.onprem import client as onprem
+from app.users import repository as users_repo
 from app.approval.repository import get_company_verification, get_included_contacts
 from app.approval.router import create_approval_token
 from app.approval.sms import send_approval_sms
@@ -67,38 +67,46 @@ async def _verify_eloc_ownership(eloc_id: str, user: UserInfo) -> None:
         )
 
 
-# ---- Company Signatories (names managed by admin, details entered by client) ----
+# ---- User Signatory (each user has one signatory, details entered by the user) ----
 
-@router.get("/signatories")
-async def list_signatories(user: UserInfo = Depends(get_current_user)):
-    """List signatories for the current user's company."""
-    if not user.company_id:
-        raise HTTPException(status_code=400, detail="User has no company assigned")
-    company_id = int(user.company_id)
-    logger.info("GET /signatories — user=%s, company_id=%s", user.user_id, company_id)
-    signatories = await sig_repo.get_company_signatories(company_id)
-    logger.debug("GET /signatories — company_id=%s — returned %d signatories", company_id, len(signatories))
-    return signatories
+@router.get("/my-signatory")
+async def get_my_signatory(user: UserInfo = Depends(get_current_user)):
+    """Get the current user's signatory data."""
+    logger.info("GET /my-signatory — user=%s", user.user_id)
+    sig = await users_repo.get_user_signatory(user.user_id)
+    if not sig:
+        raise HTTPException(status_code=404, detail="User not found")
+    logger.info("GET /my-signatory — name=%s, has_title=%s, has_signature=%s",
+                sig.get("signatory_name"), bool(sig.get("signatory_title")),
+                bool(sig.get("signatory_signature_image")))
+    return sig
 
 
-@router.put("/signatories/{signatory_id}")
-async def update_signatory_details(
-    signatory_id: int,
+@router.put("/my-signatory")
+async def update_my_signatory(
     request: UpdateSignatoryDetailsRequest,
     user: UserInfo = Depends(get_current_user),
 ):
-    """Update signatory details (title, address, phone_number, signature_image) — client-entered."""
-    if not user.company_id:
-        raise HTTPException(status_code=400, detail="User has no company assigned")
-    company_id = int(user.company_id)
-    updates = request.model_dump(exclude_none=True)
-    logger.info("PUT /signatories/%s — user=%s, company=%s, updates=%s",
-                signatory_id, user.user_id, company_id, list(updates.keys()))
+    """Update the current user's signatory details (title, address, phone, signature)."""
+    # Map the request fields to the portal_users column names
+    raw = request.model_dump(exclude_none=True)
+    updates = {}
+    if "title" in raw:
+        updates["signatory_title"] = raw["title"]
+    if "address" in raw:
+        updates["signatory_address"] = raw["address"]
+    if "phone_number" in raw:
+        updates["signatory_phone_number"] = raw["phone_number"]
+    if "signature_image" in raw:
+        updates["signatory_signature_image"] = raw["signature_image"]
+
+    logger.info("PUT /my-signatory — user=%s, updates=%s", user.user_id, list(updates.keys()))
     if not updates:
         raise HTTPException(status_code=400, detail="No fields to update")
-    ok = await sig_repo.update_company_signatory_details(company_id, signatory_id, updates)
+    ok = await users_repo.update_signatory_details(user.user_id, updates)
     if not ok:
-        raise HTTPException(status_code=404, detail="Signatory not found")
+        raise HTTPException(status_code=404, detail="User not found")
+    logger.info("PUT /my-signatory — user=%s updated successfully", user.user_id)
     return {"status": "updated"}
 
 
@@ -176,10 +184,13 @@ async def get_prefill(
     logger.info("Prefill %s/%d: template found=%s, is_backward=%s, body_text_len=%d, entity=%s",
                 symbol, pricing_period_id, template is not None, is_backward, len(body_text), agreed_entity)
 
-    # 3. Get company signatories from PostgreSQL (admin-managed names, client-entered details)
-    logger.debug("Loading company signatories for company_id=%s", company_id)
-    signatories = await sig_repo.get_company_signatories(company_id) if company_id else []
-    logger.debug("Found %d company signatories for company_id=%s", len(signatories), company_id)
+    # 3. Get the current user's signatory from portal_users
+    signatory = await users_repo.get_user_signatory(user.user_id)
+    logger.info("Prefill %s/%d: user signatory name=%s has_title=%s has_signature=%s",
+                symbol, pricing_period_id,
+                signatory.get("signatory_name") if signatory else None,
+                bool(signatory.get("signatory_title")) if signatory else False,
+                bool(signatory.get("signatory_signature_image")) if signatory else False)
 
     # 4. Return merged response
     response = {
@@ -187,15 +198,14 @@ async def get_prefill(
         "body_text": body_text,
         "agreed_accepted_entity": agreed_entity,
         "shares": shares,
-        "signatories": signatories,
+        "signatory": signatory,
     }
     logger.info("Prefill %s/%d RESPONSE: exerciseDate=%s settlementDate=%s valuationStart=%s valuationEnd=%s tradingDays=%s",
                 symbol, pricing_period_id, response.get("exerciseDate"), response.get("settlementDate"),
                 response.get("valuationPeriodStart"), response.get("valuationPeriodEnd"), response.get("tradingDays"))
-    logger.info("Prefill %s/%d RESPONSE: shares=%d periodType=%s pricingDirection=%s backwardVwapPrice=%s signatories=%d body_len=%d",
+    logger.info("Prefill %s/%d RESPONSE: shares=%d periodType=%s pricingDirection=%s backwardVwapPrice=%s body_len=%d",
                 symbol, pricing_period_id, shares, period_type,
-                response.get("pricingDirection"), response.get("backwardVwapPrice"),
-                len(signatories), len(body_text))
+                response.get("pricingDirection"), response.get("backwardVwapPrice"), len(body_text))
     return response
 
 
@@ -217,10 +227,18 @@ async def submit_portal_purchase_notice(
             detail="User has no company assigned",
         )
 
+    # Get the submitting user's signatory from their profile
+    sig = await users_repo.get_user_signatory(user.user_id)
+    if not sig or not sig.get("signatory_name"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Signatory name not set — contact your administrator",
+        )
+
     logger.info(
         "POST /submit — user=%s symbol=%s period=%d shares=%d signatory=%s company_id=%s",
         user.user_id, request.symbol, request.pricing_period_id,
-        request.shares, request.signatory_name, user.company_id,
+        request.shares, sig.get("signatory_name"), user.company_id,
     )
 
     payload = {
@@ -228,6 +246,11 @@ async def submit_portal_purchase_notice(
         "company_id": int(user.company_id),
         "company_name": user.company_name or "",
         "submitted_by": user.user_id,
+        # Override signatory from user's profile (not from request)
+        "signatory_name": sig.get("signatory_name", ""),
+        "signatory_title": sig.get("signatory_title", ""),
+        "signatory_address": sig.get("signatory_address", ""),
+        "signatory_signature_image": sig.get("signatory_signature_image"),
     }
 
     # Auto-detect backward pricing if frontend didn't set it
@@ -430,10 +453,13 @@ async def get_confirmation_prefill(
         "signature_image": firm_sig_image,
     }
 
-    # 4. Load company signatories from PostgreSQL
-    signatories = []
-    if company_id:
-        signatories = await sig_repo.get_company_signatories(company_id)
+    # 4. Get the current user's signatory from portal_users
+    signatory = await users_repo.get_user_signatory(user.user_id)
+    logger.info("Confirmation prefill %s: user signatory name=%s has_title=%s has_signature=%s",
+                eloc_id,
+                signatory.get("signatory_name") if signatory else None,
+                bool(signatory.get("signatory_title")) if signatory else False,
+                bool(signatory.get("signatory_signature_image")) if signatory else False)
 
     # 5. Build response
     result = {
@@ -457,12 +483,13 @@ async def get_confirmation_prefill(
         "dollar_amount_calculated": eloc_data.get("dollar_amount_calculated"),
         # Firm signature (already signed)
         "firm_signature": firm_signature,
-        # Company signatories (for countersign dropdown)
-        "signatories": signatories,
+        # User's signatory (for countersign)
+        "signatory": signatory,
     }
 
-    logger.info("Confirmation prefill for %s: symbol=%s, vwap=%s, %d signatories",
-                eloc_id, symbol, eloc_data.get("vwap_purchase_price"), len(signatories))
+    logger.info("Confirmation prefill for %s: symbol=%s, vwap=%s, signatory=%s",
+                eloc_id, symbol, eloc_data.get("vwap_purchase_price"),
+                signatory.get("signatory_name") if signatory else None)
     return result
 
 
@@ -483,31 +510,34 @@ async def submit_countersign(
 
     await _verify_eloc_ownership(eloc_id, user)
 
-    signatory_name = payload.get("signatory_name", "")
-    signatory_title = payload.get("signatory_title", "")
-    signatory_signature_image = payload.get("signatory_signature_image")
+    # Get signatory from the user's profile (not from the request payload)
+    sig = await users_repo.get_user_signatory(user.user_id)
+    if not sig or not sig.get("signatory_name"):
+        raise HTTPException(status_code=400, detail="Signatory name not set — contact your administrator")
 
-    if not signatory_name:
-        raise HTTPException(status_code=400, detail="Signatory name is required")
+    signatory_name = sig.get("signatory_name", "")
+    signatory_title = sig.get("signatory_title", "")
+    signatory_signature_image = sig.get("signatory_signature_image")
 
     from app.database.mongo import get_db
     db = get_db()
 
     # 1. Store countersign data in eloc_data
     from datetime import datetime, timezone
+    now = datetime.now(timezone.utc)
     update_fields = {
         "countersign_name": signatory_name,
         "countersign_title": signatory_title,
         "countersign_signature_image": signatory_signature_image,
-        "countersigned_at": datetime.now(timezone.utc),
+        "countersigned_at": now,
         "countersigned_by": user.user_id,
-        "modified_at": datetime.now(timezone.utc),
+        "modified_at": now,
     }
     await db.eloc_data.update_one(
         {"eloc_id": eloc_id},
         {"$set": update_fields},
     )
-    logger.info("Countersign data stored for %s by %s", eloc_id, signatory_name)
+    logger.info("Countersign data stored for %s by %s (%s)", eloc_id, signatory_name, user.user_id)
 
     # 2. Supersede any pending SMS countersign tokens for this ELOC
     try:

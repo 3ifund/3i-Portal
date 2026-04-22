@@ -80,8 +80,9 @@ async def create_user(
 
     password_hash = bcrypt.hashpw(request.password.encode(), bcrypt.gensalt()).decode()
     company_id = request.company_id if request.role == "user" else None
+    signatory_name = request.signatory_name if request.role == "user" else ""
 
-    created = await users_repo.create_user(user_id, password_hash, request.role, company_id)
+    created = await users_repo.create_user(user_id, password_hash, request.role, company_id, signatory_name)
     if created.get("created_at"):
         created["created_at"] = str(created["created_at"])
     if created.get("updated_at"):
@@ -116,12 +117,15 @@ async def update_user(
     # If role is being changed to admin, clear company_id
     clear_company = request.role == "admin"
 
+    signatory_name = request.signatory_name if request.role != "admin" else None
+
     updated = await users_repo.update_user(
         user_id,
         role=request.role,
         company_id=request.company_id,
         is_active=request.is_active,
         clear_company=clear_company,
+        signatory_name=signatory_name,
     )
     if not updated:
         raise HTTPException(

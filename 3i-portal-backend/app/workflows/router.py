@@ -416,10 +416,10 @@ async def _handle_state_changed(msg: dict):
 
 
 async def _trigger_countersign_sms(eloc_id: str, state: dict):
-    """Send SMS countersign links to company signatories with phone numbers."""
+    """Send SMS countersign links to company users with phone numbers."""
     from app.countersign.repository import has_pending_countersign, create_countersign_token, get_countersign_sms_enabled
     from app.countersign.sms import send_countersign_sms
-    from app.purchase_notices.pg_repository import get_company_signatories
+    from app.users.repository import get_company_users_with_phone
 
     # Prevent duplicate sends on WebSocket reconnect
     if await has_pending_countersign(eloc_id):
@@ -439,35 +439,34 @@ async def _trigger_countersign_sms(eloc_id: str, state: dict):
                      company_id, company_name)
         return
 
-    # Get signatories with phone numbers
-    signatories = await get_company_signatories(int(company_id))
-    with_phone = [s for s in signatories if s.get("phone_number", "").strip()]
+    # Get company users with phone numbers
+    users_with_phone = await get_company_users_with_phone(int(company_id))
 
-    if not with_phone:
-        logger.info("No signatories with phone numbers for company %s, Portal UI countersign only", company_id)
+    if not users_with_phone:
+        logger.info("No users with phone numbers for company %s, Portal UI countersign only", company_id)
         return
 
     group_id = str(_uuid.uuid4())
-    logger.info("Sending countersign SMS for %s to %d signatories, group=%s",
-                eloc_id, len(with_phone), group_id)
+    logger.info("Sending countersign SMS for %s to %d users, group=%s",
+                eloc_id, len(users_with_phone), group_id)
 
-    for sig in with_phone:
+    for u in users_with_phone:
         try:
             token_result = await create_countersign_token(
                 group_id=group_id,
-                signatory_id=sig["id"],
-                signatory_name=sig["name"],
-                signatory_phone=sig["phone_number"],
+                signatory_id=u["user_id"],
+                signatory_name=u["signatory_name"],
+                signatory_phone=u["signatory_phone_number"],
                 company_name=company_name,
                 eloc_id=eloc_id,
             )
             full_url = f"{settings.approval_base_url}{token_result['url']}"
-            await send_countersign_sms(sig["phone_number"], company_name, full_url)
+            await send_countersign_sms(u["signatory_phone_number"], company_name, full_url)
             logger.info("Countersign SMS sent to %s (%s) for %s",
-                        sig["name"], sig["phone_number"], eloc_id)
+                        u["signatory_name"], u["signatory_phone_number"], eloc_id)
         except Exception as sms_exc:
             logger.error("Countersign SMS failed for %s (%s): %s",
-                         sig["name"], sig["phone_number"], sms_exc)
+                         u["signatory_name"], u["signatory_phone_number"], sms_exc)
 
 
 async def _handle_eloc_added(msg: dict):

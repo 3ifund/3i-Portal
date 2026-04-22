@@ -30,11 +30,32 @@ async def ensure_table_exists() -> None:
             company_id          INTEGER         NULL REFERENCES company(company_id),
             must_change_password BOOLEAN        NOT NULL DEFAULT TRUE,
             is_active           BOOLEAN         NOT NULL DEFAULT TRUE,
+            signatory_name      VARCHAR(255)    NOT NULL DEFAULT '',
+            signatory_title     VARCHAR(255)    NOT NULL DEFAULT '',
+            signatory_address   TEXT            NOT NULL DEFAULT '',
+            signatory_phone_number VARCHAR(50)  NOT NULL DEFAULT '',
+            signatory_signature_image BYTEA     NULL,
             created_at          TIMESTAMPTZ     NOT NULL DEFAULT NOW(),
             updated_at          TIMESTAMPTZ     NOT NULL DEFAULT NOW()
         )
     """)
-    logger.info("portal_users table ensured")
+
+    # Add signatory columns if table already exists (migration)
+    for col, typ in [
+        ("signatory_name", "VARCHAR(255) NOT NULL DEFAULT ''"),
+        ("signatory_title", "VARCHAR(255) NOT NULL DEFAULT ''"),
+        ("signatory_address", "TEXT NOT NULL DEFAULT ''"),
+        ("signatory_phone_number", "VARCHAR(50) NOT NULL DEFAULT ''"),
+        ("signatory_signature_image", "BYTEA NULL"),
+    ]:
+        await pool.execute(f"""
+            DO $$ BEGIN
+                ALTER TABLE portal_users ADD COLUMN {col} {typ};
+            EXCEPTION WHEN duplicate_column THEN NULL;
+            END $$;
+        """)
+
+    logger.info("portal_users table ensured (with signatory columns)")
 
     # Seed admin if not exists; always ensure active + admin role (backdoor)
     existing = await pool.fetchrow(
@@ -75,7 +96,10 @@ async def get_user_by_id(user_id: str) -> dict | None:
     row = await pool.fetchrow(
         """
         SELECT u.user_id, u.password_hash, u.role, u.company_id,
-               u.must_change_password, u.is_active, u.created_at, u.updated_at,
+               u.must_change_password, u.is_active,
+               u.signatory_name, u.signatory_title, u.signatory_address,
+               u.signatory_phone_number, u.signatory_signature_image,
+               u.created_at, u.updated_at,
                c.name AS company_name, c.symbol AS company_symbol
         FROM portal_users u
         LEFT JOIN company c ON u.company_id = c.company_id
@@ -91,21 +115,23 @@ async def create_user(
     password_hash: str | None,
     role: str = "user",
     company_id: int | None = None,
+    signatory_name: str = "",
 ) -> dict:
     """Insert a new user and return the created row."""
     pool = get_pool()
     row = await pool.fetchrow(
         """
         INSERT INTO portal_users
-            (user_id, password_hash, role, company_id, must_change_password, is_active)
-        VALUES ($1, $2, $3, $4, TRUE, TRUE)
-        RETURNING user_id, role, company_id, must_change_password, is_active,
+            (user_id, password_hash, role, company_id, signatory_name, must_change_password, is_active)
+        VALUES ($1, $2, $3, $4, $5, TRUE, TRUE)
+        RETURNING user_id, role, company_id, signatory_name, must_change_password, is_active,
                   created_at, updated_at
         """,
         user_id.strip().lower(),
         password_hash,
         role,
         company_id,
+        signatory_name,
     )
     return dict(row)
 
@@ -116,6 +142,7 @@ async def update_user(
     company_id: int | None = None,
     is_active: bool | None = None,
     clear_company: bool = False,
+    signatory_name: str | None = None,
 ) -> dict | None:
     """Update user fields. Returns updated row or None if not found."""
     pool = get_pool()
@@ -142,12 +169,17 @@ async def update_user(
         params.append(is_active)
         idx += 1
 
+    if signatory_name is not None:
+        sets.append(f"signatory_name = ${idx}")
+        params.append(signatory_name)
+        idx += 1
+
     params.append(user_id)
     query = f"""
         UPDATE portal_users
         SET {', '.join(sets)}
         WHERE LOWER(user_id) = LOWER(${idx})
-        RETURNING user_id, role, company_id, must_change_password, is_active,
+        RETURNING user_id, role, company_id, signatory_name, must_change_password, is_active,
                   created_at, updated_at
     """
     row = await pool.fetchrow(query, *params)
@@ -204,11 +236,86 @@ async def list_users() -> list[dict]:
     rows = await pool.fetch(
         """
         SELECT u.user_id, u.role, u.company_id,
-               u.must_change_password, u.is_active, u.created_at, u.updated_at,
+               u.must_change_password, u.is_active,
+               u.signatory_name, u.signatory_title, u.signatory_address,
+               u.signatory_phone_number,
+               u.created_at, u.updated_at,
                c.name AS company_name, c.symbol AS company_symbol
         FROM portal_users u
         LEFT JOIN company c ON u.company_id = c.company_id
         ORDER BY u.created_at
         """
+    )
+    return [dict(r) for r in rows]
+
+
+async def update_signatory_details(user_id: str, updates: dict) -> bool:
+    """Update signatory fields (title, address, phone, signature) for a user.
+    Called by the user themselves to fill in their own details."""
+    import base64
+    pool = get_pool()
+    allowed = {"signatory_title", "signatory_address", "signatory_phone_number", "signatory_signature_image"}
+    filtered = {k: v for k, v in updates.items() if k in allowed and v is not None}
+    if not filtered:
+        return False
+
+    sets = ["updated_at = NOW()"]
+    params = []
+    idx = 1
+    for key, val in filtered.items():
+        if key == "signatory_signature_image" and isinstance(val, str):
+            # Convert base64 data URI to bytes
+            raw = val
+            if "," in raw:
+                raw = raw.split(",", 1)[1]
+            val = base64.b64decode(raw)
+        sets.append(f"{key} = ${idx}")
+        params.append(val)
+        idx += 1
+
+    params.append(user_id)
+    query = f"""
+        UPDATE portal_users SET {', '.join(sets)}
+        WHERE LOWER(user_id) = LOWER(${idx})
+    """
+    result = await pool.execute(query, *params)
+    return result == "UPDATE 1"
+
+
+async def get_user_signatory(user_id: str) -> dict | None:
+    """Get the signatory data for a user (for purchase notice/confirmation)."""
+    import base64
+    pool = get_pool()
+    row = await pool.fetchrow(
+        """
+        SELECT user_id, signatory_name, signatory_title, signatory_address,
+               signatory_phone_number, signatory_signature_image
+        FROM portal_users
+        WHERE LOWER(user_id) = LOWER($1)
+        """,
+        user_id,
+    )
+    if not row:
+        return None
+    d = dict(row)
+    # Convert bytea to base64 data URI for frontend
+    sig = d.get("signatory_signature_image")
+    if sig and isinstance(sig, (bytes, memoryview)):
+        d["signatory_signature_image"] = f"data:image/png;base64,{base64.b64encode(bytes(sig)).decode()}"
+    return d
+
+
+async def get_company_users_with_phone(company_id: int) -> list[dict]:
+    """Get all active users for a company that have a phone number (for SMS countersign)."""
+    pool = get_pool()
+    rows = await pool.fetch(
+        """
+        SELECT user_id, signatory_name, signatory_phone_number
+        FROM portal_users
+        WHERE company_id = $1
+          AND is_active = TRUE
+          AND signatory_phone_number != ''
+        """,
+        company_id,
     )
     return [dict(r) for r in rows]
