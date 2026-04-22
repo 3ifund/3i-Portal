@@ -121,17 +121,29 @@ async def get_prefill(
                 symbol, pricing_period_id, shares, backward, user.user_id, user.company_name)
 
     # 1. Get calculated fields from DTS
-    logger.debug("Calling DTS get_purchase_notice_fields(%s, %d)", symbol, pricing_period_id)
+    logger.info("Prefill %s/%d: calling DTS get_purchase_notice_fields", symbol, pricing_period_id)
     fields = await onprem.get_purchase_notice_fields(symbol, pricing_period_id)
     if not fields:
-        logger.warning("DTS returned no data for %s / period %d", symbol, pricing_period_id)
+        logger.warning("Prefill %s/%d: DTS returned no data", symbol, pricing_period_id)
         raise HTTPException(
             status_code=404,
             detail=f"No purchase notice data for {symbol} / period {pricing_period_id}",
         )
-    logger.debug("DTS fields received: periodType=%s, exerciseDate=%s, withinWindow=%s, signer=%s",
-                 fields.get("periodType"), fields.get("exerciseDate"),
-                 fields.get("isWithinAcceptanceWindow"), fields.get("signerName"))
+    # Log every field DTS returned for debugging date/field issues
+    logger.info("Prefill %s/%d: DTS raw response keys: %s", symbol, pricing_period_id, list(fields.keys()))
+    logger.info("Prefill %s/%d: DTS periodType=%s exerciseDate=%s settlementDate=%s",
+                symbol, pricing_period_id, fields.get("periodType"), fields.get("exerciseDate"), fields.get("settlementDate"))
+    logger.info("Prefill %s/%d: DTS valuationPeriodStart=%s valuationPeriodEnd=%s tradingDays=%s",
+                symbol, pricing_period_id, fields.get("valuationPeriodStart"), fields.get("valuationPeriodEnd"), fields.get("tradingDays"))
+    logger.info("Prefill %s/%d: DTS companyName=%s symbol=%s signerName=%s signerTitle=%s",
+                symbol, pricing_period_id, fields.get("companyName"), fields.get("symbol"),
+                fields.get("signerName"), fields.get("signerTitle"))
+    logger.info("Prefill %s/%d: DTS isWithinAcceptanceWindow=%s acceptanceWindowStart=%s acceptanceWindowEnd=%s",
+                symbol, pricing_period_id, fields.get("isWithinAcceptanceWindow"),
+                fields.get("acceptanceWindowStart"), fields.get("acceptanceWindowEnd"))
+    logger.info("Prefill %s/%d: DTS totalCommitmentRemaining=%s dollarCapPerNotice=%s pricingDirection=%s backwardVwapPrice=%s",
+                symbol, pricing_period_id, fields.get("totalCommitmentRemaining"), fields.get("dollarCapPerNotice"),
+                fields.get("pricingDirection"), fields.get("backwardVwapPrice"))
 
     # 1b. Auto-detect backward pricing from shares-available if frontend didn't pass it
     is_backward = backward
@@ -170,16 +182,21 @@ async def get_prefill(
     logger.debug("Found %d company signatories for company_id=%s", len(signatories), company_id)
 
     # 4. Return merged response
-    logger.info("Prefill response ready: %s %s exercise=%s valuation=%s-%s settlement=%s shares=%d signatories=%d",
-                symbol, period_type, fields.get("exerciseDate"), fields.get("valuationPeriodStart"),
-                fields.get("valuationPeriodEnd"), fields.get("settlementDate"), shares, len(signatories))
-    return {
+    response = {
         **fields,
         "body_text": body_text,
         "agreed_accepted_entity": agreed_entity,
         "shares": shares,
         "signatories": signatories,
     }
+    logger.info("Prefill %s/%d RESPONSE: exerciseDate=%s settlementDate=%s valuationStart=%s valuationEnd=%s tradingDays=%s",
+                symbol, pricing_period_id, response.get("exerciseDate"), response.get("settlementDate"),
+                response.get("valuationPeriodStart"), response.get("valuationPeriodEnd"), response.get("tradingDays"))
+    logger.info("Prefill %s/%d RESPONSE: shares=%d periodType=%s pricingDirection=%s backwardVwapPrice=%s signatories=%d body_len=%d",
+                symbol, pricing_period_id, shares, period_type,
+                response.get("pricingDirection"), response.get("backwardVwapPrice"),
+                len(signatories), len(body_text))
+    return response
 
 
 # ---- Portal-Initiated Purchase Notice Submission ----
@@ -228,18 +245,16 @@ async def submit_portal_purchase_notice(
         except Exception as exc:
             logger.warning("POST /submit — shares-available lookup for auto-detect failed: %s", exc)
 
-    logger.debug(
-        "POST /submit payload keys: %s",
-        list(payload.keys()),
-    )
-    logger.debug(
-        "POST /submit payload (core): symbol=%s, pricing_period_id=%s, shares=%s, "
-        "company_id=%s, company_name=%s, signatory_name=%s, period_type=%s, "
-        "exercise_date=%s, settlement_date=%s",
-        payload.get("symbol"), payload.get("pricing_period_id"), payload.get("shares"),
-        payload.get("company_id"), payload.get("company_name"), payload.get("signatory_name"),
-        payload.get("period_type"), payload.get("exercise_date"), payload.get("settlement_date"),
-    )
+    logger.info("POST /submit payload keys: %s", list(payload.keys()))
+    logger.info("POST /submit DATES: exercise_date=%s settlement_date=%s valuation_start=%s valuation_end=%s trading_days=%s",
+                payload.get("exercise_date"), payload.get("settlement_date"),
+                payload.get("valuation_period_start"), payload.get("valuation_period_end"), payload.get("trading_days"))
+    logger.info("POST /submit DETAILS: symbol=%s period_type=%s pricing_period_id=%s shares=%s pricing_direction=%s backward_vwap_price=%s",
+                payload.get("symbol"), payload.get("period_type"), payload.get("pricing_period_id"),
+                payload.get("shares"), payload.get("pricing_direction"), payload.get("backward_vwap_price"))
+    logger.info("POST /submit SIGNATORY: name=%s title=%s company=%s submitted_by=%s",
+                payload.get("signatory_name"), payload.get("signatory_title"),
+                payload.get("company_name"), payload.get("submitted_by"))
 
     # 1. Always submit to DTS first — creates ELOC at SignedContractToCompany / Pending
     company_id = int(user.company_id)
