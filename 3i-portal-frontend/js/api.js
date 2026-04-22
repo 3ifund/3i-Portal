@@ -279,41 +279,6 @@ const API = (() => {
         return handleResponse(response);
     }
 
-    // --- Admin: company signatories ---
-
-    async function adminGetCompanySignatories(companyId) {
-        const response = await fetch(`${BASE_URL}/admin/signatories/${encodeURIComponent(companyId)}`, {
-            headers: authHeaders(),
-        });
-        return handleResponse(response);
-    }
-
-    async function adminAddCompanySignatory(companyId, name) {
-        const response = await fetch(`${BASE_URL}/admin/signatories/${encodeURIComponent(companyId)}`, {
-            method: 'POST',
-            headers: authHeaders(),
-            body: JSON.stringify({ name }),
-        });
-        return handleResponse(response);
-    }
-
-    async function adminUpdateCompanySignatory(companyId, signatoryId, name) {
-        const response = await fetch(`${BASE_URL}/admin/signatories/${encodeURIComponent(companyId)}/${encodeURIComponent(signatoryId)}`, {
-            method: 'PUT',
-            headers: authHeaders(),
-            body: JSON.stringify({ name }),
-        });
-        return handleResponse(response);
-    }
-
-    async function adminDeleteCompanySignatory(companyId, signatoryId) {
-        const response = await fetch(`${BASE_URL}/admin/signatories/${encodeURIComponent(companyId)}/${encodeURIComponent(signatoryId)}`, {
-            method: 'DELETE',
-            headers: authHeaders(),
-        });
-        return handleResponse(response);
-    }
-
     // --- Admin: purchase confirmation templates ---
 
     async function adminGetPurchaseConfirmationTemplates() {
@@ -339,17 +304,17 @@ const API = (() => {
         return handleResponse(response);
     }
 
-    // --- User: company signatories (details) ---
+    // --- User: signatory (single per user) ---
 
-    async function getSignatories() {
-        const response = await fetch(`${BASE_URL}/purchase-notices/signatories`, {
+    async function getMySignatory() {
+        const response = await fetch(`${BASE_URL}/purchase-notices/my-signatory`, {
             headers: authHeaders(),
         });
         return handleResponse(response);
     }
 
-    async function updateSignatory(signatoryId, data) {
-        const response = await fetch(`${BASE_URL}/purchase-notices/signatories/${encodeURIComponent(signatoryId)}`, {
+    async function updateMySignatory(data) {
+        const response = await fetch(`${BASE_URL}/purchase-notices/my-signatory`, {
             method: 'PUT',
             headers: authHeaders(),
             body: JSON.stringify(data),
@@ -535,15 +500,11 @@ const API = (() => {
         adminGetPurchaseNoticeTemplates,
         adminGetCompanyTemplates,
         adminUpsertPurchaseNoticeTemplate,
-        adminGetCompanySignatories,
-        adminAddCompanySignatory,
-        adminUpdateCompanySignatory,
-        adminDeleteCompanySignatory,
         adminGetPurchaseConfirmationTemplates,
         adminGetCompanyConfirmationTemplates,
         adminUpsertPurchaseConfirmationTemplate,
-        getSignatories,
-        updateSignatory,
+        getMySignatory,
+        updateMySignatory,
         getPurchaseNoticePrefill,
         getPurchaseConfirmationPrefill,
         submitCountersign,

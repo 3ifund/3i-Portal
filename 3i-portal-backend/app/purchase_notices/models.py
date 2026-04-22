@@ -1,6 +1,6 @@
 """
 3i Fund Portal — Purchase Notice Models
-Pydantic models for templates, signatories, and prefill responses.
+Pydantic models for templates and prefill responses.
 """
 
 from pydantic import BaseModel
@@ -13,15 +13,7 @@ class UpsertTemplateRequest(BaseModel):
     agreed_accepted_entity: str
 
 
-# ---- Company Signatories (admin-managed names, client-entered details, stored in PostgreSQL) ----
-
-class AdminAddSignatoryRequest(BaseModel):
-    name: str
-
-
-class AdminUpdateSignatoryNameRequest(BaseModel):
-    name: str
-
+# ---- User Signatory Details (client-entered) ----
 
 class UpdateSignatoryDetailsRequest(BaseModel):
     title: str | None = None
@@ -40,11 +32,11 @@ class PortalPurchaseNoticeRequest(BaseModel):
     # Template content
     body_text: str = ""
     agreed_accepted_entity: str = ""
-    # Company signatory (selected in dropdown)
-    signatory_name: str
-    signatory_title: str
+    # Signatory fields kept for backward compatibility but overridden by backend from user profile
+    signatory_name: str = ""
+    signatory_title: str = ""
     signatory_address: str = ""
-    signatory_signature_image: str | None = None  # base64 data URI
+    signatory_signature_image: str | None = None
     # Calculated fields from prefill
     exercise_date: str
     valuation_period_start: str
@@ -55,5 +47,5 @@ class PortalPurchaseNoticeRequest(BaseModel):
     total_commitment_remaining: float | None = None
     dollar_cap_per_notice: float | None = None
     # Pricing direction
-    pricing_direction: str = "Forward"  # "Forward" or "Backward"
-    backward_vwap_price: float | None = None  # Pre-calculated VWAP for backward pricing
+    pricing_direction: str = "Forward"
+    backward_vwap_price: float | None = None

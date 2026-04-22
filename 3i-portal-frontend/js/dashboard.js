@@ -738,88 +738,29 @@ const Dashboard = (() => {
         }
     }
 
-    async function loadSignatories() {
-        const list = document.getElementById('signatories-list');
-        const empty = document.getElementById('signatories-empty');
+    async function loadMySignatory() {
         const detailsForm = document.getElementById('signatory-details-form');
-
-        // Hide form when reloading list
-        if (detailsForm) detailsForm.style.display = 'none';
 
         try {
-            const signatories = await API.getSignatories();
+            const sig = await API.getMySignatory();
+            editingSignatoryName = sig.signatory_name || '';
 
-            if (!signatories || signatories.length === 0) {
-                list.innerHTML = '';
-                empty.style.display = 'block';
-                return;
-            }
+            document.getElementById('signatory-form-title').textContent = sig.signatory_name
+                ? `My Signatory: ${sig.signatory_name}`
+                : 'My Signatory';
+            document.getElementById('sig-name-display').textContent = sig.signatory_name || '(not set by admin)';
+            document.getElementById('sig-title').value = sig.signatory_title || '';
+            document.getElementById('sig-address').value = sig.signatory_address || '';
+            document.getElementById('sig-phone').value = sig.signatory_phone_number || '';
+            document.getElementById('signatory-modal-status').className = 'modal-status';
+            document.getElementById('signatory-modal-status').textContent = '';
+            currentSignatureImage = sig.signatory_signature_image || null;
+            showSignaturePreview(currentSignatureImage);
 
-            empty.style.display = 'none';
-            list.innerHTML = '';
-            signatories.forEach((s) => {
-                const hasDetails = s.title && s.signature_image;
-                const statusText = hasDetails ? 'Complete' : 'Details needed';
-                const statusClass = hasDetails ? 'active' : 'completed';
-                const sigThumb = s.signature_image
-                    ? `<img src="${s.signature_image}" class="sig-thumbnail" alt="Signature">`
-                    : '';
-                const div = document.createElement('div');
-                div.style.cssText = 'display:flex; justify-content:space-between; align-items:center; padding:0.5rem 0; border-bottom:1px solid var(--input-border); cursor:pointer;';
-                div.innerHTML = `
-                    <div>
-                        <strong>${escapeHtml(s.name)}</strong>
-                        ${s.title ? ` — ${escapeHtml(s.title)}` : ''}
-                        <span class="eloc-card-status ${statusClass}" style="margin-left:0.5rem; font-size:0.75rem;">${statusText}</span>
-                        ${sigThumb}
-                    </div>
-                    <button class="btn-action sig-edit-btn" data-id="${s.id}">Edit Details</button>
-                `;
-                // Click anywhere on the row to edit
-                div.addEventListener('click', () => {
-                    startEditSignatory(s);
-                });
-                list.appendChild(div);
-            });
+            if (detailsForm) detailsForm.style.display = '';
         } catch (err) {
-            console.error('[Dashboard] Failed to load signatories:', err);
-            list.innerHTML = '';
-            empty.style.display = 'block';
-            empty.querySelector('p').textContent = `Error: ${err.message}`;
+            console.error('[Dashboard] Failed to load signatory:', err);
         }
-    }
-
-    function startEditSignatory(sig) {
-        editingSignatoryId = sig.id;
-        editingSignatoryName = sig.name || '';
-        const detailsForm = document.getElementById('signatory-details-form');
-        detailsForm.style.display = '';
-
-        document.getElementById('signatory-form-title').textContent = `Edit Details: ${sig.name}`;
-        document.getElementById('sig-name-display').textContent = sig.name || '';
-        document.getElementById('sig-title').value = sig.title || '';
-        document.getElementById('sig-address').value = sig.address || '';
-        document.getElementById('sig-phone').value = sig.phone_number || '';
-        document.getElementById('sig-editing-id').value = sig.id;
-        document.getElementById('signatory-modal-status').className = 'modal-status';
-        document.getElementById('signatory-modal-status').textContent = '';
-        currentSignatureImage = sig.signature_image || null;
-        showSignaturePreview(currentSignatureImage);
-    }
-
-    function resetSignatoryForm() {
-        editingSignatoryId = null;
-        editingSignatoryName = null;
-        const detailsForm = document.getElementById('signatory-details-form');
-        if (detailsForm) detailsForm.style.display = 'none';
-        document.getElementById('sig-title').value = '';
-        document.getElementById('sig-address').value = '';
-        document.getElementById('sig-phone').value = '';
-        document.getElementById('sig-editing-id').value = '';
-        document.getElementById('signatory-modal-status').className = 'modal-status';
-        document.getElementById('signatory-modal-status').textContent = '';
-        currentSignatureImage = null;
-        showSignaturePreview(null);
     }
 
     async function handleSignatorySubmit() {
@@ -835,12 +776,6 @@ const Dashboard = (() => {
             return;
         }
 
-        if (!editingSignatoryId) {
-            statusEl.className = 'modal-status error';
-            statusEl.textContent = 'No signatory selected.';
-            return;
-        }
-
         statusEl.className = 'modal-status sending';
         statusEl.textContent = 'Saving...';
         submitBtn.disabled = true;
@@ -852,10 +787,9 @@ const Dashboard = (() => {
             }
             const signature_image = currentSignatureImage || null;
 
-            await API.updateSignatory(editingSignatoryId, { title, address, phone_number, signature_image });
+            await API.updateMySignatory({ title, address, phone_number, signature_image });
             statusEl.className = 'modal-status success';
             statusEl.textContent = 'Details saved.';
-            await loadSignatories();
         } catch (err) {
             statusEl.className = 'modal-status error';
             statusEl.textContent = err.message || 'Failed.';
@@ -865,14 +799,12 @@ const Dashboard = (() => {
     }
 
     function openSignatoryModal() {
-        resetSignatoryForm();
-        loadSignatories();
+        loadMySignatory();
         document.getElementById('signatory-modal-overlay').classList.add('visible');
     }
 
     function closeSignatoryModal() {
         document.getElementById('signatory-modal-overlay').classList.remove('visible');
-        resetSignatoryForm();
         checkSignatories();
         pollSharesAvailable();
     }
@@ -926,14 +858,13 @@ const Dashboard = (() => {
     // ---- Signatory Check ----
 
     async function checkSignatories() {
-        console.log('[Dashboard] Checking if user has complete signatories...');
+        console.log('[Dashboard] Checking if user has complete signatory...');
         try {
-            const signatories = await API.getSignatories();
-            // Need at least one signatory with title and signature filled in
-            hasSignatories = signatories && signatories.some((s) => s.title && s.signature_image);
-            console.log('[Dashboard] hasSignatories=%s (total=%d, complete=%d)',
-                hasSignatories, signatories?.length || 0,
-                signatories ? signatories.filter((s) => s.title && s.signature_image).length : 0);
+            const sig = await API.getMySignatory();
+            hasSignatories = sig && sig.signatory_name && sig.signatory_title && sig.signatory_signature_image;
+            console.log('[Dashboard] hasSignatories=%s (name=%s, title=%s, hasSig=%s)',
+                hasSignatories, sig?.signatory_name || '', sig?.signatory_title || '',
+                !!sig?.signatory_signature_image);
 
             const warning = document.getElementById('signatory-warning');
             const activeTab = document.getElementById('active-tab');

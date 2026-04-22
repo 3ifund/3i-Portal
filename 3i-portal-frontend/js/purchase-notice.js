@@ -51,7 +51,7 @@ const PurchaseNotice = (() => {
             window.location.href = 'dashboard.html';
         });
 
-        document.getElementById('pn-signatory-select').addEventListener('change', onSignatoryChange);
+        // Signatory dropdown removed — user's signatory auto-displayed from profile
 
         // Send button → open confirmation dialog
         document.getElementById('pn-send-btn').addEventListener('click', openConfirmDialog);
@@ -146,7 +146,7 @@ const PurchaseNotice = (() => {
         setText('pn-company-name-upper', companyName.toUpperCase());
 
         // Populate signatory dropdown
-        populateSignatories(data.signatories || []);
+        displaySignatory(data.signatory);
 
         // Agreed and Accepted block — entity from template, signature fields left blank
         const entityEl = document.getElementById('pn-agreed-entity');
@@ -161,35 +161,10 @@ const PurchaseNotice = (() => {
         setText('pn-dated', formatDate(new Date().toISOString()));
     }
 
-    function populateSignatories(signatories) {
-        const select = document.getElementById('pn-signatory-select');
-        // Clear existing options beyond the placeholder
-        select.innerHTML = '<option value="">— Select signatory —</option>';
-
-        signatories.forEach((sig) => {
-            const opt = document.createElement('option');
-            opt.value = sig.id;
-            opt.textContent = `${sig.name} — ${sig.title}`;
-            opt.dataset.name = sig.name;
-            opt.dataset.title = sig.title;
-            opt.dataset.address = sig.address || '';
-            opt.dataset.signature = sig.signature_image || '';
-            select.appendChild(opt);
-        });
-
-        // Default to placeholder — user must explicitly select
-        select.value = '';
-        onSignatoryChange();
-    }
-
-    function onSignatoryChange() {
-        const select = document.getElementById('pn-signatory-select');
-        const selected = select.options[select.selectedIndex];
+    function displaySignatory(sig) {
         const sigImg = document.getElementById('pn-signatory-signature');
         const sigLine = document.getElementById('pn-signature-line-co');
         const sendBtn = document.getElementById('pn-send-btn');
-
-        // Value spans and their corresponding blank lines
         const nameVal = document.getElementById('pn-signatory-name');
         const nameLine = document.getElementById('pn-signatory-name-line');
         const titleVal = document.getElementById('pn-signatory-title');
@@ -197,20 +172,23 @@ const PurchaseNotice = (() => {
         const addrVal = document.getElementById('pn-signatory-address');
         const addrLine = document.getElementById('pn-signatory-address-line');
 
-        if (selected && selected.value) {
-            // Show values, hide blank lines
-            setText('pn-signatory-name', selected.dataset.name || '');
-            setText('pn-signatory-title', selected.dataset.title || '');
-            setText('pn-signatory-address', selected.dataset.address || '');
+        // Hide the dropdown if it exists
+        const selectEl = document.getElementById('pn-signatory-select');
+        if (selectEl) selectEl.style.display = 'none';
+
+        if (sig && sig.signatory_name) {
+            setText('pn-signatory-name', sig.signatory_name || '');
+            setText('pn-signatory-title', sig.signatory_title || '');
+            setText('pn-signatory-address', sig.signatory_address || '');
             if (nameVal) nameVal.style.display = '';
             if (nameLine) nameLine.style.display = 'none';
-            if (titleVal) titleVal.style.display = '';
-            if (titleLine) titleLine.style.display = 'none';
-            if (addrVal) addrVal.style.display = '';
-            if (addrLine) addrLine.style.display = 'none';
+            if (titleVal) titleVal.style.display = sig.signatory_title ? '' : 'none';
+            if (titleLine) titleLine.style.display = sig.signatory_title ? 'none' : '';
+            if (addrVal) addrVal.style.display = sig.signatory_address ? '' : 'none';
+            if (addrLine) addrLine.style.display = sig.signatory_address ? 'none' : '';
 
-            if (selected.dataset.signature) {
-                sigImg.src = selected.dataset.signature;
+            if (sig.signatory_signature_image) {
+                sigImg.src = sig.signatory_signature_image;
                 sigImg.style.display = '';
                 if (sigLine) sigLine.style.display = 'none';
             } else {
@@ -218,9 +196,9 @@ const PurchaseNotice = (() => {
                 if (sigLine) sigLine.style.display = '';
             }
 
-            if (sendBtn) sendBtn.disabled = false;
+            // Enable send if signatory has required fields
+            if (sendBtn) sendBtn.disabled = !(sig.signatory_title && sig.signatory_signature_image);
         } else {
-            // Hide values, show blank lines
             if (nameVal) nameVal.style.display = 'none';
             if (nameLine) nameLine.style.display = '';
             if (titleVal) titleVal.style.display = 'none';
@@ -376,11 +354,7 @@ const PurchaseNotice = (() => {
         stopMonitoring();
 
         try {
-            // Get selected signatory info
-            const select = document.getElementById('pn-signatory-select');
-            const selected = select.options[select.selectedIndex];
-
-            // Build full payload with template content, signatory, and calculated fields
+            // Build payload — signatory is pulled from user's profile on the backend
             const payload = {
                 symbol: params.symbol,
                 pricing_period_id: params.periodId,
@@ -388,11 +362,11 @@ const PurchaseNotice = (() => {
                 // Template content
                 body_text: currentData.body_text || '',
                 agreed_accepted_entity: currentData.agreed_accepted_entity || '',
-                // Company signatory (selected in dropdown)
-                signatory_name: selected.dataset.name || '',
-                signatory_title: selected.dataset.title || '',
-                signatory_address: selected.dataset.address || '',
-                signatory_signature_image: selected.dataset.signature || null,
+                // Signatory fields sent for backward compatibility but backend overrides from user profile
+                signatory_name: '',
+                signatory_title: '',
+                signatory_address: '',
+                signatory_signature_image: null,
                 // Calculated fields from prefill
                 exercise_date: currentData.exerciseDate || '',
                 valuation_period_start: currentData.valuationPeriodStart || '',

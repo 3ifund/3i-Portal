@@ -133,37 +133,46 @@
         document.getElementById('pc-company-entity').textContent = data.company_name || '';
 
         // Populate signatory dropdown
-        populateSignatoryDropdown(data.signatories || []);
+        displaySignatory(data.signatory);
 
         // Wire up events
-        document.getElementById('pc-signatory-select').addEventListener('change', onSignatoryChange);
+        // Signatory dropdown removed — user's signatory auto-displayed from profile
         document.getElementById('pc-submit-btn').addEventListener('click', openConfirmDialog);
     }
 
-    // ---- Signatory Selection ----
+    // ---- Signatory Display (auto from user profile) ----
 
-    function populateSignatoryDropdown(signatories) {
-        const select = document.getElementById('pc-signatory-select');
-        select.innerHTML = '<option value="">-- Select signatory --</option>';
-        signatories.forEach((s, idx) => {
-            const opt = document.createElement('option');
-            opt.value = idx;
-            opt.textContent = s.name || `Signatory ${idx + 1}`;
-            opt.dataset.name = s.name || '';
-            opt.dataset.title = s.title || '';
-            opt.dataset.address = s.address || '';
-            opt.dataset.signature = s.signature_image || '';
-            select.appendChild(opt);
-        });
-    }
-
-    function onSignatoryChange() {
-        const select = document.getElementById('pc-signatory-select');
-        const opt = select.options[select.selectedIndex];
+    function displaySignatory(sig) {
         const submitBtn = document.getElementById('pc-submit-btn');
 
-        if (!opt || !opt.value) {
-            // No selection
+        // Hide the dropdown if it exists
+        const selectEl = document.getElementById('pc-signatory-select');
+        if (selectEl) selectEl.style.display = 'none';
+
+        if (sig && sig.signatory_name) {
+            const nameEl = document.getElementById('pc-signatory-name');
+            const titleEl = document.getElementById('pc-signatory-title');
+
+            nameEl.textContent = sig.signatory_name;
+            nameEl.style.display = 'inline';
+            document.getElementById('pc-signatory-name-line').style.display = 'none';
+
+            titleEl.textContent = sig.signatory_title || '';
+            titleEl.style.display = sig.signatory_title ? 'inline' : 'none';
+            document.getElementById('pc-signatory-title-line').style.display = sig.signatory_title ? 'none' : '';
+
+            if (sig.signatory_signature_image) {
+                const sigImg = document.getElementById('pc-signatory-signature');
+                sigImg.src = sig.signatory_signature_image;
+                sigImg.style.display = 'inline-block';
+                document.getElementById('pc-signature-line-co').style.display = 'none';
+            } else {
+                document.getElementById('pc-signatory-signature').style.display = 'none';
+                document.getElementById('pc-signature-line-co').style.display = '';
+            }
+
+            submitBtn.disabled = !(sig.signatory_title && sig.signatory_signature_image);
+        } else {
             document.getElementById('pc-signatory-name').style.display = 'none';
             document.getElementById('pc-signatory-name-line').style.display = '';
             document.getElementById('pc-signatory-title').style.display = 'none';
@@ -171,32 +180,7 @@
             document.getElementById('pc-signatory-signature').style.display = 'none';
             document.getElementById('pc-signature-line-co').style.display = '';
             submitBtn.disabled = true;
-            return;
         }
-
-        // Show signatory values
-        const nameEl = document.getElementById('pc-signatory-name');
-        const titleEl = document.getElementById('pc-signatory-title');
-        nameEl.textContent = opt.dataset.name;
-        nameEl.style.display = opt.dataset.name ? 'inline' : 'none';
-        document.getElementById('pc-signatory-name-line').style.display = opt.dataset.name ? 'none' : '';
-
-        titleEl.textContent = opt.dataset.title;
-        titleEl.style.display = opt.dataset.title ? 'inline' : 'none';
-        document.getElementById('pc-signatory-title-line').style.display = opt.dataset.title ? 'none' : '';
-
-        // Signature image
-        if (opt.dataset.signature) {
-            const sigImg = document.getElementById('pc-signatory-signature');
-            sigImg.src = opt.dataset.signature;
-            sigImg.style.display = 'inline-block';
-            document.getElementById('pc-signature-line-co').style.display = 'none';
-        } else {
-            document.getElementById('pc-signatory-signature').style.display = 'none';
-            document.getElementById('pc-signature-line-co').style.display = '';
-        }
-
-        submitBtn.disabled = false;
     }
 
     // ---- Confirm Dialog ----
@@ -275,14 +259,9 @@
         acceptBtn.disabled = true;
         acceptBtn.textContent = 'Submitting...';
 
-        const select = document.getElementById('pc-signatory-select');
-        const opt = select.options[select.selectedIndex];
-
+        // Signatory is pulled from user's profile on the backend
         const payload = {
             eloc_id: prefillData.eloc_id,
-            signatory_name: opt.dataset.name || '',
-            signatory_title: opt.dataset.title || '',
-            signatory_signature_image: opt.dataset.signature || null,
         };
 
         try {

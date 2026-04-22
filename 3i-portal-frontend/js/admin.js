@@ -116,6 +116,7 @@ const Admin = (() => {
                     <td>${escapeHtml(u.user_id)}</td>
                     <td>${escapeHtml(u.role)}</td>
                     <td>${escapeHtml(u.company_name || u.company_symbol || '—')}</td>
+                    <td>${escapeHtml(u.signatory_name || '—')}</td>
                     <td><span class="eloc-card-status ${statusClass}">${statusLabel}</span></td>
                     <td><span class="eloc-card-status ${mustChangeClass}">${mustChangeLabel}</span></td>
                     <td>${escapeHtml(formatDateTime(u.created_at))}</td>
@@ -193,6 +194,8 @@ const Admin = (() => {
         document.getElementById('user-modal-password-group').style.display = '';
         document.getElementById('user-modal-role').value = 'user';
         document.getElementById('user-modal-company-group').style.display = '';
+        document.getElementById('user-modal-signatory-group').style.display = '';
+        document.getElementById('user-modal-signatory-name').value = '';
         document.getElementById('user-modal-active-group').style.display = 'none';
         document.getElementById('user-modal-status').className = 'modal-status';
         document.getElementById('user-modal-status').textContent = '';
@@ -222,6 +225,8 @@ const Admin = (() => {
 
         const showCompany = user.role !== 'admin';
         document.getElementById('user-modal-company-group').style.display = showCompany ? '' : 'none';
+        document.getElementById('user-modal-signatory-group').style.display = showCompany ? '' : 'none';
+        document.getElementById('user-modal-signatory-name').value = user.signatory_name || '';
         populateCompanyDropdown(user.company_id);
 
         document.getElementById('user-modal-overlay').classList.add('visible');
@@ -248,7 +253,8 @@ const Admin = (() => {
             const companyId = document.getElementById('user-modal-company').value;
             const isActive = document.getElementById('user-modal-active').value === 'true';
 
-            const updateData = { role, is_active: isActive };
+            const signatoryName = document.getElementById('user-modal-signatory-name').value.trim();
+            const updateData = { role, is_active: isActive, signatory_name: signatoryName };
             if (role === 'user' && companyId) {
                 updateData.company_id = parseInt(companyId);
             }
@@ -294,10 +300,12 @@ const Admin = (() => {
                 return;
             }
 
+            const signatoryName = document.getElementById('user-modal-signatory-name').value.trim();
             const createData = {
                 user_id: userId,
                 password,
                 role,
+                signatory_name: signatoryName,
             };
             if (role === 'user' && companyId) {
                 createData.company_id = parseInt(companyId);
@@ -418,8 +426,9 @@ const Admin = (() => {
         const roleSelect = document.getElementById('user-modal-role');
         if (roleSelect) {
             roleSelect.addEventListener('change', () => {
-                const companyGroup = document.getElementById('user-modal-company-group');
-                companyGroup.style.display = roleSelect.value === 'admin' ? 'none' : '';
+                const isAdmin = roleSelect.value === 'admin';
+                document.getElementById('user-modal-company-group').style.display = isAdmin ? 'none' : '';
+                document.getElementById('user-modal-signatory-group').style.display = isAdmin ? 'none' : '';
             });
         }
 
@@ -1299,190 +1308,6 @@ const Admin = (() => {
         await populateConfirmTemplateCompanyFilter();
     }
 
-    // ---- Signatories Tab ----
-
-    let editingSignatoryNameId = null;
-    let signatoryCompanyId = null;
-
-    async function populateSignatoryCompanyFilter() {
-        const companies = await loadCompaniesForDropdown();
-        const filter = document.getElementById('signatory-company-filter');
-        if (!filter) return;
-        const existing = filter.value;
-        while (filter.options.length > 1) filter.remove(1);
-        (companies || []).forEach((c) => {
-            const opt = document.createElement('option');
-            opt.value = c.company_id;
-            opt.textContent = `${c.name} (${c.symbol})`;
-            filter.appendChild(opt);
-        });
-        if (existing) filter.value = existing;
-    }
-
-    async function loadAdminSignatories() {
-        const loading = document.getElementById('signatories-loading');
-        const table = document.getElementById('signatories-table');
-        const empty = document.getElementById('signatories-empty');
-        const tbody = document.getElementById('signatories-tbody');
-        const addBtn = document.getElementById('add-signatory-btn');
-        const companyId = document.getElementById('signatory-company-filter').value;
-
-        if (!companyId) {
-            loading.style.display = 'none';
-            table.style.display = 'none';
-            empty.style.display = 'block';
-            empty.querySelector('p').textContent = 'Select a company to view its signatories.';
-            if (addBtn) addBtn.style.display = 'none';
-            return;
-        }
-
-        signatoryCompanyId = parseInt(companyId);
-        if (addBtn) addBtn.style.display = '';
-        loading.style.display = 'flex';
-        table.style.display = 'none';
-        empty.style.display = 'none';
-
-        try {
-            const signatories = await API.adminGetCompanySignatories(signatoryCompanyId);
-            loading.style.display = 'none';
-
-            if (!signatories || signatories.length === 0) {
-                empty.querySelector('p').textContent = 'No signatories for this company. Click "+ Add Signatory" to create one.';
-                empty.style.display = 'block';
-                table.style.display = 'none';
-                return;
-            }
-
-            empty.style.display = 'none';
-            tbody.innerHTML = '';
-            signatories.forEach((s) => {
-                const hasDetails = s.title && s.signature_image;
-                const statusClass = hasDetails ? 'active' : 'completed';
-                const statusLabel = hasDetails ? 'Complete' : 'Details needed';
-                const tr = document.createElement('tr');
-                tr.innerHTML = `
-                    <td>${escapeHtml(s.name)}</td>
-                    <td><span class="eloc-card-status ${statusClass}">${statusLabel}</span></td>
-                    <td>
-                        <button class="btn-action edit-sig-name-btn" data-id="${s.id}" data-name="${escapeHtml(s.name)}">Edit</button>
-                        <button class="btn-action delete-sig-btn" data-id="${s.id}" data-name="${escapeHtml(s.name)}">Delete</button>
-                    </td>
-                `;
-                tbody.appendChild(tr);
-            });
-
-            tbody.querySelectorAll('.edit-sig-name-btn').forEach((btn) => {
-                btn.addEventListener('click', () => openSignatoryNameModal(btn.dataset.id, btn.dataset.name));
-            });
-            tbody.querySelectorAll('.delete-sig-btn').forEach((btn) => {
-                btn.addEventListener('click', () => handleDeleteSignatory(btn.dataset.id, btn.dataset.name));
-            });
-
-            table.style.display = 'table';
-        } catch (err) {
-            loading.style.display = 'none';
-            empty.style.display = 'block';
-            empty.querySelector('p').textContent = `Error: ${err.message}`;
-        }
-    }
-
-    function openSignatoryNameModal(signatoryId, currentName) {
-        editingSignatoryNameId = signatoryId || null;
-        const titleEl = document.getElementById('signatory-name-modal-title');
-        const input = document.getElementById('signatory-name-input');
-        const submitBtn = document.getElementById('signatory-name-modal-submit');
-        const statusEl = document.getElementById('signatory-name-modal-status');
-
-        statusEl.className = 'modal-status';
-        statusEl.textContent = '';
-
-        if (signatoryId) {
-            titleEl.textContent = 'Edit Signatory Name';
-            input.value = currentName || '';
-            submitBtn.textContent = 'Save';
-        } else {
-            titleEl.textContent = 'Add Signatory';
-            input.value = '';
-            submitBtn.textContent = 'Add';
-        }
-
-        document.getElementById('signatory-name-modal-overlay').classList.add('visible');
-        input.focus();
-    }
-
-    function closeSignatoryNameModal() {
-        document.getElementById('signatory-name-modal-overlay').classList.remove('visible');
-        editingSignatoryNameId = null;
-    }
-
-    async function handleSignatoryNameSave() {
-        const statusEl = document.getElementById('signatory-name-modal-status');
-        const submitBtn = document.getElementById('signatory-name-modal-submit');
-        const name = document.getElementById('signatory-name-input').value.trim();
-
-        if (!name) {
-            statusEl.className = 'modal-status error';
-            statusEl.textContent = 'Name is required.';
-            return;
-        }
-        if (!signatoryCompanyId) {
-            statusEl.className = 'modal-status error';
-            statusEl.textContent = 'No company selected.';
-            return;
-        }
-
-        statusEl.className = 'modal-status sending';
-        statusEl.textContent = editingSignatoryNameId ? 'Saving...' : 'Adding...';
-        submitBtn.disabled = true;
-
-        try {
-            if (editingSignatoryNameId) {
-                await API.adminUpdateCompanySignatory(signatoryCompanyId, editingSignatoryNameId, name);
-            } else {
-                await API.adminAddCompanySignatory(signatoryCompanyId, name);
-            }
-            statusEl.className = 'modal-status success';
-            statusEl.textContent = editingSignatoryNameId ? 'Name updated.' : 'Signatory added.';
-            setTimeout(() => {
-                closeSignatoryNameModal();
-                loadAdminSignatories();
-            }, 800);
-        } catch (err) {
-            statusEl.className = 'modal-status error';
-            statusEl.textContent = err.message || 'Failed.';
-        } finally {
-            submitBtn.disabled = false;
-        }
-    }
-
-    async function handleDeleteSignatory(signatoryId, name) {
-        if (!confirm(`Delete signatory "${name}"?`)) return;
-        try {
-            await API.adminDeleteCompanySignatory(signatoryCompanyId, signatoryId);
-            loadAdminSignatories();
-        } catch (err) {
-            alert(err.message || 'Failed to delete signatory.');
-        }
-    }
-
-    function initSignatoryManagement() {
-        const addBtn = document.getElementById('add-signatory-btn');
-        if (addBtn) addBtn.addEventListener('click', () => openSignatoryNameModal(null, null));
-
-        const closeBtn = document.getElementById('signatory-name-modal-close');
-        const cancelBtn = document.getElementById('signatory-name-modal-cancel');
-        if (closeBtn) closeBtn.addEventListener('click', closeSignatoryNameModal);
-        if (cancelBtn) cancelBtn.addEventListener('click', closeSignatoryNameModal);
-
-        const submitBtn = document.getElementById('signatory-name-modal-submit');
-        if (submitBtn) submitBtn.addEventListener('click', handleSignatoryNameSave);
-
-        const companyFilter = document.getElementById('signatory-company-filter');
-        if (companyFilter) companyFilter.addEventListener('change', loadAdminSignatories);
-
-        populateSignatoryCompanyFilter();
-    }
-
     // ---- Verification Settings Tab ----
 
     let editingContactId = null;
@@ -1796,7 +1621,6 @@ const Admin = (() => {
 
         initTabs();
         initUserManagement();
-        initSignatoryManagement();
         initVerificationManagement();
 
         // Fire visible data loads immediately (don't wait for template inits)
