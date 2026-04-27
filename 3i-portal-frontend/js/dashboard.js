@@ -113,10 +113,11 @@ const Dashboard = (() => {
 
     /**
      * Update ELOC card period rows with shares data from on-prem.
-     * Display logic:
-     *   1. hasPendingEloc → "ELOC Currently Pricing"
-     *   2. !isWithinAcceptanceWindow → "Outside of Notice Window"
-     *   3. Otherwise → formatted availableShares
+     * Display logic (DTS's blockReason wins — it already encodes pending-ELOC and other blocks):
+     *   1. isBlocked → blockReason
+     *   2. hasPendingEloc → "ELOC Currently Pricing"
+     *   3. !isWithinAcceptanceWindow → "Outside of Notice Window"
+     *   4. Otherwise → formatted availableShares
      */
     function updateCardsWithShares(data) {
         const hasPending = data.hasPendingEloc;
@@ -146,20 +147,18 @@ const Dashboard = (() => {
                 console.log('[Dashboard]   %s: no data in response', periodType);
                 dataSpan.textContent = '\u2014';
                 dataSpan.className = 'period-data';
-            } else if (!period.isWithinAcceptanceWindow) {
-                // Time gate takes precedence — nothing can happen outside the window
-                console.log('[Dashboard]   %s: Outside of Notice Window', periodType);
-                dataSpan.textContent = 'Outside of Notice Window';
+            } else if (period.isBlocked) {
+                console.log('[Dashboard]   %s: Blocked — %s', periodType, period.blockReason);
+                dataSpan.textContent = period.blockReason || 'Blocked';
                 dataSpan.className = 'period-data outside-window';
             } else if (hasPending) {
-                // ELOC currently pricing — blocked by existing in-flight ELOC
                 var pendingLabel = data.pendingElocMessage || 'ELOC Currently Pricing';
                 console.log('[Dashboard]   %s: %s', periodType, pendingLabel);
                 dataSpan.textContent = pendingLabel;
                 dataSpan.className = 'period-data pending-eloc';
-            } else if (period.isBlocked) {
-                console.log('[Dashboard]   %s: Blocked — %s', periodType, period.blockReason);
-                dataSpan.textContent = period.blockReason || 'Blocked';
+            } else if (!period.isWithinAcceptanceWindow) {
+                console.log('[Dashboard]   %s: Outside of Notice Window', periodType);
+                dataSpan.textContent = 'Outside of Notice Window';
                 dataSpan.className = 'period-data outside-window';
             } else if (period.availableShares != null && period.availableShares > 0) {
                 const shares = new Intl.NumberFormat('en-US').format(period.availableShares);
