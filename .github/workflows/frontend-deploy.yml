@@ -2,15 +2,26 @@ name: Frontend Deploy
 
 on:
   push:
-    branches: [main]
+    branches: [master]
     paths:
       - '3i-portal-frontend/**'
+
+concurrency:
+  group: frontend-deploy
+  cancel-in-progress: true
 
 jobs:
   deploy:
     runs-on: [self-hosted, windows, ec2, 3i-portal]
 
     steps:
+      - name: Pull latest code
+        shell: powershell
+        run: |
+          Set-Location "C:\portal\3i-Portal"
+          git fetch origin master
+          git reset --hard origin/master
+
       - name: Sync to S3
         shell: powershell
         run: |

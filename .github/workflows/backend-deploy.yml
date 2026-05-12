@@ -2,9 +2,13 @@ name: Backend Deploy
 
 on:
   push:
-    branches: [main]
+    branches: [master]
     paths:
       - '3i-portal-backend/**'
+
+concurrency:
+  group: backend-deploy
+  cancel-in-progress: true
 
 jobs:
   deploy:
@@ -15,7 +19,8 @@ jobs:
         shell: powershell
         run: |
           Set-Location "C:\portal\3i-Portal"
-          git pull origin main
+          git fetch origin master
+          git reset --hard origin/master
 
       - name: Install dependencies
         shell: powershell
