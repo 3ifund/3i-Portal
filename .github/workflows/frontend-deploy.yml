@@ -1,0 +1,41 @@
+name: Frontend Deploy
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - '3i-portal-frontend/**'
+
+concurrency:
+  group: frontend-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: [self-hosted, windows, ec2, 3i-portal]
+
+    steps:
+      - name: Pull latest code
+        shell: powershell
+        run: |
+          Set-Location "C:\portal\3i-Portal"
+          git fetch origin master
+          git reset --hard origin/master
+
+      - name: Sync to S3
+        shell: powershell
+        run: |
+          aws s3 sync "C:\portal\3i-Portal\3i-portal-frontend\" s3://3i-portal-frontend --delete
+          Write-Host "S3 sync complete"
+
+      - name: Invalidate CloudFront
+        shell: powershell
+        run: |
+          $result = aws cloudfront create-invalidation `
+            --distribution-id $env:CLOUDFRONT_DISTRIBUTION_ID `
+            --paths "/*" | ConvertFrom-Json
+          Write-Host "Invalidation ID: $($result.Invalidation.Id)"
+          Write-Host "Status: $($result.Invalidation.Status)"
+
+    env:
+      CLOUDFRONT_DISTRIBUTION_ID: ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }}

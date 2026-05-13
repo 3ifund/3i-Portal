@@ -1,0 +1,50 @@
+name: Backend Deploy
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - '3i-portal-backend/**'
+
+concurrency:
+  group: backend-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: [self-hosted, windows, ec2, 3i-portal]
+
+    steps:
+      - name: Pull latest code
+        shell: powershell
+        run: |
+          Set-Location "C:\portal\3i-Portal"
+          git fetch origin master
+          git reset --hard origin/master
+
+      - name: Install dependencies
+        shell: powershell
+        run: |
+          Set-Location "C:\portal\3i-Portal\3i-portal-backend"
+          .\venv\Scripts\pip.exe install -r requirements.txt
+
+      - name: Restart portal-backend service
+        shell: powershell
+        run: |
+          Restart-Service portal-backend
+          Start-Sleep -Seconds 10
+          $svc = Get-Service portal-backend
+          Write-Host "Service status: $($svc.Status)"
+          if ($svc.Status -ne "Running") {
+            throw "portal-backend failed to start"
+          }
+
+      - name: Health check
+        shell: powershell
+        run: |
+          Start-Sleep -Seconds 5
+          $response = Invoke-WebRequest -Uri "http://localhost:8000/health" -UseBasicParsing
+          Write-Host "Health check: $($response.StatusCode)"
+          if ($response.StatusCode -ne 200) {
+            throw "Health check failed"
+          }
