@@ -8,7 +8,7 @@ on:
 
 concurrency:
   group: frontend-deploy
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   deploy:
