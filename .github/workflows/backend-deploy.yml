@@ -19,6 +19,7 @@ jobs:
         shell: powershell
         run: |
           Set-Location "C:\portal\3i-Portal"
+          attrib -R "*.*" /S /D
           git fetch origin master
           git reset --hard origin/master
 
