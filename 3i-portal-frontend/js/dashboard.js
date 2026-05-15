@@ -454,6 +454,24 @@ const Dashboard = (() => {
         'ReceivedCountersignedVwapNotification',
     ]);
 
+    /**
+     * Format a naive-ET ISO timestamp ("YYYY-MM-DDTHH:MM:SS") from the backend
+     * into PRM's display format: "VWAP calc @ MM/dd/yyyy HH:mm:ss ET".
+     * The backend column stores ET wall-clock with no timezone, so we extract
+     * components directly from the string rather than constructing a Date (which
+     * would apply browser-local timezone math).
+     */
+    function formatScheduledEt(naiveEtIso) {
+        if (!naiveEtIso) return '';
+        const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})/.exec(naiveEtIso);
+        if (!match) {
+            console.warn('[Dashboard] formatScheduledEt: unrecognized timestamp shape %s', naiveEtIso);
+            return `VWAP calc @ ${naiveEtIso} ET`;
+        }
+        const [, y, mo, d, h, mi, s] = match;
+        return `VWAP calc @ ${mo}/${d}/${y} ${h}:${mi}:${s} ET`;
+    }
+
     // Step icons — matches C# ElocWorkflowStep enum
     const STEP_ICONS = {
         SignedContractToCompany: '\u{1F4E5}',
@@ -490,10 +508,21 @@ const Dashboard = (() => {
             const icon = STEP_ICONS[step.key] || '\u2022';
             const hasDoc = step.status === 'Completed' && DOCUMENT_STEPS.has(step.key);
             const clickable = hasDoc ? 'clickable' : '';
+
+            // Scheduled VWAP calculation time \u2014 only on FinalVwapPricingCalculated when set by DTS.
+            // Backend sends a naive ISO ET string; format to "MM/dd/yyyy HH:mm:ss ET" to match PRM.
+            let scheduledHtml = '';
+            if (step.key === 'FinalVwapPricingCalculated' && step.scheduled_at) {
+                scheduledHtml = `<div class="workflow-scheduled">${formatScheduledEt(step.scheduled_at)}</div>`;
+                console.log('[Dashboard]   Step %s scheduled_at=%s \u2192 "%s"',
+                    step.key, step.scheduled_at, formatScheduledEt(step.scheduled_at));
+            }
+
             stepsHtml += `
                 <div class="workflow-step ${cssClass} ${clickable}" data-step="${escapeHtml(step.key)}">
                     <div class="workflow-badge ${cssClass} ${clickable}">${icon}</div>
                     <div class="workflow-label">${escapeHtml(step.label)}</div>
+                    ${scheduledHtml}
                 </div>
             `;
         });

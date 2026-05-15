@@ -833,6 +833,18 @@ a:hover {
     text-align: center;
 }
 
+/* Scheduled VWAP calculation time — shown below FinalVwapPricingCalculated step.
+   Matches PRM's display (cyan #4FC3F7, small, centered).
+   Only rendered when the backend returns step.scheduled_at on this step. */
+.workflow-scheduled {
+    font-size: 0.65rem;
+    color: #4FC3F7;
+    font-weight: 600;
+    margin-top: 0.25rem;
+    text-align: center;
+    max-width: 120px;
+}
+
 .workflow-step.has-document .workflow-badge,
 .workflow-step.clickable .workflow-badge {
     cursor: pointer;

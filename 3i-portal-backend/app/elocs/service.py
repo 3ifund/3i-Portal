@@ -6,9 +6,42 @@ shares available, purchase notices).
 
 import logging
 
+from app.database import postgres as pg
 from app.onprem import client as onprem
 
 logger = logging.getLogger("portal.elocs.service")
+
+
+async def _fetch_scheduled_calculation_times(eloc_ids: list[str]) -> dict[str, str]:
+    """
+    Query DealTerms.eloc_status_tracker for the scheduled VWAP calculation time
+    of every eloc_id passed in. Returns {eloc_id -> ISO timestamp string (no TZ)}
+    for rows where scheduled_calculation_time IS NOT NULL.
+
+    The column stores ET wall-clock with no timezone offset, matching
+    deemed_to_own_completed_at. We serialize as a naive ISO-8601 string so the
+    frontend can format it directly as "ET" without timezone math.
+    """
+    if not eloc_ids:
+        return {}
+
+    pool = pg.get_pool()
+    rows = await pool.fetch(
+        """
+        SELECT eloc_id, scheduled_calculation_time
+        FROM eloc_status_tracker
+        WHERE eloc_id = ANY($1::text[])
+          AND scheduled_calculation_time IS NOT NULL
+        """,
+        eloc_ids,
+    )
+
+    result = {r["eloc_id"]: r["scheduled_calculation_time"].isoformat() for r in rows}
+    logger.debug(
+        "  fetched scheduled_calculation_time for %d/%d ELOCs: %s",
+        len(result), len(eloc_ids), result,
+    )
+    return result
 
 
 # ---- Step-to-field mapping for ElocData (DealTermsServer camelCase JSON) ----
@@ -297,6 +330,15 @@ async def get_pricing_workflows(company_id: int) -> list[dict]:
     # (the "ELOC Currently Pricing" message on the shares available cards).
     try:
         portal_states = await onprem.get_portal_eloc_states_included()
+
+        # Pre-filter to this company's eloc_ids so we can fetch scheduled calc times in one query
+        company_eloc_ids = [
+            str(s.get("elocId", ""))
+            for s in portal_states
+            if s.get("companyId") == company_id and s.get("workflowVisible") is not False
+        ]
+        scheduled_by_eloc = await _fetch_scheduled_calculation_times(company_eloc_ids)
+
         for state in portal_states:
             if state.get("companyId") != company_id:
                 continue
@@ -306,6 +348,7 @@ async def get_pricing_workflows(company_id: int) -> list[dict]:
                 logger.debug("  Skipping hidden ELOC %s (workflow_visible=false)", state.get("elocId"))
                 continue
 
+            eloc_id = str(state.get("elocId", ""))
             workflow_step = state.get("workflowStep", "")
             status = state.get("status", "Pending")
             pricing_direction = state.get("pricingDirection", "Forward")
@@ -313,11 +356,27 @@ async def get_pricing_workflows(company_id: int) -> list[dict]:
             steps, can_remove = build_workflow_steps(
                 workflow_step, status, pricing_direction, workflow_complete)
 
-            logger.debug("  ELOC %s: step=%s, status=%s, direction=%s, complete=%s, can_remove=%s",
-                         state.get("elocId"), workflow_step, status, pricing_direction, workflow_complete, can_remove)
+            # Stamp scheduled VWAP calculation time onto the FinalVwapPricingCalculated step
+            # (forward-pricing only — backward steps are filtered out by build_workflow_steps).
+            scheduled_iso = scheduled_by_eloc.get(eloc_id)
+            if scheduled_iso:
+                for step in steps:
+                    if step.get("key") == "FinalVwapPricingCalculated":
+                        step["scheduled_at"] = scheduled_iso
+                        logger.info(
+                            "  ELOC %s: stamped scheduled_at=%s on FinalVwapPricingCalculated step (ET)",
+                            eloc_id, scheduled_iso,
+                        )
+                        break
+
+            logger.info(
+                "  ELOC %s: step=%s, status=%s, direction=%s, complete=%s, can_remove=%s, scheduled=%s",
+                eloc_id, workflow_step, status, pricing_direction, workflow_complete, can_remove,
+                scheduled_iso or "none",
+            )
 
             workflows.append({
-                "eloc_id": str(state.get("elocId", "")),
+                "eloc_id": eloc_id,
                 "company_id": state.get("companyId"),
                 "current_step": workflow_step,
                 "step_status": status,
