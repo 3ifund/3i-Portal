@@ -38,7 +38,19 @@ const API = (() => {
 
         if (!response.ok) {
             const body = await response.json().catch(() => ({}));
-            throw new Error(body.detail || `Request failed (${response.status})`);
+            // FastAPI returns either body.detail (string) or body.detail ({...structured...}).
+            // For structured detail (e.g., the 409 ELOC_ALREADY_PRICING response from /submit)
+            // we keep the original object on the thrown error so callers can render
+            // code/blocking_eloc_id/etc. without re-parsing.
+            const detail = body && body.detail;
+            const message = (typeof detail === 'string' ? detail
+                            : (detail && detail.message) ? detail.message
+                            : `Request failed (${response.status})`);
+            const err = new Error(message);
+            err.status = response.status;
+            err.body = body;
+            err.detail = detail;
+            throw err;
         }
 
         return response.json();

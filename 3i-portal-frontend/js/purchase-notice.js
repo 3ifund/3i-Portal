@@ -400,6 +400,24 @@ const PurchaseNotice = (() => {
                 );
             }
         } catch (err) {
+            // Concurrency rejection from the backend: another user from the same
+            // company already has an ELOC in progress. Show a friendly message —
+            // the alert's OK button already routes back to dashboard.html.
+            if (err && err.status === 409 && err.detail && err.detail.code === 'ELOC_ALREADY_PRICING') {
+                console.warn('[PurchaseNotice] Rejected — ELOC already pricing: blocking=%s step=%s',
+                    err.detail.blocking_eloc_id, err.detail.blocking_workflow_step);
+                var blocking = err.detail.blocking_eloc_id
+                    ? '\n\nIn progress: ' + err.detail.blocking_eloc_id +
+                      (err.detail.blocking_workflow_step ? ' (' + err.detail.blocking_workflow_step + ')' : '')
+                    : '';
+                showAlert(
+                    'ELOC Already In Progress',
+                    'Another user from your company has already submitted a Purchase Notice that is still in progress. ' +
+                    'Wait for it to complete, or use the Remove button on the dashboard to clear it before submitting another.' +
+                    blocking
+                );
+                return;
+            }
             console.error('[PurchaseNotice] Submission failed:', err);
             showAlert(
                 'Submission Failed',

@@ -206,10 +206,31 @@ async def get_purchase_notice_fields(symbol: str, pricing_period_id: int) -> dic
 
 # ---- Portal-Initiated Purchase Notice Endpoints ----
 
+class ElocAlreadyPricingError(Exception):
+    """
+    Raised when DTS rejects a portal purchase notice submission because the
+    company already has an active ELOC. Carries the structured body DTS
+    returned (companyId, blockingElocId, blockingWorkflowStep) so the FastAPI
+    router can surface a friendly 409 to the frontend.
+    """
+    def __init__(self, body: dict):
+        self.body = body or {}
+        self.code = self.body.get("code", "ELOC_ALREADY_PRICING")
+        self.blocking_eloc_id = self.body.get("blockingElocId")
+        self.blocking_workflow_step = self.body.get("blockingWorkflowStep")
+        self.company_id = self.body.get("companyId")
+        msg = self.body.get("error") or "An ELOC for this company is already in progress."
+        super().__init__(msg)
+
+
 async def submit_portal_purchase_notice(payload: dict) -> dict:
     """
     POST /api/portal/purchase-notice — submit portal-initiated purchase notice.
     DTS generates eloc_id, PDF, and writes to three_i_fund_portal MongoDB.
+
+    Raises ElocAlreadyPricingError on HTTP 409 with code=ELOC_ALREADY_PRICING
+    so the caller can render the proper "already pricing" UI without treating
+    it as a server error.
     """
     logger.info(
         "POST /api/portal/purchase-notice symbol=%s period=%s shares=%s company=%s",
@@ -226,6 +247,29 @@ async def submit_portal_purchase_notice(payload: dict) -> dict:
 
     response = await _request_with_retry("POST", "/api/portal/purchase-notice", json=payload)
     logger.info("  → %s (%d bytes)", response.status_code, len(response.content))
+
+    # Concurrency-rejection path: DTS returns 409 with a structured body when
+    # the company already has an active ELOC (enforced by the unique partial
+    # index on eloc_status_tracker (company_id) WHERE current_status IN
+    # ('Pending','InProgress')). Surface this as a typed exception so the
+    # FastAPI router translates it to a clean 409 for the frontend rather
+    # than the generic 500 path used by other DTS errors.
+    if response.status_code == 409:
+        try:
+            body = response.json()
+        except Exception:
+            body = {}
+        if body.get("code") == "ELOC_ALREADY_PRICING":
+            logger.warning(
+                "  → DTS rejected submission: ELOC_ALREADY_PRICING — "
+                "company=%s blockingEloc=%s blockingStep=%s",
+                body.get("companyId"),
+                body.get("blockingElocId"),
+                body.get("blockingWorkflowStep"),
+            )
+            raise ElocAlreadyPricingError(body)
+        logger.error("  → 409 with unrecognized body: %s", response.text[:2000])
+
     if response.status_code >= 400:
         logger.error("  → DTS error response: %s", response.text[:2000])
     else:

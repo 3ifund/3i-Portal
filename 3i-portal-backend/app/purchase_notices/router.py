@@ -283,6 +283,26 @@ async def submit_portal_purchase_notice(
     company_id = int(user.company_id)
     try:
         result = await onprem.submit_portal_purchase_notice(payload)
+    except onprem.ElocAlreadyPricingError as race:
+        # Concurrent submission for the same company — surface a clean 409 so
+        # the frontend can show "An ELOC is already in progress" and redirect
+        # back to the landing page. NOT a server error, so no stack trace.
+        logger.warning(
+            "POST /submit REJECT (concurrency): user=%s company=%s symbol=%s shares=%s — "
+            "blocking elocId=%s step=%s",
+            user.user_id, company_id, request.symbol, request.shares,
+            race.blocking_eloc_id, race.blocking_workflow_step,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": "ELOC_ALREADY_PRICING",
+                "message": str(race),
+                "company_id": race.company_id,
+                "blocking_eloc_id": race.blocking_eloc_id,
+                "blocking_workflow_step": race.blocking_workflow_step,
+            },
+        )
     except Exception as exc:
         logger.error("Portal purchase notice submission failed: %s", exc, exc_info=True)
         raise HTTPException(
