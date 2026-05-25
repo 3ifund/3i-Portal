@@ -455,23 +455,111 @@ async def get_confirmation_prefill(
         logger.info("Confirmation prefill %s: no placeholder tags in body_text (length=%d)",
                      eloc_id, len(body_text) if body_text else 0)
 
-    # 3. Firm signature already stored in eloc_data from purchase notice submission
-    #    DTS stores the signature image as raw base64 (no data URI prefix).
-    #    The frontend needs a full data URI for <img> src rendering.
-    firm_sig_image = eloc_data.get("firm_signatory_signature_image") or ""
-    if firm_sig_image and not firm_sig_image.startswith("data:"):
-        firm_sig_image = f"data:image/png;base64,{firm_sig_image}"
-        logger.info("Confirmation prefill %s: added data URI prefix to firm signature image", eloc_id)
-    logger.debug("Confirmation prefill %s: firm_sig name=%s, has_image=%s",
-                 eloc_id, eloc_data.get("firm_signatory_name", ""), bool(firm_sig_image))
+    # 3. Live recipient resolution via DTS.
+    #    Three fields are sourced *live* from Postgres (via DTS HTTP) so that
+    #    edits made in data-management-ui (firm_signatures.email, etc.) or in
+    #    the DTS WPF UI (eloc_deal.to, company.email_addresses) show up on the
+    #    Portal page immediately, instead of being frozen to the snapshot copy
+    #    on Mongo eloc_data:
+    #      to_name        ← eloc_deal.to                  (DTS WPF ELOC Deal Mgmt)
+    #      to_email       ← company.email_addresses[0]    (data-management-ui Company Contacts)
+    #      firm_signature ← firm_signatures row           (data-management-ui Firm Signatures)
+    #    DTS returns raw base64 for the signature image; this endpoint adds the
+    #    "data:image/png;base64," prefix the <img> tag needs.
+    #    If DTS is unreachable: firm_signature falls back to the Mongo snapshot
+    #    (so the page keeps rendering); to_name/to_email fall back to "" (no
+    #    snapshot exists for those fields).
+    import time
+    to_name = ""
+    to_email = ""
+    to_name_source = "(empty)"
+    to_email_source = "(empty)"
+    firm_signature_source = "snapshot"  # overridden below if DTS responded
+    firm_signature = None
+    recipients = None
+    dts_call_elapsed_ms = 0.0
+    dts_call_outcome = "(unknown)"
+    logger.info("Confirmation prefill %s: calling DTS /api/portal/eloc/%s/document-recipients for live values",
+                eloc_id, eloc_id)
+    t_dts_start = time.monotonic()
+    try:
+        recipients = await onprem.get_document_recipients(eloc_id)
+        dts_call_elapsed_ms = (time.monotonic() - t_dts_start) * 1000
+        dts_call_outcome = "ok" if recipients else "not-found-404"
+        logger.info(
+            "Confirmation prefill %s: DTS round-trip finished in %.1fms (outcome=%s, recipients=%s)",
+            eloc_id, dts_call_elapsed_ms, dts_call_outcome,
+            "present" if recipients else "None",
+        )
+    except Exception as exc:
+        dts_call_elapsed_ms = (time.monotonic() - t_dts_start) * 1000
+        dts_call_outcome = f"exception:{type(exc).__name__}"
+        logger.warning(
+            "Confirmation prefill %s: DTS document-recipients call FAILED in %.1fms (non-fatal, "
+            "page will render with Mongo snapshot for firm_signature and empty to_name/to_email): %s: %s",
+            eloc_id, dts_call_elapsed_ms, type(exc).__name__, exc,
+        )
 
-    firm_signature = {
-        "name": eloc_data.get("firm_signatory_name", ""),
-        "title": eloc_data.get("firm_signatory_title", ""),
-        "address": eloc_data.get("firm_signatory_address", ""),
-        "email": eloc_data.get("firm_signatory_email", ""),
-        "signature_image": firm_sig_image,
-    }
+    if recipients:
+        # Top-of-page recipient fields (no Mongo snapshot exists; "" if missing/blank in DB).
+        to_name = recipients.get("to_name") or ""
+        to_email = recipients.get("to_email") or ""
+        to_name_source = recipients.get("to_name_source", "(empty)")
+        to_email_source = recipients.get("to_email_source", "(empty)")
+
+        # Firm signature block — prefer live values from DTS. DTS already did
+        # its own snapshot fallback on missing firm_signature_id / missing row,
+        # so whatever it returned is the right value; we just apply the data URI.
+        dts_firm = recipients.get("firm_signature") or {}
+        dts_firm_src = recipients.get("firm_signature_source") or {}
+        firm_sig_image = dts_firm.get("signature_image_base64") or ""
+        if firm_sig_image and not firm_sig_image.startswith("data:"):
+            firm_sig_image = f"data:image/png;base64,{firm_sig_image}"
+        firm_signature = {
+            "name":            dts_firm.get("name", ""),
+            "title":           dts_firm.get("title", ""),
+            "address":         dts_firm.get("address", ""),
+            "email":           dts_firm.get("email", ""),
+            "signature_image": firm_sig_image,
+        }
+        # If any firm-sig field came from DTS as "snapshot", that means DTS itself
+        # fell back (e.g. firm_signature_id was null). We tag the whole block
+        # "snapshot" only when all five sub-fields are snapshot/(none); otherwise
+        # "live" (or "mixed" if a subset diverged).
+        srcs = {dts_firm_src.get(k) for k in ("name", "title", "address", "email", "signature_image")}
+        if srcs <= {"live"}:
+            firm_signature_source = "live"
+        elif srcs <= {"snapshot", "(none)"}:
+            firm_signature_source = "snapshot"
+        else:
+            firm_signature_source = "mixed"
+        logger.info(
+            "Confirmation prefill %s: applied DTS recipients — to_name=%r[%s], to_email=%r[%s], firm.email=%r[%s] (block_source=%s)",
+            eloc_id, to_name, to_name_source, to_email, to_email_source,
+            firm_signature.get("email"),
+            dts_firm_src.get("email"),
+            firm_signature_source,
+        )
+    else:
+        # DTS unreachable OR returned 404 — fall back to the Mongo snapshot for
+        # firm_signature so the page still renders. to_name/to_email stay "".
+        firm_sig_image = eloc_data.get("firm_signatory_signature_image") or ""
+        if firm_sig_image and not firm_sig_image.startswith("data:"):
+            firm_sig_image = f"data:image/png;base64,{firm_sig_image}"
+        firm_signature = {
+            "name":            eloc_data.get("firm_signatory_name", ""),
+            "title":           eloc_data.get("firm_signatory_title", ""),
+            "address":         eloc_data.get("firm_signatory_address", ""),
+            "email":           eloc_data.get("firm_signatory_email", ""),
+            "signature_image": firm_sig_image,
+        }
+        firm_signature_source = "snapshot-fallback"
+        logger.warning(
+            "Confirmation prefill %s: using Mongo snapshot fallback (firm.name=%r, firm.email=%r); "
+            "to_name and to_email will be empty",
+            eloc_id, firm_signature.get("name"), firm_signature.get("email"),
+        )
+    logger.debug("Confirmation prefill %s: final firm_sig has_image=%s", eloc_id, bool(firm_signature.get("signature_image")))
 
     # 4. Get the current user's signatory from portal_users
     signatory = await users_repo.get_user_signatory(user.user_id)
@@ -501,15 +589,35 @@ async def get_confirmation_prefill(
         "lowest_vwap": eloc_data.get("lowest_vwap"),
         "vwap_used": eloc_data.get("vwap_used"),
         "dollar_amount_calculated": eloc_data.get("dollar_amount_calculated"),
-        # Firm signature (already signed)
+        # Top-of-document recipient (live from DTS; empty if lookup failed)
+        "to_name": to_name,
+        "to_email": to_email,
+        "to_name_source": to_name_source,
+        "to_email_source": to_email_source,
+        # Firm signature (live from DTS firm_signatures; Mongo snapshot fallback)
         "firm_signature": firm_signature,
+        "firm_signature_source": firm_signature_source,
         # User's signatory (for countersign)
         "signatory": signatory,
     }
 
-    logger.info("Confirmation prefill for %s: symbol=%s, vwap=%s, signatory=%s",
-                eloc_id, symbol, eloc_data.get("vwap_purchase_price"),
-                signatory.get("signatory_name") if signatory else None)
+    # Best-effort response size logging — useful when debugging payload bloat
+    # (large signature images, body_text with embedded substitutions, etc.).
+    try:
+        import json as _json
+        response_size_bytes = len(_json.dumps(result, default=str).encode("utf-8"))
+    except Exception:
+        response_size_bytes = -1
+    logger.info(
+        "Confirmation prefill for %s: symbol=%s, vwap=%s, signatory=%s, "
+        "to_name=%r[%s], to_email=%r[%s], firm.email=%r, firm_source=%s, "
+        "dts_call_ms=%.1f, dts_outcome=%s, response_bytes=%d",
+        eloc_id, symbol, eloc_data.get("vwap_purchase_price"),
+        signatory.get("signatory_name") if signatory else None,
+        to_name, to_name_source, to_email, to_email_source,
+        firm_signature.get("email"), firm_signature_source,
+        dts_call_elapsed_ms, dts_call_outcome, response_size_bytes,
+    )
     return result
 
 

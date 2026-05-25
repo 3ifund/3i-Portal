@@ -74,10 +74,19 @@
         document.getElementById('pc-loading').style.display = 'none';
         document.getElementById('pc-document').style.display = 'block';
 
-        // Header
+        // Header.
+        //   "To:"     ← data.to_name  (live: eloc_deal.to via DTS WPF ELOC Deal Mgmt)
+        //   "E-mail:" ← data.to_email (live: company.email_addresses[0] via data-management-ui)
+        // Both come from the DTS /document-recipients endpoint, resolved live each
+        // page load — see backend confirmation-prefill. Empty string if the DB
+        // value is missing or DTS was unreachable (page still renders).
         const firmSig = data.firm_signature || {};
-        document.getElementById('pc-to-name').textContent = firmSig.email || '';
-        document.getElementById('pc-to-email').textContent = firmSig.email || '';
+        document.getElementById('pc-to-name').textContent = data.to_name || '';
+        document.getElementById('pc-to-email').textContent = data.to_email || '';
+        console.log('[PurchaseConfirmation] header recipients:',
+            'to_name=', data.to_name, '[' + (data.to_name_source || '?') + ']',
+            'to_email=', data.to_email, '[' + (data.to_email_source || '?') + ']',
+            'firm.email=', firmSig.email, '[block_source=' + (data.firm_signature_source || '?') + ']');
 
         // Body text
         const bodyEl = document.getElementById('pc-body-text');

@@ -303,6 +303,85 @@ async def get_portal_eloc_state_by_id(eloc_id: str) -> dict | None:
     return response.json()
 
 
+async def get_document_recipients(eloc_id: str) -> dict | None:
+    """
+    GET /api/portal/eloc/{elocId}/document-recipients — resolves live recipient
+    fields for the Purchase Confirmation document.
+
+    DTS does the full chain on its side (Mongo eloc_data → Postgres
+    eloc_pricing_period → eloc_deal.to / company.email_addresses[0] /
+    firm_signatures.*) so the Portal stays a thin pass-through and the firm-sig
+    snapshot fallback logic lives in exactly one place.
+
+    Response shape:
+      {
+        "elocId": "...",
+        "to_name": "Mathew Lipman",                    # eloc_deal.to (live)
+        "to_name_source": "live" | "(empty)",
+        "to_email": "lipmanm@brookstonepartners.com",  # company.email_addresses[0]
+        "to_email_source": "live" | "(empty)",
+        "to_email_count": 7,                           # total emails on company row
+        "firm_signature": {
+          "name": "...", "title": "...", "address": "...",
+          "email": "...", "signature_image_base64": "..."   # raw base64, no data: prefix
+        },
+        "firm_signature_source": {
+          "name": "live"|"snapshot", ...
+        },
+        "outcomes": { "firm_signature": "ok", "to_name": "ok", "recipient_email": "ok" }
+      }
+
+    Returns None on 404 (no eloc_data for this elocId). Raises on other errors;
+    callers should wrap in try/except and degrade gracefully (per the Portal's
+    "never block a page render on DTS" policy).
+    """
+    import time
+    t_start = time.monotonic()
+    logger.info("GET /api/portal/eloc/%s/document-recipients", eloc_id)
+    response = await _request_with_retry(
+        "GET", f"/api/portal/eloc/{eloc_id}/document-recipients")
+    if response.status_code == 404:
+        elapsed_ms = (time.monotonic() - t_start) * 1000
+        logger.warning("  → 404 not found (%.1fms)", elapsed_ms)
+        return None
+    logger.info("  → %s (%d bytes)", response.status_code, len(response.content))
+    response.raise_for_status()
+    try:
+        data = response.json()
+    except Exception as parse_exc:
+        elapsed_ms = (time.monotonic() - t_start) * 1000
+        logger.error(
+            "  recipients(%s): JSON parse FAILED after %.1fms — body[:500]=%r",
+            eloc_id, elapsed_ms, response.text[:500],
+        )
+        raise
+    elapsed_ms = (time.monotonic() - t_start) * 1000
+
+    # Surface the source attribution and outcomes prominently in the Portal log
+    # so when a user reports "the wrong email is showing" you can grep one
+    # eloc_id and see whether DTS returned live or snapshot/empty for each field.
+    outcomes = data.get("outcomes", {})
+    firm_sig = data.get("firm_signature") or {}
+    firm_sig_src = data.get("firm_signature_source") or {}
+    sig_img = firm_sig.get("signature_image_base64") or ""
+    logger.info(
+        "  recipients(%s) in %.1fms: to_name=%r [%s], to_email=%r [%s] (of %s total), "
+        "firm.email=%r [%s], firm.name=%r [%s], firm.image=%s "
+        "(outcomes: firm_signature=%s, to_name=%s, recipient_email=%s)",
+        eloc_id, elapsed_ms,
+        data.get("to_name"), data.get("to_name_source"),
+        data.get("to_email"), data.get("to_email_source"),
+        data.get("to_email_count"),
+        firm_sig.get("email"), firm_sig_src.get("email"),
+        firm_sig.get("name"), firm_sig_src.get("name"),
+        f"{len(sig_img):,} chars base64" if sig_img else "(empty)",
+        outcomes.get("firm_signature"),
+        outcomes.get("to_name"),
+        outcomes.get("recipient_email"),
+    )
+    return data
+
+
 async def get_portal_eloc_document(eloc_id: str, step: str) -> dict | None:
     """
     GET /api/portal/eloc/documents/{elocId}/{step} — document for a portal ELOC step.
