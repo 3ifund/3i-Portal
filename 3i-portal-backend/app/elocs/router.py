@@ -24,22 +24,111 @@ router = APIRouter()
 
 
 async def _verify_eloc_ownership(eloc_id: str, company_id: int) -> None:
-    """Check that the ELOC belongs to the user's company. Raises 403 if not."""
-    state = await onprem.get_eloc_state_by_id(eloc_id)
+    """
+    Check that the ELOC belongs to the user's company. Raises 403 if not,
+    404 if the ELOC does not exist in either Portal or DTS state.
+
+    ELOC state lives in two separate DTS collections:
+      • Portal-initiated ELOCs    → portal_3i.eloc_state
+        (exposed by DTS via GET /api/portal/eloc/states/{elocId})
+      • DTS-initiated ELOCs       → DTS-side eloc_state
+        (exposed by DTS via GET /api/eloc/states/{elocId})
+
+    Try the Portal endpoint first since this router serves client Portal users
+    acting on their own ELOCs (overwhelmingly Portal-initiated). Fall back to
+    the DTS endpoint only on 404, so a DTS-initiated ELOC the user can also
+    see (rare but valid) still passes ownership check.
+
+    Past incident: hard-coding the DTS endpoint caused every Portal Remove
+    click to 404 silently because Portal ELOCs never exist in DTS-side
+    eloc_state — see 2026-05-25 CAPS-00000082 forensics.
+    """
+    import time
+    t_start = time.monotonic()
+    tag = f"verify-ownership:{eloc_id}"
+    logger.info(
+        "[%s] START — user_company_id=%s (trying Portal state first, DTS state on fallback)",
+        tag, company_id,
+    )
+
+    state = None
+    source = None
+
+    # Attempt 1: Portal state
+    t_portal_start = time.monotonic()
+    try:
+        state = await onprem.get_portal_eloc_state_by_id(eloc_id)
+        portal_ms = (time.monotonic() - t_portal_start) * 1000
+        if state:
+            source = "portal"
+            logger.info(
+                "[%s] Portal state lookup → FOUND in %.1fms (companyId=%s, source=portal_3i.eloc_state)",
+                tag, portal_ms, state.get("companyId"),
+            )
+        else:
+            logger.info(
+                "[%s] Portal state lookup → not-found in %.1fms (404) — will try DTS state next",
+                tag, portal_ms,
+            )
+    except Exception as exc:
+        portal_ms = (time.monotonic() - t_portal_start) * 1000
+        logger.warning(
+            "[%s] Portal state lookup FAILED in %.1fms (non-fatal, trying DTS state next): %s: %s",
+            tag, portal_ms, type(exc).__name__, exc,
+        )
+
+    # Attempt 2: DTS state (fallback)
     if not state:
-        logger.warning("Ownership check: ELOC %s not found", eloc_id)
+        t_dts_start = time.monotonic()
+        try:
+            state = await onprem.get_eloc_state_by_id(eloc_id)
+            dts_ms = (time.monotonic() - t_dts_start) * 1000
+            if state:
+                source = "dts"
+                logger.info(
+                    "[%s] DTS state lookup → FOUND in %.1fms (companyId=%s, source=DTS eloc_state)",
+                    tag, dts_ms, state.get("companyId"),
+                )
+            else:
+                logger.warning(
+                    "[%s] DTS state lookup → not-found in %.1fms (404) — both lookups failed",
+                    tag, dts_ms,
+                )
+        except Exception as exc:
+            dts_ms = (time.monotonic() - t_dts_start) * 1000
+            logger.error(
+                "[%s] DTS state lookup FAILED in %.1fms: %s: %s",
+                tag, dts_ms, type(exc).__name__, exc,
+            )
+
+    if not state:
+        total_ms = (time.monotonic() - t_start) * 1000
+        logger.warning(
+            "[%s] Ownership check → 404: ELOC not found in Portal state OR DTS state (total %.1fms)",
+            tag, total_ms,
+        )
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="ELOC not found",
         )
+
     eloc_company_id = state.get("companyId")
     if eloc_company_id != company_id:
-        logger.warning("Ownership denied: user company_id=%s, ELOC company_id=%s, eloc_id=%s",
-                        company_id, eloc_company_id, eloc_id)
+        total_ms = (time.monotonic() - t_start) * 1000
+        logger.warning(
+            "[%s] Ownership check → 403: user company_id=%s does NOT match ELOC company_id=%s (source=%s, total %.1fms)",
+            tag, company_id, eloc_company_id, source, total_ms,
+        )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Access denied: ELOC belongs to a different company",
         )
+
+    total_ms = (time.monotonic() - t_start) * 1000
+    logger.info(
+        "[%s] Ownership check → OK (source=%s, eloc_company_id=%s == user_company_id=%s, total %.1fms)",
+        tag, source, eloc_company_id, company_id, total_ms,
+    )
 
 
 @router.get("", response_model=list[ElocSummary])
