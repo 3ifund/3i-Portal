@@ -15,6 +15,7 @@ from app.database.postgres import connect_postgres, close_postgres
 from app.database.mongo import connect_mongo, close_mongo
 from app.auth.router import router as auth_router
 from app.elocs.router import router as elocs_router
+from app.internal_elocs.router import router as internal_elocs_router
 from app.admin.router import router as admin_router
 from app.quotes.router import router as quotes_router
 from app.workflows.router import router as workflows_router, connect_dealterms_ws
@@ -106,6 +107,7 @@ app.add_middleware(
 # Routers
 app.include_router(auth_router, prefix="/auth", tags=["auth"])
 app.include_router(elocs_router, prefix="/elocs", tags=["elocs"])
+app.include_router(internal_elocs_router, prefix="/internal", tags=["internal-elocs"])
 app.include_router(admin_router, prefix="/admin", tags=["admin"])
 app.include_router(admin_users_router, prefix="/admin", tags=["admin-users"])
 app.include_router(pn_admin_router, prefix="/admin", tags=["admin-templates"])

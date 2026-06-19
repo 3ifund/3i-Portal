@@ -15,6 +15,7 @@ import websockets
 from app.auth.jwt import decode_access_token
 from app.config import settings
 from app.elocs.models import build_workflow_steps
+from app.internal_elocs.models import derive_workflow_steps as _internal_derive_steps
 from app.onprem import client as onprem
 import uuid as _uuid
 
@@ -27,11 +28,16 @@ INITIAL_RECONNECT_DELAY = 2  # seconds
 
 # ---- Connection Manager (browser clients) ----
 
-# Maps company_id → set of connected browser WebSockets
+# Maps company_id → set of connected browser WebSockets (client portal use)
 _connections: dict[int, set[WebSocket]] = {}
 
 # Maps eloc_id → company_id for routing eloc_removed events
 _eloc_company_map: dict[str, int] = {}
+
+# Internal/admin browser subscribers for the PRM-replica web app. No tenant
+# scoping — every internal subscriber gets every Portal-flow ELOC event.
+# Drives /api/internal/elocs and the position_risk_management web view.
+_internal_connections: set[WebSocket] = set()
 
 
 def _connection_summary() -> str:
@@ -84,6 +90,148 @@ async def _broadcast(company_id: int, data: dict):
     sent_count = len(clients) - len(dead)
     logger.info("BROADCAST SENT: type=%s eloc_id=%s company_id=%s → %d/%d clients (dead=%d)",
                 msg_type, eloc_id, company_id, sent_count, len(clients), len(dead))
+
+
+# ---- Internal (PRM-replica) fan-out -----------------------------------------
+#
+# The internal pool is fan-out to all admin subscribers regardless of company
+# (PRM-WPF style — operators see every active workflow). The payload differs
+# from the tenant fan-out above: internal subscribers receive the raw
+# DTS-source enums plus a server-derived FULL step grid (10 forward / 4
+# backward), not the 4-visible / 1-visible client subset.
+#
+# Important: NEVER share helpers/payloads between the two fan-outs. The client
+# fan-out's `_build_workflow_message` filters and renames fields; reusing it
+# here would silently downgrade the internal view.
+
+
+def _internal_connection_summary() -> str:
+    if not _internal_connections:
+        return "no internal clients"
+    return f"{len(_internal_connections)} internal client(s)"
+
+
+def _internal_register(ws: WebSocket):
+    _internal_connections.add(ws)
+    logger.info("INTERNAL WS client registered (%s)", _internal_connection_summary())
+
+
+def _internal_unregister(ws: WebSocket):
+    _internal_connections.discard(ws)
+    logger.info("INTERNAL WS client unregistered (%s)", _internal_connection_summary())
+
+
+def _build_internal_workflow_message(state: dict) -> dict:
+    """
+    Build a workflow_update message for the internal/PRM-replica subscribers.
+    DTS returns camelCase JSON; this normalizes to snake_case and pre-derives
+    the full 10/4 step grid so the browser can paint immediately.
+    """
+    eloc_id = str(state.get("elocId", ""))
+    company_id = state.get("companyId", 0)
+    workflow_step = state.get("workflowStep", "") or ""
+    status = state.get("status", "Pending") or "Pending"
+    pricing_direction = state.get("pricingDirection", "Forward") or "Forward"
+    workflow_complete = bool(state.get("workflowComplete", False))
+    modified_at = state.get("modifiedAt")
+    company_symbol = state.get("companySymbol") or state.get("symbol")
+
+    # Maintain the eloc → company cache here too so eloc_removed events that
+    # don't carry a companyId can still route correctly via the tenant
+    # fan-out path; the internal fan-out itself doesn't need the mapping.
+    if eloc_id and company_id:
+        prev = _eloc_company_map.get(eloc_id)
+        _eloc_company_map[eloc_id] = int(company_id)
+        if prev is None:
+            logger.info(
+                "ELOC map (via internal build): cached %s → company_id=%s (map size=%d)",
+                eloc_id, company_id, len(_eloc_company_map),
+            )
+
+    steps = _internal_derive_steps(workflow_step, status, pricing_direction)
+
+    return {
+        "type": "workflow_update",
+        "scope": "internal",
+        "workflow": {
+            "eloc_id": eloc_id,
+            "company_id": company_id,
+            "company_symbol": company_symbol,
+            "workflow_step": workflow_step,
+            "status": status,
+            "pricing_direction": pricing_direction,
+            "workflow_complete": workflow_complete,
+            "modified_at": str(modified_at) if modified_at else None,
+            "steps": steps,
+        },
+    }
+
+
+async def _internal_broadcast(data: dict):
+    """Send a message to every connected internal/admin subscriber."""
+    if not _internal_connections:
+        msg_type = data.get("type", "unknown")
+        eloc_id = data.get("eloc_id") or data.get("workflow", {}).get("eloc_id", "")
+        logger.info(
+            "INTERNAL BROADCAST SKIPPED: type=%s eloc_id=%s — no internal clients",
+            msg_type, eloc_id,
+        )
+        return
+
+    message = json.dumps(data)
+    msg_type = data.get("type", "unknown")
+    eloc_id = data.get("eloc_id") or data.get("workflow", {}).get("eloc_id", "")
+    dead: list[WebSocket] = []
+
+    # Snapshot the set so a concurrent unregister during iteration is safe.
+    for ws in list(_internal_connections):
+        try:
+            await ws.send_text(message)
+        except Exception as exc:
+            logger.warning(
+                "INTERNAL BROADCAST FAILED to client: type=%s eloc_id=%s error=%s",
+                msg_type, eloc_id, exc,
+            )
+            dead.append(ws)
+
+    for ws in dead:
+        _internal_unregister(ws)
+
+    sent = len(_internal_connections) - 0  # post-cleanup current count
+    logger.info(
+        "INTERNAL BROADCAST SENT: type=%s eloc_id=%s → %d clients (dead=%d)",
+        msg_type, eloc_id, sent, len(dead),
+    )
+
+
+async def _send_internal_initial_state(ws: WebSocket):
+    """
+    On internal-WS connect, push every currently-included Portal-flow ELOC
+    as a workflow_update. No tenant filtering — mirrors PRM-WPF's full
+    operator view.
+    """
+    count = 0
+    skipped_hidden = 0
+    try:
+        portal_states = await onprem.get_portal_eloc_states_included()
+        logger.info(
+            "INTERNAL WS initial state: fetched %d included portal states",
+            len(portal_states),
+        )
+        for state in portal_states:
+            if state.get("workflowVisible") is False:
+                skipped_hidden += 1
+                continue
+            message = _build_internal_workflow_message(state)
+            await ws.send_text(json.dumps(message))
+            count += 1
+    except Exception as exc:
+        logger.warning("INTERNAL WS initial state: FAILED: %s", exc)
+
+    logger.info(
+        "INTERNAL WS initial state COMPLETE: sent=%d, hidden=%d",
+        count, skipped_hidden,
+    )
 
 
 # ---- WebSocket Endpoint (browser clients connect here) ----
@@ -143,6 +291,81 @@ async def websocket_workflows(websocket: WebSocket, token: str = ""):
                         company_id, payload.get("user_id"), exc)
     finally:
         _unregister(company_id, websocket)
+
+
+@router.websocket("/elocs/internal")
+async def websocket_elocs_internal(websocket: WebSocket, token: str = ""):
+    """
+    Internal WebSocket for the PRM-replica web app
+    (position_risk_management). Pushes workflow_update / workflow_removed
+    frames for EVERY Portal-flow ELOC across ALL companies — no tenant
+    scoping, mirrors PRM-WPF's operator view.
+
+    Requires a JWT with role=admin in the ?token= query parameter.
+    """
+    client_host = websocket.client.host if websocket.client else "unknown"
+    logger.info("WS /elocs/internal: incoming connection from %s", client_host)
+
+    if not token:
+        logger.warning(
+            "WS /elocs/internal: REJECTED — no token from %s", client_host,
+        )
+        await websocket.close(code=4001, reason="Invalid or expired token")
+        return
+
+    try:
+        payload = decode_access_token(token)
+    except Exception as exc:
+        logger.warning(
+            "WS /elocs/internal: REJECTED — JWT validation failed from %s: %s",
+            client_host, exc,
+        )
+        await websocket.close(code=4001, reason="Invalid or expired token")
+        return
+
+    role = payload.get("role")
+    user_id = payload.get("user_id")
+    if role != "admin":
+        logger.warning(
+            "WS /elocs/internal: REJECTED — role=%s (need 'admin') for user=%s",
+            role, user_id,
+        )
+        await websocket.close(code=4003, reason="Admin role required")
+        return
+
+    await websocket.accept()
+    # Register BEFORE sending initial state so any concurrent broadcast
+    # during the initial dump doesn't get lost (the client may receive a
+    # workflow_update twice for the same eloc_id; client should dedupe by
+    # modified_at).
+    _internal_register(websocket)
+    logger.info(
+        "WS /elocs/internal: ACCEPTED — user=%s host=%s",
+        user_id, client_host,
+    )
+
+    try:
+        await _send_internal_initial_state(websocket)
+    except Exception as exc:
+        logger.warning(
+            "WS /elocs/internal: initial state failed for user=%s: %s",
+            user_id, exc,
+        )
+
+    try:
+        while True:
+            # Read to surface disconnects and accept client pings
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        logger.info(
+            "WS /elocs/internal: client DISCONNECTED — user=%s", user_id,
+        )
+    except Exception as exc:
+        logger.warning(
+            "WS /elocs/internal: connection ERROR — user=%s: %s", user_id, exc,
+        )
+    finally:
+        _internal_unregister(websocket)
 
 
 # ---- Initial State & Resync via DealTermsServer REST ----
@@ -226,28 +449,48 @@ async def _send_initial_state(company_id: int, ws: WebSocket):
 async def _resync_all_clients():
     """
     Broadcast current state to all connected browser clients.
-    Called when DealTermsServer WebSocket reconnects to catch any missed changes.
+    Called when DealTermsServer WebSocket reconnects to catch any missed
+    changes. Fans out to BOTH the tenant-scoped client portal pool AND the
+    no-tenant internal/PRM-replica pool with a single REST fetch.
     """
-    if not _connections:
-        logger.info("DTS WS resync: no connected clients, skipping")
+    has_tenant = bool(_connections)
+    has_internal = bool(_internal_connections)
+    if not has_tenant and not has_internal:
+        logger.info("DTS WS resync: no connected clients (tenant or internal), skipping")
         return
 
-    logger.info("DTS WS resync: resyncing %s", _connection_summary())
+    logger.info(
+        "DTS WS resync: resyncing tenant=[%s] internal=[%s]",
+        _connection_summary(), _internal_connection_summary(),
+    )
 
     # Portal-initiated workflows only — 12-step ELOCs are not workflow cards
     try:
         portal_states = await onprem.get_portal_eloc_states_included()
         logger.info("DTS WS resync: fetched %d included portal states", len(portal_states))
-        sent = 0
+        tenant_sent = 0
+        internal_sent = 0
         for state in portal_states:
             if state.get("workflowVisible") is False:
                 continue
             company_id = state.get("companyId")
-            if company_id and company_id in _connections:
-                message = _build_workflow_message(state, source="portal")
-                await _broadcast(company_id, message)
-                sent += 1
-        logger.info("DTS WS resync COMPLETE: sent %d workflow updates", sent)
+
+            # Tenant fan-out (existing client portal pool)
+            if has_tenant and company_id and company_id in _connections:
+                tenant_msg = _build_workflow_message(state, source="portal")
+                await _broadcast(company_id, tenant_msg)
+                tenant_sent += 1
+
+            # Internal fan-out (PRM-replica pool) — no tenant filter
+            if has_internal:
+                internal_msg = _build_internal_workflow_message(state)
+                await _internal_broadcast(internal_msg)
+                internal_sent += 1
+
+        logger.info(
+            "DTS WS resync COMPLETE: tenant_sent=%d internal_sent=%d",
+            tenant_sent, internal_sent,
+        )
     except Exception as exc:
         logger.warning("DTS WS resync FAILED: %s", exc)
 
@@ -420,6 +663,11 @@ async def _handle_state_changed(msg: dict):
         logger.info("HANDLE state_changed: broadcasting workflow_update for portal ELOC %s to company_id=%s",
                      eloc_id, company_id)
         await _broadcast(int(company_id), message)
+
+        # Tee to internal subscribers — they want the full 10/4 step grid
+        # for every Portal-flow ELOC regardless of company.
+        internal_msg = _build_internal_workflow_message(state)
+        await _internal_broadcast(internal_msg)
     else:
         # For 12-step ELOCs, notify clients to refresh shares available
         # (the pending ELOC status may have changed)
@@ -430,6 +678,8 @@ async def _handle_state_changed(msg: dict):
             "eloc_id": eloc_id,
             "source": "dts",
         })
+        # No internal broadcast — PRM-WPF view doesn't show 12-step ELOCs
+        # as workflow cards (mirrors GetPortalIncludedStates behavior).
 
     # Trigger countersign SMS when Portal ELOC reaches VwapNotificationToCompany/Pending
     if source == "portal" and step == "VwapNotificationToCompany" and msg_status == "Pending":
@@ -530,6 +780,12 @@ async def _handle_eloc_added(msg: dict):
     message = _build_workflow_message(state, source=source)
     await _broadcast(int(company_id), message)
 
+    # Tee Portal-source adds to internal subscribers. Skip 12-step (source=dts)
+    # additions because PRM-WPF's view shows Portal-flow ELOCs only.
+    if source == "portal":
+        internal_msg = _build_internal_workflow_message(state)
+        await _internal_broadcast(internal_msg)
+
 
 async def _handle_eloc_removed(msg: dict):
     """
@@ -557,6 +813,14 @@ async def _handle_eloc_removed(msg: dict):
                 "type": "workflow_removed",
                 "eloc_id": eloc_id,
             })
+
+    # Tee to internal subscribers — they don't care about company scoping,
+    # they just want the eloc_id removed from their grid.
+    await _internal_broadcast({
+        "type": "workflow_removed",
+        "scope": "internal",
+        "eloc_id": eloc_id,
+    })
 
 
 async def _handle_eloc_hidden(msg: dict):
@@ -593,3 +857,11 @@ async def _handle_eloc_hidden(msg: dict):
                     "type": "workflow_removed",
                     "eloc_id": eloc_id,
                 })
+
+    # Internal subscribers (PRM-replica) mirror PRM-WPF: a hide is treated
+    # the same as a remove — the card disappears from the operator's grid.
+    await _internal_broadcast({
+        "type": "workflow_removed",
+        "scope": "internal",
+        "eloc_id": eloc_id,
+    })

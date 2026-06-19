@@ -147,6 +147,54 @@ async def hide_portal_eloc(eloc_id: str) -> bool:
     return response.is_success
 
 
+async def exclude_portal_eloc(eloc_id: str) -> bool:
+    """
+    POST /api/portal/eloc/states/{elocId}/exclude — exclude a Portal-flow ELOC
+    from the workflow. Sets include=false in MongoDB and marks the tracker row
+    as "Removed" (kept for the purchase-notice acceptance window). Mirrors PRM
+    WPF's Remove action.
+    """
+    logger.info("POST /api/portal/eloc/states/%s/exclude", eloc_id)
+    response = await _request_with_retry("POST", f"/api/portal/eloc/states/{eloc_id}/exclude")
+    logger.info("  → %s (%d bytes)", response.status_code, len(response.content))
+    if response.is_success:
+        logger.info("  Portal ELOC %s excluded (Remove)", eloc_id)
+    else:
+        logger.warning("  Exclude failed for portal ELOC %s: %s", eloc_id, response.text[:200])
+    return response.is_success
+
+
+async def delete_portal_eloc(eloc_id: str) -> dict | None:
+    """
+    DELETE /api/portal/eloc/states/{elocId} — permanently delete a Portal-flow
+    ELOC. DTS reverses any applied DealTerms deltas (registered_shares from
+    DTO completion, total_commitment from VWAP), deletes the tracker row, and
+    deletes the eloc_state + eloc_data Mongo documents. Mirrors PRM WPF's
+    Delete action.
+
+    Returns the parsed JSON response from DTS — includes deletedCount and the
+    new sharesReversed/commitmentReversed booleans plus sharesOutcome /
+    commitmentOutcome enum strings. Returns None on a non-success response.
+    """
+    logger.info("DELETE /api/portal/eloc/states/%s", eloc_id)
+    response = await _request_with_retry("DELETE", f"/api/portal/eloc/states/{eloc_id}")
+    logger.info("  → %s (%d bytes)", response.status_code, len(response.content))
+    if not response.is_success:
+        logger.warning("  Delete failed for portal ELOC %s: %s", eloc_id, response.text[:200])
+        return None
+    try:
+        body = response.json()
+    except ValueError:
+        logger.warning("  DTS delete response was not JSON for %s: %s", eloc_id, response.text[:200])
+        return None
+    logger.info(
+        "  Portal ELOC %s deleted — deletedCount=%s, sharesReversed=%s, commitmentReversed=%s, sharesOutcome=%s, commitmentOutcome=%s",
+        eloc_id, body.get("deletedCount"), body.get("sharesReversed"),
+        body.get("commitmentReversed"), body.get("sharesOutcome"), body.get("commitmentOutcome"),
+    )
+    return body
+
+
 async def get_eloc_data(eloc_id: str) -> dict | None:
     """
     GET /api/eloc/data/{elocId} — full ELOC data (extracted fields, documents, timestamps).
