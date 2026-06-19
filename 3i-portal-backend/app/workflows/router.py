@@ -126,6 +126,10 @@ def _build_internal_workflow_message(state: dict) -> dict:
     Build a workflow_update message for the internal/PRM-replica subscribers.
     DTS returns camelCase JSON; this normalizes to snake_case and pre-derives
     the full 10/4 step grid so the browser can paint immediately.
+
+    ⚠ Only call with PORTAL-FLOW states. 12-step / DTS-source ELOCs would
+    pollute the shared `_eloc_company_map` cache used by the tenant
+    eloc_removed routing — see the source check below.
     """
     eloc_id = str(state.get("elocId", ""))
     company_id = state.get("companyId", 0)
@@ -136,10 +140,14 @@ def _build_internal_workflow_message(state: dict) -> dict:
     modified_at = state.get("modifiedAt")
     company_symbol = state.get("companySymbol") or state.get("symbol")
 
-    # Maintain the eloc → company cache here too so eloc_removed events that
-    # don't carry a companyId can still route correctly via the tenant
-    # fan-out path; the internal fan-out itself doesn't need the mapping.
-    if eloc_id and company_id:
+    # Cache the eloc → company mapping ONLY when the source is explicitly
+    # portal (or absent — REST state-by-id returns portal states without
+    # an explicit source field, the caller wouldn't have routed it here
+    # otherwise). If a DTS-source state ever flows through this builder
+    # we refuse to touch the map so the tenant `eloc_removed` fallback
+    # broadcast stays correct.
+    source = state.get("source")
+    if eloc_id and company_id and source in (None, "portal"):
         prev = _eloc_company_map.get(eloc_id)
         _eloc_company_map[eloc_id] = int(company_id)
         if prev is None:
@@ -147,8 +155,19 @@ def _build_internal_workflow_message(state: dict) -> dict:
                 "ELOC map (via internal build): cached %s → company_id=%s (map size=%d)",
                 eloc_id, company_id, len(_eloc_company_map),
             )
+    elif source not in (None, "portal"):
+        logger.warning(
+            "INTERNAL build: refusing to cache eloc=%s company_id=%s — source=%s is not portal",
+            eloc_id, company_id, source,
+        )
 
     steps = _internal_derive_steps(workflow_step, status, pricing_direction)
+
+    logger.debug(
+        "INTERNAL build: eloc=%s company=%s symbol=%s step=%s status=%s dir=%s steps=%d",
+        eloc_id, company_id, company_symbol, workflow_step, status,
+        pricing_direction, len(steps),
+    )
 
     return {
         "type": "workflow_update",
@@ -167,11 +186,35 @@ def _build_internal_workflow_message(state: dict) -> dict:
     }
 
 
+async def _internal_send_one(ws: WebSocket, message: str) -> bool:
+    """Wrapper used by the parallel broadcast — returns True on success."""
+    try:
+        await ws.send_text(message)
+        return True
+    except Exception as exc:
+        logger.warning(
+            "INTERNAL BROADCAST FAILED to client: error=%s (%s)",
+            exc, type(exc).__name__,
+        )
+        return False
+
+
 async def _internal_broadcast(data: dict):
-    """Send a message to every connected internal/admin subscriber."""
-    if not _internal_connections:
-        msg_type = data.get("type", "unknown")
-        eloc_id = data.get("eloc_id") or data.get("workflow", {}).get("eloc_id", "")
+    """
+    Send a message to every connected internal/admin subscriber.
+
+    Sends are parallelized with asyncio.gather so a single stalled browser
+    socket can't head-of-line block the DTS WS read loop (which awaits
+    every broadcast pass before reading the next event). Without this, a
+    slow operator's TCP receive window can throttle event delivery to
+    everyone.
+    """
+    msg_type = data.get("type", "unknown")
+    eloc_id = data.get("eloc_id") or (data.get("workflow") or {}).get("eloc_id", "")
+
+    # Snapshot first; the underlying set may mutate while we await.
+    snapshot = list(_internal_connections)
+    if not snapshot:
         logger.info(
             "INTERNAL BROADCAST SKIPPED: type=%s eloc_id=%s — no internal clients",
             msg_type, eloc_id,
@@ -179,28 +222,24 @@ async def _internal_broadcast(data: dict):
         return
 
     message = json.dumps(data)
-    msg_type = data.get("type", "unknown")
-    eloc_id = data.get("eloc_id") or data.get("workflow", {}).get("eloc_id", "")
-    dead: list[WebSocket] = []
+    logger.debug(
+        "INTERNAL BROADCAST START: type=%s eloc_id=%s subscribers=%d bytes=%d",
+        msg_type, eloc_id, len(snapshot), len(message),
+    )
 
-    # Snapshot the set so a concurrent unregister during iteration is safe.
-    for ws in list(_internal_connections):
-        try:
-            await ws.send_text(message)
-        except Exception as exc:
-            logger.warning(
-                "INTERNAL BROADCAST FAILED to client: type=%s eloc_id=%s error=%s",
-                msg_type, eloc_id, exc,
-            )
-            dead.append(ws)
+    results = await asyncio.gather(
+        *(_internal_send_one(ws, message) for ws in snapshot),
+        return_exceptions=False,  # _internal_send_one swallows already
+    )
 
+    dead = [ws for ws, ok in zip(snapshot, results) if not ok]
     for ws in dead:
         _internal_unregister(ws)
 
-    sent = len(_internal_connections) - 0  # post-cleanup current count
+    sent = len(snapshot) - len(dead)
     logger.info(
-        "INTERNAL BROADCAST SENT: type=%s eloc_id=%s → %d clients (dead=%d)",
-        msg_type, eloc_id, sent, len(dead),
+        "INTERNAL BROADCAST SENT: type=%s eloc_id=%s → %d/%d clients (dead=%d)",
+        msg_type, eloc_id, sent, len(snapshot), len(dead),
     )
 
 
@@ -212,6 +251,7 @@ async def _send_internal_initial_state(ws: WebSocket):
     """
     count = 0
     skipped_hidden = 0
+    failures = 0
     try:
         portal_states = await onprem.get_portal_eloc_states_included()
         logger.info(
@@ -221,16 +261,36 @@ async def _send_internal_initial_state(ws: WebSocket):
         for state in portal_states:
             if state.get("workflowVisible") is False:
                 skipped_hidden += 1
+                logger.debug(
+                    "INTERNAL initial: skipping hidden eloc=%s",
+                    state.get("elocId"),
+                )
                 continue
             message = _build_internal_workflow_message(state)
-            await ws.send_text(json.dumps(message))
-            count += 1
+            try:
+                await ws.send_text(json.dumps(message))
+                count += 1
+                logger.debug(
+                    "INTERNAL initial: sent eloc=%s step=%s status=%s dir=%s",
+                    state.get("elocId"),
+                    state.get("workflowStep"),
+                    state.get("status"),
+                    state.get("pricingDirection"),
+                )
+            except Exception as send_exc:
+                failures += 1
+                logger.warning(
+                    "INTERNAL initial: send FAILED for eloc=%s: %s",
+                    state.get("elocId"), send_exc,
+                )
+                # Don't keep trying if the socket already failed once.
+                break
     except Exception as exc:
         logger.warning("INTERNAL WS initial state: FAILED: %s", exc)
 
     logger.info(
-        "INTERNAL WS initial state COMPLETE: sent=%d, hidden=%d",
-        count, skipped_hidden,
+        "INTERNAL WS initial state COMPLETE: sent=%d, hidden=%d, failures=%d",
+        count, skipped_hidden, failures,
     )
 
 
@@ -333,15 +393,47 @@ async def websocket_elocs_internal(websocket: WebSocket, token: str = ""):
         await websocket.close(code=4003, reason="Admin role required")
         return
 
+    # Plan a hard-close at token expiration. JWT `exp` is unix-seconds.
+    # We close 30s before expiry so a clock drift doesn't let a stale
+    # token slip a final event through. The frontend already handles
+    # close-code 4001 as "no reconnect" (matches the initial-auth reject
+    # path), so the operator gets a single visible "re-sign in" prompt
+    # instead of a reconnect loop hammering the backend.
+    exp = payload.get("exp")
+    exp_task: asyncio.Task | None = None
+    if isinstance(exp, (int, float)):
+        import time as _time
+        ttl = max(0, float(exp) - _time.time() - 30)
+        if ttl > 0:
+            async def _close_at_exp():
+                try:
+                    await asyncio.sleep(ttl)
+                    if websocket.client_state.name == "CONNECTED":
+                        logger.info(
+                            "WS /elocs/internal: closing on JWT exp for user=%s (ttl=%.1fs)",
+                            user_id, ttl,
+                        )
+                        await websocket.close(code=4001, reason="Token expired")
+                except asyncio.CancelledError:
+                    pass
+                except Exception as e:
+                    logger.warning(
+                        "WS /elocs/internal: exp-close task error for user=%s: %s",
+                        user_id, e,
+                    )
+            exp_task = asyncio.create_task(_close_at_exp())
+
     await websocket.accept()
     # Register BEFORE sending initial state so any concurrent broadcast
     # during the initial dump doesn't get lost (the client may receive a
     # workflow_update twice for the same eloc_id; client should dedupe by
     # modified_at).
     _internal_register(websocket)
+    import time as _time
     logger.info(
-        "WS /elocs/internal: ACCEPTED — user=%s host=%s",
+        "WS /elocs/internal: ACCEPTED — user=%s host=%s exp_in_sec=%.0f",
         user_id, client_host,
+        (float(exp) - _time.time()) if isinstance(exp, (int, float)) else -1,
     )
 
     try:
@@ -365,6 +457,8 @@ async def websocket_elocs_internal(websocket: WebSocket, token: str = ""):
             "WS /elocs/internal: connection ERROR — user=%s: %s", user_id, exc,
         )
     finally:
+        if exp_task and not exp_task.done():
+            exp_task.cancel()
         _internal_unregister(websocket)
 
 
