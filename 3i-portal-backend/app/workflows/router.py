@@ -263,11 +263,36 @@ def _get_dts_ws_url() -> str:
     return url
 
 
+#
+# ┌─────────────────────────────────────────────────────────────────────┐
+# │  ⚠ SINGLE-WORKER REQUIREMENT                                        │
+# │                                                                     │
+# │  This relay assumes uvicorn runs with ONE worker process. The       │
+# │  module-level dicts above (_connections, _internal_connections,     │
+# │  _eloc_company_map) plus the singleton task spawned by lifespan     │
+# │  (asyncio.create_task(connect_dealterms_ws())) all live in a single │
+# │  Python process. If uvicorn is launched with `--workers N` (or any  │
+# │  process supervisor multiplies the app), each worker opens its own  │
+# │  DTS WebSocket and holds its own browser pool. An event arriving on │
+# │  worker A's DTS connection silently misses any browser parked on    │
+# │  worker B — updates appear lost with no error.                      │
+# │                                                                     │
+# │  Current prod config (NSSM-wrapped portal-backend Windows service): │
+# │      python -m uvicorn app.main:app --host 0.0.0.0 --port 8000      │
+# │      → no --workers flag → uvicorn default = 1 worker. OK.          │
+# │                                                                     │
+# │  If you ever need to scale to multiple workers, replace the         │
+# │  module-level fan-out with a Redis/Postgres pub-sub bus and have    │
+# │  each worker subscribe to it instead of opening its own DTS WS.     │
+# └─────────────────────────────────────────────────────────────────────┘
+#
 async def connect_dealterms_ws():
     """
     Background task: connect to DealTermsServer's ws/eloc WebSocket.
     Receives state_changed, eloc_added, eloc_removed events and relays
     them to connected browser clients. Reconnects with exponential backoff.
+
+    ⚠ Must run in a single uvicorn worker — see banner above.
     """
     ws_url = _get_dts_ws_url()
     reconnect_delay = INITIAL_RECONNECT_DELAY
