@@ -11,15 +11,36 @@ on-prem Windows host. Three independent web apps share this proxy:
 
 Under `/position_risk_management/*` specifically:
 
-| Subpath        | Upstream         | What it serves                                                       |
-| -------------- | ---------------- | -------------------------------------------------------------------- |
-| `/api/*`       | DTS `:5000`      | Trader risk profiles, broker data — historical convention            |
-| `/internal/*`  | FastAPI `:8000`  | `app.internal_elocs` (PRM-replica ELOC REST routes)                  |
-| `/ws/*`        | FastAPI `:8000`  | `app.workflows` WS relay (incl. `/ws/elocs/internal` for PRM mirror) |
-| everything else | static SPA       | `index.html`, page bundles, `shared/*`                               |
+| Subpath              | Upstream         | What it serves                                                       |
+| -------------------- | ---------------- | -------------------------------------------------------------------- |
+| `/api/internal/*`    | FastAPI `:8000`  | `app.internal_elocs` (PRM-replica ELOC REST routes)                  |
+| `/api/*`             | DTS `:5000`      | Trader risk profiles, broker data — historical convention            |
+| `/ws/*`              | FastAPI `:8000`  | `app.workflows` WS relay (incl. `/ws/elocs/internal` for PRM mirror) |
+| everything else      | static SPA       | `index.html`, page bundles, `shared/*`                               |
 
 The matchers are evaluated top-to-bottom inside `handle_path` — keep
-the static `handle {}` block last so the proxies always win.
+the static `handle {}` block last so the proxies always win, and put
+`/api/internal/*` ABOVE `/api/*` so the more-specific match wins.
+
+## ⚠ CloudFront forwards only `/api/*` and `/ws/*`
+
+The public host `3ifundportal.com` sits behind a CloudFront
+distribution. CloudFront has explicit behaviors for `/api/*` and
+`/ws/*` that forward to this Caddy. **Anything else falls through to
+CloudFront's default behavior, which returns the SPA's `index.html`
+with a 200 status — not a 404, not a proxy error.**
+
+Practical consequence: **every new backend route the browser calls
+must live under `/api/...` (or `/ws/...` for WebSockets).** A route
+under any other prefix will silently return HTML to the browser, and
+`res.json()` will explode with
+`Unexpected token '<', "<!DOCTYPE..."`.
+
+This is why `app.internal_elocs.router` is mounted at
+`/api/internal/...` in `app/main.py`, not at `/internal/...`. The
+Caddy `/api/internal/*` rule above sends those calls to FastAPI
+while leaving the existing `/api/*` → DTS rule in place for the
+historical use.
 
 ## Live location vs. this file
 

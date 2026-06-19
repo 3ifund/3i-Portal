@@ -31,21 +31,28 @@
 	# Position & Risk Management UI — same shape as /data-management above.
 	# Static SPA at C:\portal\position_risk_management; backend split across
 	# two upstreams:
-	#   /api/*       -> DealTermsServer on :5000  (trader risk profiles etc.)
-	#   /internal/*  -> Portal FastAPI on :8000   (PRM-replica ELOC view —
-	#                                              app.internal_elocs.router)
-	#   /ws/*        -> Portal FastAPI on :8000   (workflows WS relay)
-	# Order matters: more-specific matchers are evaluated before the
-	# catch-all static handler.
+	#   /api/internal/*  -> Portal FastAPI on :8000  (PRM-replica ELOC view —
+	#                                                 app.internal_elocs.router)
+	#   /api/*           -> DealTermsServer on :5000 (trader risk profiles etc.)
+	#   /ws/*            -> Portal FastAPI on :8000  (workflows WS relay)
+	#
+	# Order matters in two ways:
+	#   1. /api/internal/* MUST be matched before /api/* so the more-
+	#      specific FastAPI route wins over the catch-all DTS route.
+	#   2. The CloudFront distribution in front of 3ifundportal.com
+	#      only has behaviors for /api/* and /ws/* — anything else falls
+	#      through to the SPA's index.html (returns 200 + HTML, not a
+	#      proxy error). So every backend route the browser calls MUST
+	#      live under /api/ or /ws/. See ops/caddy/README.md.
 	handle_path /position_risk_management/* {
+		@portal_api path /api/internal/*
+		handle @portal_api {
+			reverse_proxy localhost:8000
+		}
+
 		@api path /api/*
 		handle @api {
 			reverse_proxy localhost:5000
-		}
-
-		@portal_api path /internal/*
-		handle @portal_api {
-			reverse_proxy localhost:8000
 		}
 
 		# WebSocket. Caddy's reverse_proxy auto-handles the Upgrade

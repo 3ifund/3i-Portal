@@ -107,7 +107,7 @@ app.add_middleware(
 # Routers
 app.include_router(auth_router, prefix="/auth", tags=["auth"])
 app.include_router(elocs_router, prefix="/elocs", tags=["elocs"])
-app.include_router(internal_elocs_router, prefix="/internal", tags=["internal-elocs"])
+app.include_router(internal_elocs_router, prefix="/api/internal", tags=["internal-elocs"])
 app.include_router(admin_router, prefix="/admin", tags=["admin"])
 app.include_router(admin_users_router, prefix="/admin", tags=["admin-users"])
 app.include_router(pn_admin_router, prefix="/admin", tags=["admin-templates"])
