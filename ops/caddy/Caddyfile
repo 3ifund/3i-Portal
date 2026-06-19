@@ -1,0 +1,70 @@
+:8081 {
+	log {
+		output file C:\Caddy\access.log {
+			roll_size 10MiB
+			roll_keep 5
+		}
+		format json
+	}
+
+	# Health check (used by AWS target groups, manual debugging)
+	respond /health "ok" 200
+
+	# Everything under /data-management/* is the data-management UI.
+	# handle_path strips the /data-management prefix so the same files/proxy
+	# routes work whether served at root (tailscale serve) or behind CloudFront
+	# at /data-management/.
+	handle_path /data-management/* {
+		# /api/* (after prefix strip) -> Deal Terms Server on localhost:5000
+		@api path /api/*
+		handle @api {
+			reverse_proxy localhost:5000
+		}
+
+		# Everything else -> static files
+		handle {
+			root * "C:\3i Fund\data-management-ui"
+			file_server
+		}
+	}
+
+	# Position & Risk Management UI — same shape as /data-management above.
+	# Static SPA at C:\portal\position_risk_management; backend split across
+	# two upstreams:
+	#   /api/*       -> DealTermsServer on :5000  (trader risk profiles etc.)
+	#   /internal/*  -> Portal FastAPI on :8000   (PRM-replica ELOC view —
+	#                                              app.internal_elocs.router)
+	#   /ws/*        -> Portal FastAPI on :8000   (workflows WS relay)
+	# Order matters: more-specific matchers are evaluated before the
+	# catch-all static handler.
+	handle_path /position_risk_management/* {
+		@api path /api/*
+		handle @api {
+			reverse_proxy localhost:5000
+		}
+
+		@portal_api path /internal/*
+		handle @portal_api {
+			reverse_proxy localhost:8000
+		}
+
+		# WebSocket. Caddy's reverse_proxy auto-handles the Upgrade
+		# headers; no extra config needed for the WS handshake. We add
+		# a long read/write timeout because the internal ELOC WS is
+		# expected to stay open as long as the operator's session.
+		@portal_ws path /ws/*
+		handle @portal_ws {
+			reverse_proxy localhost:8000 {
+				transport http {
+					read_timeout 1h
+					write_timeout 1h
+				}
+			}
+		}
+
+		handle {
+			root * "C:\portal\position_risk_management"
+			file_server
+		}
+	}
+}
