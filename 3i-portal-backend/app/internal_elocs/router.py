@@ -19,10 +19,12 @@ The matching live-update path lives in `app.workflows.router`
 sibling commit).
 """
 
+import json
 import logging
 import time
 
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 
 from app.auth.dependencies import require_admin
 from app.auth.models import UserInfo
@@ -30,7 +32,55 @@ from app.internal_elocs.models import derive_workflow_steps
 from app.onprem import client as onprem
 
 logger = logging.getLogger("portal.internal_elocs")
+# Dedicated logger for browser-shipped PRM web-app logs so the disk trail for
+# the client side (which can't write to disk itself) is easy to grep apart
+# from the server-side internal_elocs lines.
+client_logger = logging.getLogger("portal.prm_client")
 router = APIRouter()
+
+
+# ---- POST clientlog (browser → disk log sink) ------------------------------
+
+
+class ClientLogEntry(BaseModel):
+    """One log line shipped from the PRM web app (eloc.js clog())."""
+    level: str = "info"
+    event: str = ""
+    message: str = ""
+    eloc_id: str | None = None
+    data: dict | None = None
+    ts: str | None = None  # client-side ISO timestamp (best-effort)
+
+
+@router.post("/clientlog")
+async def client_log(entry: ClientLogEntry, admin: UserInfo = Depends(require_admin)):
+    """
+    POST /api/internal/clientlog — append a browser log line to the portal
+    backend's on-disk log. The PRM web app can't write to disk; this gives
+    its delete/remove/WS-removal lifecycle a durable, grep-able audit trail
+    alongside the server-side DTS logs. Admin-gated and fire-and-forget from
+    the client; failures here never affect the UI.
+    """
+    level = (entry.level or "info").lower()
+    log_fn = {
+        "debug": client_logger.debug,
+        "info": client_logger.info,
+        "warn": client_logger.warning,
+        "warning": client_logger.warning,
+        "error": client_logger.error,
+    }.get(level, client_logger.info)
+
+    try:
+        data_str = json.dumps(entry.data, default=str) if entry.data else ""
+    except Exception:
+        data_str = repr(entry.data)
+
+    log_fn(
+        "PRM-CLIENT user=%s ts=%s event=%s eloc=%s msg=%s data=%s",
+        admin.user_id, entry.ts or "", entry.event, entry.eloc_id or "",
+        entry.message or "", data_str,
+    )
+    return {"ok": True}
 
 
 # ---- GET states/included ---------------------------------------------------
