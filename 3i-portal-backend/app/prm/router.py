@@ -14,6 +14,7 @@ import logging
 import time
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
 
 from app.auth.dependencies import require_admin
 from app.auth.models import UserInfo
@@ -21,6 +22,20 @@ from app.onprem import client as onprem
 
 logger = logging.getLogger("portal.prm")
 router = APIRouter()
+
+
+class SyntheticTradeBody(BaseModel):
+    """Slice-2 Unrestricted synthetic trade from the P&T web app. TraderIdentifier
+    is NOT accepted from the client — it's stamped server-side with the admin."""
+    company_id: int
+    symbol: str
+    position_id: int = 0
+    is_buy: bool
+    quantity: int
+    price: float = 0
+    account_id: int
+    broker_id: int
+    source: str | None = "SYNTHETIC"
 
 
 @router.get("/companies")
@@ -77,3 +92,88 @@ async def list_common_positions(
         company_id, t_total, len(positions) if positions else 0, admin.user_id,
     )
     return positions
+
+
+@router.get("/positions/{position_id}/accounts")
+async def list_position_accounts(
+    position_id: int,
+    admin: UserInfo = Depends(require_admin),
+):
+    """
+    GET /api/internal/prm/positions/{position_id}/accounts — account/broker
+    allocations for a position (Synthetic Trade pickers). Proxies DTS.
+    """
+    t_start = time.monotonic()
+    logger.info("GET /internal/prm/positions/%s/accounts by user=%s — START", position_id, admin.user_id)
+    if position_id <= 0:
+        raise HTTPException(status_code=400, detail="position_id must be > 0")
+    try:
+        accounts = await onprem.get_prm_position_accounts(position_id)
+    except Exception as exc:
+        logger.error("GET /internal/prm/positions/%s/accounts — DTS fetch FAILED: %s", position_id, exc, exc_info=True)
+        raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
+    logger.info(
+        "GET /internal/prm/positions/%s/accounts — DONE in %.1fms (count=%d)",
+        position_id, (time.monotonic() - t_start) * 1000, len(accounts) if accounts else 0,
+    )
+    return accounts
+
+
+@router.post("/synthetic-trade")
+async def execute_synthetic_trade(
+    body: SyntheticTradeBody,
+    admin: UserInfo = Depends(require_admin),
+):
+    """
+    POST /api/internal/prm/synthetic-trade — execute a manual Unrestricted
+    synthetic trade. WRITE. The trader identity is stamped from the
+    authenticated admin (never the client). Proxies DTS
+    POST /api/prm/positions/synthetic-trade.
+    """
+    t_start = time.monotonic()
+    side = "BUY" if body.is_buy else "SELL"
+    logger.info(
+        "POST /internal/prm/synthetic-trade by user=%s — %s %s %s @ %s positionId=%s acct=%s broker=%s — START",
+        admin.user_id, side, body.quantity, body.symbol, body.price, body.position_id, body.account_id, body.broker_id,
+    )
+    if body.quantity <= 0:
+        raise HTTPException(status_code=400, detail="quantity must be > 0")
+    if body.account_id <= 0 or body.broker_id <= 0:
+        raise HTTPException(status_code=400, detail="account_id and broker_id are required")
+
+    payload = {
+        "companyId": body.company_id,
+        "symbol": body.symbol,
+        "positionId": body.position_id,
+        "isBuy": body.is_buy,
+        "quantity": body.quantity,
+        "price": body.price,
+        "accountId": body.account_id,
+        "brokerId": body.broker_id,
+        "source": body.source or "SYNTHETIC",
+        # Server-stamped identity for the positiontransaction audit trail.
+        "traderIdentifier": admin.user_id,
+    }
+
+    try:
+        status_code, result = await onprem.post_prm_synthetic_trade(payload)
+    except Exception as exc:
+        logger.error("POST /internal/prm/synthetic-trade — DTS call FAILED: %s", exc, exc_info=True)
+        raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
+
+    t_total = (time.monotonic() - t_start) * 1000
+    if status_code == 200:
+        logger.info(
+            "POST /internal/prm/synthetic-trade — DONE in %.1fms (user=%s, %s, txnId=%s)",
+            t_total, admin.user_id, result.get("message"), result.get("transactionId"),
+        )
+        return result
+
+    # Surface a DTS business rejection (e.g. oversell) as a 400 with its message;
+    # anything else is an upstream failure.
+    msg = (result or {}).get("message") or "Synthetic trade failed"
+    if status_code == 400:
+        logger.warning("POST /internal/prm/synthetic-trade — REJECTED (%.1fms): %s", t_total, msg)
+        raise HTTPException(status_code=400, detail=msg)
+    logger.error("POST /internal/prm/synthetic-trade — DTS status=%s: %s", status_code, msg)
+    raise HTTPException(status_code=502, detail=f"DTS error ({status_code}): {msg}")

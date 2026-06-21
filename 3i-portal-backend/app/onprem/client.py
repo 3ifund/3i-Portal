@@ -134,6 +134,41 @@ async def get_prm_common_positions(company_id: int) -> list[dict]:
     return response.json()
 
 
+async def get_prm_position_accounts(position_id: int) -> list[dict]:
+    """
+    GET /api/prm/positions/{positionId}/accounts — account/broker allocations for
+    a position (with all-accounts fallback) for the Synthetic Trade pickers.
+    """
+    logger.info("GET /api/prm/positions/%s/accounts", position_id)
+    response = await _request_with_retry("GET", f"/api/prm/positions/{position_id}/accounts")
+    logger.info("  → %s (%d bytes)", response.status_code, len(response.content))
+    response.raise_for_status()
+    return response.json()
+
+
+async def post_prm_synthetic_trade(payload: dict) -> tuple[int, dict]:
+    """
+    POST /api/prm/positions/synthetic-trade — execute a manual synthetic trade.
+
+    WRITE: deliberately a SINGLE attempt (no _request_with_retry) so a transient
+    read-timeout after the trade committed can't trigger a retry that
+    double-executes. Returns (status_code, body) so the caller can distinguish a
+    400 business rejection (e.g. oversell) from a 5xx upstream error.
+    """
+    client = _get_client()
+    logger.info(
+        "POST /api/prm/positions/synthetic-trade %s %s qty=%s (single attempt — write)",
+        payload.get("symbol"), "BUY" if payload.get("isBuy") else "SELL", payload.get("quantity"),
+    )
+    response = await client.post("/api/prm/positions/synthetic-trade", json=payload)
+    logger.info("  → %s (%d bytes)", response.status_code, len(response.content))
+    try:
+        body = response.json()
+    except Exception:
+        body = {"message": response.text}
+    return response.status_code, body
+
+
 async def get_eloc_state_by_id(eloc_id: str) -> dict | None:
     """
     GET /api/eloc/states/{elocId} — single ELOC workflow state.
