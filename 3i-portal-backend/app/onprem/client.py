@@ -207,6 +207,68 @@ async def post_prm_transfer(payload: dict) -> tuple[int, dict]:
     return response.status_code, body
 
 
+async def get_prm_preferred_positions(company_id: int) -> list[dict]:
+    """GET /api/prm/positions/preferred?companyId= — firm preferred positions."""
+    logger.info("GET /api/prm/positions/preferred?companyId=%s", company_id)
+    response = await _request_with_retry("GET", "/api/prm/positions/preferred", params={"companyId": company_id})
+    logger.info("  → %s (%d bytes)", response.status_code, len(response.content))
+    response.raise_for_status()
+    return response.json()
+
+
+async def get_prm_warrant_positions(company_id: int) -> list[dict]:
+    """GET /api/prm/positions/warrant?companyId= — firm warrant positions."""
+    logger.info("GET /api/prm/positions/warrant?companyId=%s", company_id)
+    response = await _request_with_retry("GET", "/api/prm/positions/warrant", params={"companyId": company_id})
+    logger.info("  → %s (%d bytes)", response.status_code, len(response.content))
+    response.raise_for_status()
+    return response.json()
+
+
+async def get_prm_convertible_positions(company_id: int) -> list[dict]:
+    """GET /api/prm/positions/convertible?companyId= — firm convertible positions."""
+    logger.info("GET /api/prm/positions/convertible?companyId=%s", company_id)
+    response = await _request_with_retry("GET", "/api/prm/positions/convertible", params={"companyId": company_id})
+    logger.info("  → %s (%d bytes)", response.status_code, len(response.content))
+    response.raise_for_status()
+    return response.json()
+
+
+async def post_prm_add_instrument(payload: dict) -> tuple[int, dict]:
+    """
+    POST /api/prm/positions/add — create a new instrument/position (Position=0).
+    WRITE: single attempt (no retry). Returns (status, body).
+    """
+    client = _get_client()
+    logger.info("POST /api/prm/positions/add type=%s symbol=%s (single attempt — write)",
+                payload.get("instrumentType"), payload.get("symbol"))
+    response = await client.post("/api/prm/positions/add", json=payload)
+    logger.info("  → %s (%d bytes)", response.status_code, len(response.content))
+    try:
+        body = response.json()
+    except Exception:
+        body = {"message": response.text}
+    return response.status_code, body
+
+
+async def post_prm_derivative_trade(payload: dict) -> tuple[int, dict]:
+    """
+    POST /api/prm/positions/derivative-trade — legacy BUY/SELL for Preferred/
+    Warrant/Convertible. WRITE: single attempt (no retry). Returns (status, body).
+    """
+    client = _get_client()
+    logger.info("POST /api/prm/positions/derivative-trade %s %s %s qty=%s (single attempt — write)",
+                payload.get("instrumentType"), "BUY" if payload.get("isBuy") else "SELL",
+                payload.get("symbol"), payload.get("quantity"))
+    response = await client.post("/api/prm/positions/derivative-trade", json=payload)
+    logger.info("  → %s (%d bytes)", response.status_code, len(response.content))
+    try:
+        body = response.json()
+    except Exception:
+        body = {"message": response.text}
+    return response.status_code, body
+
+
 async def get_eloc_state_by_id(eloc_id: str) -> dict | None:
     """
     GET /api/eloc/states/{elocId} — single ELOC workflow state.
