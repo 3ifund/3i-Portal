@@ -110,11 +110,13 @@ async def get_included_eloc_states() -> list[dict]:
 
 async def get_prm_companies() -> list[dict]:
     """
-    GET /api/companies — all companies from DTS (PRM/DealTerms company table).
-    Backs the P&T web view's Synthetic Trade company picker.
+    GET /api/prm/positions/companies — companies from the PRM Positions & Traders
+    DB. Their companyId matches firmcommonstockposition.companyid (NOT the
+    DealTerms company id), so the P&T picker must use THIS list — otherwise the
+    chosen company's id resolves to a different PRM company's positions.
     """
-    logger.info("GET /api/companies")
-    response = await _request_with_retry("GET", "/api/companies")
+    logger.info("GET /api/prm/positions/companies")
+    response = await _request_with_retry("GET", "/api/prm/positions/companies")
     logger.info("  → %s (%d bytes)", response.status_code, len(response.content))
     response.raise_for_status()
     return response.json()
