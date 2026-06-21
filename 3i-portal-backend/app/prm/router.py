@@ -38,6 +38,27 @@ class SyntheticTradeBody(BaseModel):
     source: str | None = "SYNTHETIC"
 
 
+class RestrictedTradeBody(BaseModel):
+    """Restricted-pool BUY/SELL. TraderIdentifier stamped server-side."""
+    company_id: int
+    symbol: str
+    position_id: int
+    is_buy: bool
+    quantity: int
+    price: float = 0
+
+
+class TransferBody(BaseModel):
+    """Move shares restricted ↔ unrestricted. TraderIdentifier stamped server-side."""
+    company_id: int
+    symbol: str
+    position_id: int
+    quantity: int
+    account_id: int
+    broker_id: int
+    is_restricted_to_unrestricted: bool
+
+
 @router.get("/companies")
 async def list_companies(admin: UserInfo = Depends(require_admin)):
     """
@@ -177,3 +198,87 @@ async def execute_synthetic_trade(
         raise HTTPException(status_code=400, detail=msg)
     logger.error("POST /internal/prm/synthetic-trade — DTS status=%s: %s", status_code, msg)
     raise HTTPException(status_code=502, detail=f"DTS error ({status_code}): {msg}")
+
+
+def _surface(label: str, status_code: int, result: dict, t_total: float):
+    """Map a DTS (status, body) write result to a FastAPI response/exception."""
+    if status_code == 200:
+        logger.info("%s — DONE in %.1fms (%s, txnId=%s)", label, t_total, result.get("message"), result.get("transactionId"))
+        return result
+    msg = (result or {}).get("message") or "Operation failed"
+    if status_code == 400:
+        logger.warning("%s — REJECTED (%.1fms): %s", label, t_total, msg)
+        raise HTTPException(status_code=400, detail=msg)
+    logger.error("%s — DTS status=%s: %s", label, status_code, msg)
+    raise HTTPException(status_code=502, detail=f"DTS error ({status_code}): {msg}")
+
+
+@router.post("/restricted-trade")
+async def execute_restricted_trade(
+    body: RestrictedTradeBody,
+    admin: UserInfo = Depends(require_admin),
+):
+    """
+    POST /api/internal/prm/restricted-trade — BUY/SELL on the restricted pool.
+    WRITE. Proxies DTS POST /api/prm/positions/restricted-trade.
+    """
+    t_start = time.monotonic()
+    act = "ADD" if body.is_buy else "REMOVE"
+    logger.info(
+        "POST /internal/prm/restricted-trade by user=%s — %s %s %s positionId=%s @ %s — START",
+        admin.user_id, act, body.quantity, body.symbol, body.position_id, body.price,
+    )
+    if body.quantity <= 0:
+        raise HTTPException(status_code=400, detail="quantity must be > 0")
+    payload = {
+        "companyId": body.company_id,
+        "symbol": body.symbol,
+        "positionId": body.position_id,
+        "isBuy": body.is_buy,
+        "quantity": body.quantity,
+        "price": body.price,
+        "traderIdentifier": admin.user_id,
+    }
+    try:
+        status_code, result = await onprem.post_prm_restricted_trade(payload)
+    except Exception as exc:
+        logger.error("POST /internal/prm/restricted-trade — DTS call FAILED: %s", exc, exc_info=True)
+        raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
+    return _surface("POST /internal/prm/restricted-trade", status_code, result, (time.monotonic() - t_start) * 1000)
+
+
+@router.post("/transfer")
+async def execute_transfer(
+    body: TransferBody,
+    admin: UserInfo = Depends(require_admin),
+):
+    """
+    POST /api/internal/prm/transfer — move shares restricted ↔ unrestricted.
+    WRITE. Proxies DTS POST /api/prm/positions/transfer.
+    """
+    t_start = time.monotonic()
+    direction = "R->U" if body.is_restricted_to_unrestricted else "U->R"
+    logger.info(
+        "POST /internal/prm/transfer by user=%s — %s %s %s positionId=%s acct=%s broker=%s — START",
+        admin.user_id, direction, body.quantity, body.symbol, body.position_id, body.account_id, body.broker_id,
+    )
+    if body.quantity <= 0:
+        raise HTTPException(status_code=400, detail="quantity must be > 0")
+    if body.account_id <= 0 or body.broker_id <= 0:
+        raise HTTPException(status_code=400, detail="account_id and broker_id are required")
+    payload = {
+        "companyId": body.company_id,
+        "symbol": body.symbol,
+        "positionId": body.position_id,
+        "quantity": body.quantity,
+        "accountId": body.account_id,
+        "brokerId": body.broker_id,
+        "isRestrictedToUnrestricted": body.is_restricted_to_unrestricted,
+        "traderIdentifier": admin.user_id,
+    }
+    try:
+        status_code, result = await onprem.post_prm_transfer(payload)
+    except Exception as exc:
+        logger.error("POST /internal/prm/transfer — DTS call FAILED: %s", exc, exc_info=True)
+        raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
+    return _surface("POST /internal/prm/transfer", status_code, result, (time.monotonic() - t_start) * 1000)

@@ -169,6 +169,44 @@ async def post_prm_synthetic_trade(payload: dict) -> tuple[int, dict]:
     return response.status_code, body
 
 
+async def post_prm_restricted_trade(payload: dict) -> tuple[int, dict]:
+    """
+    POST /api/prm/positions/restricted-trade — BUY/SELL on the restricted pool.
+    WRITE: single attempt (no retry) to avoid double-execution. Returns (status, body).
+    """
+    client = _get_client()
+    logger.info(
+        "POST /api/prm/positions/restricted-trade %s %s qty=%s (single attempt — write)",
+        payload.get("symbol"), "ADD" if payload.get("isBuy") else "REMOVE", payload.get("quantity"),
+    )
+    response = await client.post("/api/prm/positions/restricted-trade", json=payload)
+    logger.info("  → %s (%d bytes)", response.status_code, len(response.content))
+    try:
+        body = response.json()
+    except Exception:
+        body = {"message": response.text}
+    return response.status_code, body
+
+
+async def post_prm_transfer(payload: dict) -> tuple[int, dict]:
+    """
+    POST /api/prm/positions/transfer — move shares restricted ↔ unrestricted.
+    WRITE: single attempt (no retry) to avoid double-execution. Returns (status, body).
+    """
+    client = _get_client()
+    logger.info(
+        "POST /api/prm/positions/transfer %s %s qty=%s (single attempt — write)",
+        payload.get("symbol"), "R->U" if payload.get("isRestrictedToUnrestricted") else "U->R", payload.get("quantity"),
+    )
+    response = await client.post("/api/prm/positions/transfer", json=payload)
+    logger.info("  → %s (%d bytes)", response.status_code, len(response.content))
+    try:
+        body = response.json()
+    except Exception:
+        body = {"message": response.text}
+    return response.status_code, body
+
+
 async def get_eloc_state_by_id(eloc_id: str) -> dict | None:
     """
     GET /api/eloc/states/{elocId} — single ELOC workflow state.
