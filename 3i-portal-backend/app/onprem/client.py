@@ -108,6 +108,32 @@ async def get_included_eloc_states() -> list[dict]:
     return response.json()
 
 
+async def get_prm_companies() -> list[dict]:
+    """
+    GET /api/companies — all companies from DTS (PRM/DealTerms company table).
+    Backs the P&T web view's Synthetic Trade company picker.
+    """
+    logger.info("GET /api/companies")
+    response = await _request_with_retry("GET", "/api/companies")
+    logger.info("  → %s (%d bytes)", response.status_code, len(response.content))
+    response.raise_for_status()
+    return response.json()
+
+
+async def get_prm_common_positions(company_id: int) -> list[dict]:
+    """
+    GET /api/prm/positions/common?companyId= — firm common-stock positions for
+    a company from the PRM Positions & Traders DB. Read-only.
+    """
+    logger.info("GET /api/prm/positions/common?companyId=%s", company_id)
+    response = await _request_with_retry(
+        "GET", "/api/prm/positions/common", params={"companyId": company_id}
+    )
+    logger.info("  → %s (%d bytes)", response.status_code, len(response.content))
+    response.raise_for_status()
+    return response.json()
+
+
 async def get_eloc_state_by_id(eloc_id: str) -> dict | None:
     """
     GET /api/eloc/states/{elocId} — single ELOC workflow state.
