@@ -236,23 +236,6 @@ async def get_prm_convertible_positions(company_id: int) -> list[dict]:
     return response.json()
 
 
-async def post_prm_add_instrument(payload: dict) -> tuple[int, dict]:
-    """
-    POST /api/prm/positions/add — create a new instrument/position (Position=0).
-    WRITE: single attempt (no retry). Returns (status, body).
-    """
-    client = _get_client()
-    logger.info("POST /api/prm/positions/add type=%s symbol=%s (single attempt — write)",
-                payload.get("instrumentType"), payload.get("symbol"))
-    response = await client.post("/api/prm/positions/add", json=payload)
-    logger.info("  → %s (%d bytes)", response.status_code, len(response.content))
-    try:
-        body = response.json()
-    except Exception:
-        body = {"message": response.text}
-    return response.status_code, body
-
-
 async def post_prm_derivative_trade(payload: dict) -> tuple[int, dict]:
     """
     POST /api/prm/positions/derivative-trade — legacy BUY/SELL for Preferred/

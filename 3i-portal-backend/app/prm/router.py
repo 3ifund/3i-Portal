@@ -59,22 +59,6 @@ class TransferBody(BaseModel):
     is_restricted_to_unrestricted: bool
 
 
-class AddInstrumentBody(BaseModel):
-    """Create a new instrument/position (Position=0). Mirrors AddInstrumentDialog."""
-    instrument_type: str  # "Common Stock" | "Preferred" | "Warrant" | "Convertible"
-    company_id: int
-    symbol: str
-    dividend_rate: float | None = None
-    par_value: float | None = None
-    is_convertible: bool = False
-    strike: float | None = None
-    expiration: str | None = None  # ISO date
-    maturity: str | None = None    # ISO date
-    coupon: float | None = None
-    conversion_price: float | None = None
-    conversion_ratio: float | None = None
-
-
 class DerivativeTradeBody(BaseModel):
     """Legacy BUY/SELL for Preferred/Warrant/Convertible. Trader stamped server-side."""
     instrument_type: str  # "Preferred" | "Warrant" | "Convertible"
@@ -339,39 +323,6 @@ async def list_warrant(company_id: int = Query(...), admin: UserInfo = Depends(r
 @router.get("/positions/convertible")
 async def list_convertible(company_id: int = Query(...), admin: UserInfo = Depends(require_admin)):
     return await _list_positions("convertible", company_id, onprem.get_prm_convertible_positions, admin)
-
-
-@router.post("/add")
-async def add_instrument(body: AddInstrumentBody, admin: UserInfo = Depends(require_admin)):
-    """
-    POST /api/internal/prm/add — create a new instrument/position (Position=0).
-    WRITE. Proxies DTS POST /api/prm/positions/add.
-    """
-    t_start = time.monotonic()
-    logger.info("POST /internal/prm/add by user=%s — type='%s' symbol=%s companyId=%s — START",
-                admin.user_id, body.instrument_type, body.symbol, body.company_id)
-    if not body.symbol or not body.symbol.strip():
-        raise HTTPException(status_code=400, detail="symbol is required")
-    payload = {
-        "instrumentType": body.instrument_type,
-        "companyId": body.company_id,
-        "symbol": body.symbol,
-        "dividendRate": body.dividend_rate,
-        "parValue": body.par_value,
-        "isConvertible": body.is_convertible,
-        "strike": body.strike,
-        "expiration": body.expiration,
-        "maturity": body.maturity,
-        "coupon": body.coupon,
-        "conversionPrice": body.conversion_price,
-        "conversionRatio": body.conversion_ratio,
-    }
-    try:
-        status_code, result = await onprem.post_prm_add_instrument(payload)
-    except Exception as exc:
-        logger.error("POST /internal/prm/add — DTS call FAILED: %s", exc, exc_info=True)
-        raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
-    return _surface("POST /internal/prm/add", status_code, result, (time.monotonic() - t_start) * 1000)
 
 
 @router.post("/derivative-trade")
