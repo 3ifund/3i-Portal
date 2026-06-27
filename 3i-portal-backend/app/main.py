@@ -70,6 +70,15 @@ async def lifespan(app: FastAPI):
     await connect_mongo()
     logger.info("MongoDB connected")
 
+    # Ensure participation-template unique indexes (only when Mongo is available)
+    from app.database.mongo import is_connected
+    from app.participation_templates import mongo_repository as participation_repo
+    if is_connected():
+        await participation_repo.ensure_indexes()
+        logger.info("Participation template indexes ensured")
+    else:
+        logger.warning("MongoDB not connected — skipping participation template index creation")
+
     # Warm the DTS HTTP client (avoids cold-start latency on first user request)
     from app.onprem.client import warm_client
     await warm_client()

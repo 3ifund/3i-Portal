@@ -398,6 +398,21 @@ async def get_purchase_notice_fields(symbol: str, pricing_period_id: int) -> dic
     return response.json()
 
 
+# ---- Participation-ELOC Field Catalog ----
+
+async def get_template_field_catalog(document_type: str) -> list[dict]:
+    """
+    GET /api/template-field-catalog/{documentType} — participation-ELOC field
+    catalog (PurchaseNotice | PurchaseConfirmation). DealTermsServer owns the
+    catalog; the Portal admin template editor consumes it through this proxy.
+    """
+    logger.info("GET /api/template-field-catalog/%s", document_type)
+    response = await _request_with_retry("GET", f"/api/template-field-catalog/{document_type}")
+    logger.info("  → %s (%d bytes)", response.status_code, len(response.content))
+    response.raise_for_status()
+    return response.json()
+
+
 # ---- Portal-Initiated Purchase Notice Endpoints ----
 
 class ElocAlreadyPricingError(Exception):

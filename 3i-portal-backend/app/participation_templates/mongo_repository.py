@@ -20,6 +20,25 @@ MAPPINGS = "participation_template_mappings"
 
 
 # ---------------------------------------------------------------------------
+# Indexes
+# ---------------------------------------------------------------------------
+
+async def ensure_indexes() -> None:
+    """Create unique indexes for templates + mappings (idempotent). Called at startup."""
+    logger.info("ensure_indexes — creating participation template/mapping unique indexes")
+    db = get_db()
+    await db[TEMPLATES].create_index(
+        [("company_id", 1), ("document_type", 1), ("name", 1)],
+        unique=True, name="uniq_company_doctype_name",
+    )
+    await db[MAPPINGS].create_index(
+        [("company_id", 1), ("pricing_period_type", 1), ("document_type", 1)],
+        unique=True, name="uniq_company_period_doctype",
+    )
+    logger.info("ensure_indexes — participation template/mapping indexes ensured")
+
+
+# ---------------------------------------------------------------------------
 # Templates
 # ---------------------------------------------------------------------------
 

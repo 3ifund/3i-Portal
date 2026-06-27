@@ -10,10 +10,13 @@ Separate from the legacy `purchase_notices` templates — nothing here touches t
 existing collections.
 """
 
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 # Document types must match DealTermsServer's TemplateDocumentType enum.
 DOCUMENT_TYPES: tuple[str, ...] = ("PurchaseNotice", "PurchaseConfirmation")
+DocumentType = Literal["PurchaseNotice", "PurchaseConfirmation"]
 
 
 class TemplateField(BaseModel):
@@ -31,7 +34,7 @@ class UpsertParticipationTemplateRequest(BaseModel):
 
     name: str
     company_id: int
-    document_type: str                      # one of DOCUMENT_TYPES
+    document_type: DocumentType             # validated against DOCUMENT_TYPES
     body_text: str = ""
     agreed_accepted_entity: str = ""
     fields: list[TemplateField] = Field(default_factory=list)
@@ -42,5 +45,5 @@ class UpsertMappingRequest(BaseModel):
 
     company_id: int
     pricing_period_type: str
-    document_type: str                      # one of DOCUMENT_TYPES
+    document_type: DocumentType             # validated against DOCUMENT_TYPES
     template_id: str

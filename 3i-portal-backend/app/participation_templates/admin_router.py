@@ -20,6 +20,7 @@ from app.participation_templates.models import (
     UpsertMappingRequest,
 )
 from app.participation_templates import mongo_repository as repo
+from app.onprem import client as onprem
 
 logger = logging.getLogger("portal.admin.participation_templates")
 router = APIRouter()
@@ -32,6 +33,25 @@ def _validate_document_type(document_type: str) -> None:
             status_code=400,
             detail=f"Invalid document_type '{document_type}'. Valid: {list(DOCUMENT_TYPES)}",
         )
+
+
+# ---------------------------------------------------------------------------
+# Field catalog (proxied from DealTermsServer)
+# ---------------------------------------------------------------------------
+
+@router.get("/participation-field-catalog/{document_type}")
+async def get_field_catalog(document_type: str, admin: UserInfo = Depends(require_admin)):
+    """Proxy the DealTermsServer field catalog for the editor's field dropdown."""
+    logger.info("GET /participation-field-catalog/%s — admin=%s", document_type, admin.user_id)
+    _validate_document_type(document_type)
+    try:
+        catalog = await onprem.get_template_field_catalog(document_type)
+    except Exception as exc:
+        logger.error("GET /participation-field-catalog/%s — DTS fetch FAILED: %s",
+                     document_type, exc, exc_info=True)
+        raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
+    logger.info("GET /participation-field-catalog/%s — returned %d fields", document_type, len(catalog))
+    return catalog
 
 
 # ---------------------------------------------------------------------------
