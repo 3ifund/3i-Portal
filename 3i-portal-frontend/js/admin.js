@@ -1829,13 +1829,17 @@ const Admin = (() => {
         const labelVal = (fieldData && fieldData.label) || descriptor.defaultLabel || key;
         row.innerHTML = `
             <span style="min-width:170px; font-size:0.85rem;" title="${escapeHtml(key)}">${escapeHtml(key)}</span>
-            <input type="text" class="form-input participation-field-label" style="flex:1;" value="${escapeHtml(labelVal)}">
+            <input type="text" class="form-input participation-field-label" style="flex:1;">
             <label style="font-size:0.8rem; display:flex; align-items:center; gap:0.25rem; white-space:nowrap;">
                 <input type="checkbox" class="participation-field-visible" ${visible ? 'checked' : ''}> visible
             </label>
             <span style="font-size:0.72rem; color:var(--text-secondary); min-width:150px;">${escapeHtml(badges + cond)}</span>
             <button type="button" class="btn-action participation-field-remove">Remove</button>
         `;
+        // Set the label as a DOM property (not an HTML attribute) so values
+        // containing quotes can't break out of the markup — escapeHtml does not
+        // escape quote characters.
+        row.querySelector('.participation-field-label').value = labelVal;
         row.querySelector('.participation-field-remove').addEventListener('click', () => row.remove());
         container.appendChild(row);
     }
