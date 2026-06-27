@@ -579,6 +579,28 @@ const API = (() => {
         return handleResponse(response);
     }
 
+    async function adminPreviewParticipationPdf(payload) {
+        const response = await fetch(`${BASE_URL}/admin/participation-pdf/preview`, {
+            method: 'POST',
+            headers: authHeaders(),
+            body: JSON.stringify(payload),
+        });
+        if (response.status === 401) {
+            sessionStorage.removeItem('access_token');
+            window.location.href = 'index.html';
+            return null;
+        }
+        if (!response.ok) {
+            const body = await response.json().catch(() => ({}));
+            const detail = body && body.detail;
+            const message = (typeof detail === 'string' ? detail : `Preview failed (${response.status})`);
+            const err = new Error(message);
+            err.status = response.status;
+            throw err;
+        }
+        return response.blob();
+    }
+
     return {
         login,
         getMe,
@@ -633,5 +655,6 @@ const API = (() => {
         adminListParticipationMappings,
         adminUpsertParticipationMapping,
         adminDeleteParticipationMapping,
+        adminPreviewParticipationPdf,
     };
 })();

@@ -1961,6 +1961,29 @@ const Admin = (() => {
         }
     }
 
+    async function handleParticipationTemplatePreview() {
+        const statusEl = document.getElementById('participation-template-modal-status');
+        const docType = getParticipationDocType();
+        const payload = {
+            documentType: docType,
+            title: '',
+            bodyText: document.getElementById('participation-template-body-text').value,
+            agreedAcceptedEntity: document.getElementById('participation-template-entity').value.trim(),
+            // Fill each field with a placeholder value so the layout is visible in the preview.
+            fields: collectParticipationFields().map((f) => ({ ...f, value: `«${f.key}»` })),
+        };
+        statusEl.textContent = 'Rendering preview…';
+        try {
+            const blob = await API.adminPreviewParticipationPdf(payload);
+            const url = URL.createObjectURL(blob);
+            window.open(url, '_blank');
+            setTimeout(() => URL.revokeObjectURL(url), 60000);
+            statusEl.textContent = '';
+        } catch (err) {
+            statusEl.textContent = err.message || 'Preview failed.';
+        }
+    }
+
     function openParticipationMappingModal() {
         const company = getParticipationSelectedCompany();
         const docType = getParticipationDocType();
@@ -2064,6 +2087,8 @@ const Admin = (() => {
         });
         const tmplSubmit = document.getElementById('participation-template-modal-submit');
         if (tmplSubmit) tmplSubmit.addEventListener('click', handleParticipationTemplateSave);
+        const tmplPreview = document.getElementById('participation-template-modal-preview');
+        if (tmplPreview) tmplPreview.addEventListener('click', handleParticipationTemplatePreview);
 
         const addMappingBtn = document.getElementById('add-participation-mapping-btn');
         if (addMappingBtn) addMappingBtn.addEventListener('click', openParticipationMappingModal);

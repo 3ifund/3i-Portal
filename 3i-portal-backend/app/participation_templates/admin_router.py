@@ -10,7 +10,7 @@ Isolated from the legacy purchase-notice-template endpoints. Extensive logging t
 
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 
 from app.auth.dependencies import require_admin
 from app.auth.models import UserInfo
@@ -52,6 +52,23 @@ async def get_field_catalog(document_type: str, admin: UserInfo = Depends(requir
         raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
     logger.info("GET /participation-field-catalog/%s — returned %d fields", document_type, len(catalog))
     return catalog
+
+
+@router.post("/participation-pdf/preview")
+async def preview_participation_pdf(payload: dict, admin: UserInfo = Depends(require_admin)):
+    """Proxy the DealTermsServer PDF preview renderer; returns the rendered PDF bytes."""
+    logger.info("POST /participation-pdf/preview — admin=%s, docType=%s, fields=%d",
+                admin.user_id, payload.get("documentType"), len(payload.get("fields") or []))
+    try:
+        status_code, content, content_type = await onprem.render_participation_pdf_preview(payload)
+    except Exception as exc:
+        logger.error("POST /participation-pdf/preview — DTS render FAILED: %s", exc, exc_info=True)
+        raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
+    if status_code != 200:
+        detail = content.decode("utf-8", errors="replace") if content else "PDF render failed"
+        logger.warning("POST /participation-pdf/preview — DTS status=%s: %s", status_code, detail[:300])
+        raise HTTPException(status_code=status_code if status_code < 500 else 502, detail=detail)
+    return Response(content=content, media_type=content_type or "application/pdf")
 
 
 # ---------------------------------------------------------------------------

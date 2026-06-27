@@ -413,6 +413,22 @@ async def get_template_field_catalog(document_type: str) -> list[dict]:
     return response.json()
 
 
+async def render_participation_pdf_preview(payload: dict) -> tuple[int, bytes, str]:
+    """
+    POST /api/participation-pdf/preview — render a participation template + field
+    values to a PDF. Returns (status_code, content_bytes, content_type) so the caller
+    can pass the PDF straight through, or surface a DTS error body on non-200.
+    """
+    logger.info(
+        "POST /api/participation-pdf/preview docType=%s fields=%d",
+        payload.get("documentType"), len(payload.get("fields") or []),
+    )
+    response = await _request_with_retry("POST", "/api/participation-pdf/preview", json=payload)
+    content_type = response.headers.get("content-type", "application/pdf")
+    logger.info("  → %s (%d bytes, %s)", response.status_code, len(response.content), content_type)
+    return response.status_code, response.content, content_type
+
+
 # ---- Portal-Initiated Purchase Notice Endpoints ----
 
 class ElocAlreadyPricingError(Exception):
