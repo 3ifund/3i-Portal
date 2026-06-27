@@ -495,6 +495,90 @@ const API = (() => {
         return handleResponse(response);
     }
 
+    // --- Admin: participation-ELOC templates + mappings ---
+
+    async function adminGetParticipationFieldCatalog(documentType) {
+        const response = await fetch(`${BASE_URL}/admin/participation-field-catalog/${encodeURIComponent(documentType)}`, {
+            headers: authHeaders(),
+        });
+        return handleResponse(response);
+    }
+
+    async function adminListParticipationTemplates(companyId, documentType) {
+        const params = new URLSearchParams();
+        if (companyId != null && companyId !== '') params.set('company_id', companyId);
+        if (documentType) params.set('document_type', documentType);
+        const response = await fetch(`${BASE_URL}/admin/participation-templates?${params.toString()}`, {
+            headers: authHeaders(),
+        });
+        return handleResponse(response);
+    }
+
+    async function adminGetParticipationTemplate(templateId) {
+        const response = await fetch(`${BASE_URL}/admin/participation-templates/${encodeURIComponent(templateId)}`, {
+            headers: authHeaders(),
+        });
+        return handleResponse(response);
+    }
+
+    async function adminCreateParticipationTemplate(data) {
+        const response = await fetch(`${BASE_URL}/admin/participation-templates`, {
+            method: 'POST',
+            headers: authHeaders(),
+            body: JSON.stringify(data),
+        });
+        return handleResponse(response);
+    }
+
+    async function adminUpdateParticipationTemplate(templateId, data) {
+        const response = await fetch(`${BASE_URL}/admin/participation-templates/${encodeURIComponent(templateId)}`, {
+            method: 'PUT',
+            headers: authHeaders(),
+            body: JSON.stringify(data),
+        });
+        return handleResponse(response);
+    }
+
+    async function adminDeleteParticipationTemplate(templateId) {
+        const response = await fetch(`${BASE_URL}/admin/participation-templates/${encodeURIComponent(templateId)}`, {
+            method: 'DELETE',
+            headers: authHeaders(),
+        });
+        return handleResponse(response);
+    }
+
+    async function adminListParticipationMappings(companyId, documentType) {
+        const params = new URLSearchParams();
+        if (companyId != null && companyId !== '') params.set('company_id', companyId);
+        if (documentType) params.set('document_type', documentType);
+        const response = await fetch(`${BASE_URL}/admin/participation-template-mappings?${params.toString()}`, {
+            headers: authHeaders(),
+        });
+        return handleResponse(response);
+    }
+
+    async function adminUpsertParticipationMapping(data) {
+        const response = await fetch(`${BASE_URL}/admin/participation-template-mappings`, {
+            method: 'PUT',
+            headers: authHeaders(),
+            body: JSON.stringify(data),
+        });
+        return handleResponse(response);
+    }
+
+    async function adminDeleteParticipationMapping(companyId, pricingPeriodType, documentType) {
+        const params = new URLSearchParams({
+            company_id: companyId,
+            pricing_period_type: pricingPeriodType,
+            document_type: documentType,
+        });
+        const response = await fetch(`${BASE_URL}/admin/participation-template-mappings?${params.toString()}`, {
+            method: 'DELETE',
+            headers: authHeaders(),
+        });
+        return handleResponse(response);
+    }
+
     return {
         login,
         getMe,
@@ -540,5 +624,14 @@ const API = (() => {
         adminUpsertBackwardNoticeTemplate,
         adminGetCountersignSettings,
         adminSetCountersignSms,
+        adminGetParticipationFieldCatalog,
+        adminListParticipationTemplates,
+        adminGetParticipationTemplate,
+        adminCreateParticipationTemplate,
+        adminUpdateParticipationTemplate,
+        adminDeleteParticipationTemplate,
+        adminListParticipationMappings,
+        adminUpsertParticipationMapping,
+        adminDeleteParticipationMapping,
     };
 })();

@@ -23,6 +23,7 @@ const Admin = (() => {
             signatories: document.getElementById('signatories-panel'),
             'backward-templates': document.getElementById('backward-templates-panel'),
             'confirm-templates': document.getElementById('confirm-templates-panel'),
+            'participation-templates': document.getElementById('participation-templates-panel'),
             verification: document.getElementById('verification-panel'),
         };
 
@@ -1654,12 +1655,422 @@ const Admin = (() => {
                 initTemplateManagement(),
                 initBackwardTemplateManagement(),
                 initConfirmTemplateManagement(),
+                initParticipationTemplates(),
             ]);
         }).then(() => {
             console.log('[Admin] init() — template tabs initialized in %.0fms', performance.now() - t1);
         });
 
         console.log('[Admin] init() — TOTAL sync init time: %.0fms', performance.now() - t0);
+    }
+
+    // ---- Participation Templates Tab ----
+
+    let participationEditingTemplateId = null;
+    const participationCatalogCache = {};   // documentType -> [descriptors]
+    let participationTemplatesCache = [];    // current company+docType templates
+
+    function getParticipationDocType() {
+        const el = document.getElementById('participation-doctype-filter');
+        return el ? el.value : 'PurchaseNotice';
+    }
+
+    function getParticipationSelectedCompany() {
+        const companyId = document.getElementById('participation-company-filter').value;
+        if (!companyId || !elocCompaniesCache) return null;
+        return elocCompaniesCache.find((c) => String(c.company_id) === String(companyId)) || null;
+    }
+
+    async function loadParticipationCatalog(documentType) {
+        if (participationCatalogCache[documentType]) return participationCatalogCache[documentType];
+        const catalog = await API.adminGetParticipationFieldCatalog(documentType);
+        participationCatalogCache[documentType] = catalog || [];
+        return participationCatalogCache[documentType];
+    }
+
+    async function populateParticipationCompanyFilter() {
+        const companies = await loadElocCompanies();
+        const filter = document.getElementById('participation-company-filter');
+        if (filter) {
+            const existing = filter.value;
+            while (filter.options.length > 1) filter.remove(1);
+            (companies || []).forEach((c) => {
+                const opt = document.createElement('option');
+                opt.value = c.company_id;
+                opt.textContent = `${c.name} (${c.symbol})`;
+                filter.appendChild(opt);
+            });
+            if (existing) filter.value = existing;
+        }
+    }
+
+    async function loadParticipationTemplates() {
+        const loading = document.getElementById('participation-templates-loading');
+        const table = document.getElementById('participation-templates-table');
+        const empty = document.getElementById('participation-templates-empty');
+        const tbody = document.getElementById('participation-templates-tbody');
+        const company = getParticipationSelectedCompany();
+        const docType = getParticipationDocType();
+
+        if (!company) {
+            loading.style.display = 'none';
+            table.style.display = 'none';
+            empty.style.display = 'block';
+            empty.querySelector('p').textContent = 'Select a company to view its participation templates.';
+            participationTemplatesCache = [];
+            await loadParticipationMappings();
+            return;
+        }
+
+        loading.style.display = 'flex';
+        table.style.display = 'none';
+        empty.style.display = 'none';
+
+        try {
+            const templates = await API.adminListParticipationTemplates(company.company_id, docType);
+            participationTemplatesCache = templates || [];
+            loading.style.display = 'none';
+
+            if (!templates || templates.length === 0) {
+                empty.querySelector('p').textContent = 'No participation templates for this company / document type. Click "+ Add Template" to create one.';
+                empty.style.display = 'block';
+                table.style.display = 'none';
+            } else {
+                tbody.innerHTML = '';
+                templates.forEach((t) => {
+                    const body = t.body_text || '';
+                    const preview = body.substring(0, 70) + (body.length > 70 ? '...' : '');
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td>${escapeHtml(t.name || '—')}</td>
+                        <td>${(t.fields || []).length}</td>
+                        <td style="font-size:0.85rem; color:var(--text-secondary);">${escapeHtml(preview)}</td>
+                        <td>
+                            <button class="btn-action edit-participation-template-btn" data-template-id="${escapeHtml(t.template_id)}">Edit</button>
+                            <button class="btn-action delete-participation-template-btn" data-template-id="${escapeHtml(t.template_id)}">Delete</button>
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+                tbody.querySelectorAll('.edit-participation-template-btn').forEach((btn) => {
+                    btn.addEventListener('click', () => openParticipationTemplateModal(btn.dataset.templateId));
+                });
+                tbody.querySelectorAll('.delete-participation-template-btn').forEach((btn) => {
+                    btn.addEventListener('click', () => handleParticipationTemplateDelete(btn.dataset.templateId));
+                });
+                table.style.display = 'table';
+            }
+        } catch (err) {
+            loading.style.display = 'none';
+            empty.style.display = 'block';
+            empty.querySelector('p').textContent = `Error: ${err.message}`;
+        }
+        await loadParticipationMappings();
+    }
+
+    async function loadParticipationMappings() {
+        const table = document.getElementById('participation-mappings-table');
+        const empty = document.getElementById('participation-mappings-empty');
+        const tbody = document.getElementById('participation-mappings-tbody');
+        const company = getParticipationSelectedCompany();
+        const docType = getParticipationDocType();
+
+        if (!company) {
+            table.style.display = 'none';
+            empty.style.display = 'block';
+            empty.querySelector('p').textContent = 'Select a company to view its pricing-period mappings.';
+            return;
+        }
+        try {
+            const mappings = await API.adminListParticipationMappings(company.company_id, docType);
+            if (!mappings || mappings.length === 0) {
+                table.style.display = 'none';
+                empty.querySelector('p').textContent = 'No pricing-period mappings for this company / document type.';
+                empty.style.display = 'block';
+                return;
+            }
+            const byId = {};
+            participationTemplatesCache.forEach((t) => { byId[t.template_id] = t; });
+            tbody.innerHTML = '';
+            mappings.forEach((m) => {
+                const tmpl = byId[m.template_id];
+                const name = tmpl ? tmpl.name : `(template ${String(m.template_id).substring(0, 8)}…)`;
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${escapeHtml(m.pricing_period_type)}</td>
+                    <td>${escapeHtml(name)}</td>
+                    <td><button class="btn-action delete-participation-mapping-btn" data-period="${escapeHtml(m.pricing_period_type)}">Remove</button></td>
+                `;
+                tbody.appendChild(tr);
+            });
+            tbody.querySelectorAll('.delete-participation-mapping-btn').forEach((btn) => {
+                btn.addEventListener('click', () => handleParticipationMappingDelete(btn.dataset.period));
+            });
+            empty.style.display = 'none';
+            table.style.display = 'table';
+        } catch (err) {
+            table.style.display = 'none';
+            empty.style.display = 'block';
+            empty.querySelector('p').textContent = `Error: ${err.message}`;
+        }
+    }
+
+    function renderParticipationFieldRow(descriptor, fieldData) {
+        const container = document.getElementById('participation-fields-container');
+        const key = descriptor.key;
+        if (container.querySelector(`[data-field-key="${key}"]`)) return; // no duplicate fields
+        const row = document.createElement('div');
+        row.className = 'participation-field-row';
+        row.setAttribute('data-field-key', key);
+        row.style.cssText = 'display:flex; align-items:center; gap:0.5rem; padding:0.4rem 0; border-bottom:1px solid var(--border, #2a2a2a);';
+        const badges = [descriptor.renderType, descriptor.source].filter(Boolean).join(' · ');
+        const cond = descriptor.conditionalOn ? ` · if ${descriptor.conditionalOn}` : '';
+        const visible = fieldData ? fieldData.visible !== false : true;
+        const labelVal = (fieldData && fieldData.label) || descriptor.defaultLabel || key;
+        row.innerHTML = `
+            <span style="min-width:170px; font-size:0.85rem;" title="${escapeHtml(key)}">${escapeHtml(key)}</span>
+            <input type="text" class="form-input participation-field-label" style="flex:1;" value="${escapeHtml(labelVal)}">
+            <label style="font-size:0.8rem; display:flex; align-items:center; gap:0.25rem; white-space:nowrap;">
+                <input type="checkbox" class="participation-field-visible" ${visible ? 'checked' : ''}> visible
+            </label>
+            <span style="font-size:0.72rem; color:var(--text-secondary); min-width:150px;">${escapeHtml(badges + cond)}</span>
+            <button type="button" class="btn-action participation-field-remove">Remove</button>
+        `;
+        row.querySelector('.participation-field-remove').addEventListener('click', () => row.remove());
+        container.appendChild(row);
+    }
+
+    function collectParticipationFields() {
+        const rows = document.querySelectorAll('#participation-fields-container .participation-field-row');
+        const fields = [];
+        rows.forEach((row, idx) => {
+            fields.push({
+                key: row.getAttribute('data-field-key'),
+                label: row.querySelector('.participation-field-label').value.trim(),
+                visible: row.querySelector('.participation-field-visible').checked,
+                order: idx,
+            });
+        });
+        return fields;
+    }
+
+    async function openParticipationTemplateModal(templateId) {
+        participationEditingTemplateId = templateId || null;
+        const company = getParticipationSelectedCompany();
+        const docType = getParticipationDocType();
+        if (!company) { alert('Select a company first.'); return; }
+
+        const titleEl = document.getElementById('participation-template-modal-title');
+        const nameEl = document.getElementById('participation-template-name');
+        const bodyEl = document.getElementById('participation-template-body-text');
+        const entityEl = document.getElementById('participation-template-entity');
+        const statusEl = document.getElementById('participation-template-modal-status');
+        const contextEl = document.getElementById('participation-template-context');
+        const fieldsContainer = document.getElementById('participation-fields-container');
+
+        statusEl.textContent = '';
+        fieldsContainer.innerHTML = '';
+        contextEl.textContent = `${docType} · ${company.name} (${company.symbol})`;
+
+        const catalog = await loadParticipationCatalog(docType);
+        const fieldSelect = document.getElementById('participation-field-select');
+        fieldSelect.innerHTML = '<option value="">-- Select a field to add --</option>';
+        catalog.forEach((d) => {
+            const opt = document.createElement('option');
+            opt.value = d.key;
+            opt.textContent = `${d.defaultLabel} (${d.key})`;
+            fieldSelect.appendChild(opt);
+        });
+
+        if (participationEditingTemplateId) {
+            titleEl.textContent = 'Edit Participation Template';
+            const tmpl = participationTemplatesCache.find((t) => t.template_id === participationEditingTemplateId)
+                || await API.adminGetParticipationTemplate(participationEditingTemplateId);
+            nameEl.value = tmpl.name || '';
+            bodyEl.value = tmpl.body_text || '';
+            entityEl.value = tmpl.agreed_accepted_entity || '';
+            const byKey = {};
+            catalog.forEach((d) => { byKey[d.key] = d; });
+            (tmpl.fields || []).slice().sort((a, b) => (a.order || 0) - (b.order || 0)).forEach((f) => {
+                const descriptor = byKey[f.key] || { key: f.key, defaultLabel: f.key, renderType: '', source: '' };
+                renderParticipationFieldRow(descriptor, f);
+            });
+        } else {
+            titleEl.textContent = 'Add Participation Template';
+            nameEl.value = '';
+            bodyEl.value = '';
+            entityEl.value = '';
+        }
+
+        document.getElementById('participation-template-modal-overlay').classList.add('visible');
+    }
+
+    function closeParticipationTemplateModal() {
+        document.getElementById('participation-template-modal-overlay').classList.remove('visible');
+    }
+
+    async function handleParticipationTemplateSave() {
+        const company = getParticipationSelectedCompany();
+        const docType = getParticipationDocType();
+        const statusEl = document.getElementById('participation-template-modal-status');
+        const submitBtn = document.getElementById('participation-template-modal-submit');
+        const name = document.getElementById('participation-template-name').value.trim();
+        if (!company) { statusEl.textContent = 'No company selected.'; return; }
+        if (!name) { statusEl.textContent = 'Template name is required.'; return; }
+
+        const payload = {
+            name,
+            company_id: company.company_id,
+            document_type: docType,
+            body_text: document.getElementById('participation-template-body-text').value,
+            agreed_accepted_entity: document.getElementById('participation-template-entity').value.trim(),
+            fields: collectParticipationFields(),
+        };
+
+        submitBtn.disabled = true;
+        statusEl.textContent = 'Saving...';
+        try {
+            if (participationEditingTemplateId) {
+                await API.adminUpdateParticipationTemplate(participationEditingTemplateId, payload);
+            } else {
+                await API.adminCreateParticipationTemplate(payload);
+            }
+            statusEl.textContent = 'Saved.';
+            setTimeout(() => {
+                closeParticipationTemplateModal();
+                loadParticipationTemplates();
+            }, 500);
+        } catch (err) {
+            statusEl.textContent = err.message || 'Failed to save template.';
+        } finally {
+            submitBtn.disabled = false;
+        }
+    }
+
+    async function handleParticipationTemplateDelete(templateId) {
+        if (!confirm('Delete this template? This cannot be undone.')) return;
+        try {
+            await API.adminDeleteParticipationTemplate(templateId);
+            loadParticipationTemplates();
+        } catch (err) {
+            alert(err.message || 'Failed to delete template.');
+        }
+    }
+
+    function openParticipationMappingModal() {
+        const company = getParticipationSelectedCompany();
+        const docType = getParticipationDocType();
+        if (!company) { alert('Select a company first.'); return; }
+
+        const contextEl = document.getElementById('participation-mapping-context');
+        const periodSelect = document.getElementById('participation-mapping-period');
+        const templateSelect = document.getElementById('participation-mapping-template');
+        const statusEl = document.getElementById('participation-mapping-modal-status');
+        statusEl.textContent = '';
+        contextEl.textContent = `${docType} · ${company.name} (${company.symbol})`;
+
+        periodSelect.innerHTML = '<option value="">-- Select Pricing Period --</option>';
+        (company.pricing_period_types || []).forEach((p) => {
+            const opt = document.createElement('option');
+            opt.value = p;
+            opt.textContent = p;
+            periodSelect.appendChild(opt);
+        });
+
+        templateSelect.innerHTML = '<option value="">-- Select Template --</option>';
+        participationTemplatesCache.forEach((t) => {
+            const opt = document.createElement('option');
+            opt.value = t.template_id;
+            opt.textContent = t.name;
+            templateSelect.appendChild(opt);
+        });
+
+        document.getElementById('participation-mapping-modal-overlay').classList.add('visible');
+    }
+
+    function closeParticipationMappingModal() {
+        document.getElementById('participation-mapping-modal-overlay').classList.remove('visible');
+    }
+
+    async function handleParticipationMappingSave() {
+        const company = getParticipationSelectedCompany();
+        const docType = getParticipationDocType();
+        const statusEl = document.getElementById('participation-mapping-modal-status');
+        const period = document.getElementById('participation-mapping-period').value;
+        const templateId = document.getElementById('participation-mapping-template').value;
+        if (!company) { statusEl.textContent = 'No company selected.'; return; }
+        if (!period) { statusEl.textContent = 'Select a pricing period.'; return; }
+        if (!templateId) { statusEl.textContent = 'Select a template.'; return; }
+
+        statusEl.textContent = 'Saving...';
+        try {
+            await API.adminUpsertParticipationMapping({
+                company_id: company.company_id,
+                pricing_period_type: period,
+                document_type: docType,
+                template_id: templateId,
+            });
+            statusEl.textContent = 'Saved.';
+            setTimeout(() => {
+                closeParticipationMappingModal();
+                loadParticipationMappings();
+            }, 500);
+        } catch (err) {
+            statusEl.textContent = err.message || 'Failed to save mapping.';
+        }
+    }
+
+    async function handleParticipationMappingDelete(period) {
+        const company = getParticipationSelectedCompany();
+        const docType = getParticipationDocType();
+        if (!company) return;
+        if (!confirm(`Remove the mapping for ${period}?`)) return;
+        try {
+            await API.adminDeleteParticipationMapping(company.company_id, period, docType);
+            loadParticipationMappings();
+        } catch (err) {
+            alert(err.message || 'Failed to remove mapping.');
+        }
+    }
+
+    async function initParticipationTemplates() {
+        const doctypeFilter = document.getElementById('participation-doctype-filter');
+        const companyFilter = document.getElementById('participation-company-filter');
+        if (doctypeFilter) doctypeFilter.addEventListener('change', loadParticipationTemplates);
+        if (companyFilter) companyFilter.addEventListener('change', loadParticipationTemplates);
+
+        const addBtn = document.getElementById('add-participation-template-btn');
+        if (addBtn) addBtn.addEventListener('click', () => openParticipationTemplateModal(null));
+
+        const addFieldBtn = document.getElementById('participation-add-field-btn');
+        if (addFieldBtn) addFieldBtn.addEventListener('click', () => {
+            const select = document.getElementById('participation-field-select');
+            const key = select.value;
+            if (!key) return;
+            const docType = getParticipationDocType();
+            const catalog = participationCatalogCache[docType] || [];
+            const descriptor = catalog.find((d) => d.key === key);
+            if (descriptor) renderParticipationFieldRow(descriptor, null);
+            select.value = '';
+        });
+
+        ['participation-template-modal-close', 'participation-template-modal-cancel'].forEach((id) => {
+            const el = document.getElementById(id);
+            if (el) el.addEventListener('click', closeParticipationTemplateModal);
+        });
+        const tmplSubmit = document.getElementById('participation-template-modal-submit');
+        if (tmplSubmit) tmplSubmit.addEventListener('click', handleParticipationTemplateSave);
+
+        const addMappingBtn = document.getElementById('add-participation-mapping-btn');
+        if (addMappingBtn) addMappingBtn.addEventListener('click', openParticipationMappingModal);
+        ['participation-mapping-modal-close', 'participation-mapping-modal-cancel'].forEach((id) => {
+            const el = document.getElementById(id);
+            if (el) el.addEventListener('click', closeParticipationMappingModal);
+        });
+        const mapSubmit = document.getElementById('participation-mapping-modal-submit');
+        if (mapSubmit) mapSubmit.addEventListener('click', handleParticipationMappingSave);
+
+        await populateParticipationCompanyFilter();
     }
 
     document.addEventListener('DOMContentLoaded', init);
