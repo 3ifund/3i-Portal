@@ -34,6 +34,12 @@ is in **`DealTermsServer/docs/participation-eloc-field-catalog.md`** — read th
   Preview endpoint: `Controllers/ParticipationPdfController.cs` →
   `POST /api/participation-pdf/preview`.
 - **Design doc** — `docs/participation-eloc-field-catalog.md`.
+- **Workflow routing read** — `Services/Eloc/Participation/ParticipationTemplateReader.cs` +
+  `PortalPurchaseNoticeController`: at PN submission, resolves the mapped participation template's
+  `allocation_type` from the portal Mongo and records the route on `eloc_data` (`Unknown` ⇒
+  participation, `Known`/absent ⇒ legacy). **Read + record only** — execution still flows through
+  the existing path until the workflow manager is wired (absent mapping ⇒ legacy, so existing
+  traffic is unaffected).
 
 ### 3i-Portal (Python FastAPI backend + vanilla JS frontend)
 - **Template backend** — `3i-portal-backend/app/participation_templates/`
@@ -49,13 +55,16 @@ is in **`DealTermsServer/docs/participation-eloc-field-catalog.md`** — read th
   create/edit/delete named templates, build fields from the catalog dropdown (per-field label
   text + visible toggle), manage pricing-period mappings, and **Preview PDF** (renders the
   current unsaved template via DTS).
+- **Share Allocation discriminator** — the editor has a "Share Allocation" radio (Known /
+  Unknown) stored as `allocation_type` on the template doc; **absent ⇒ legacy/Known**. This is
+  the workflow router DTS reads at submission.
 
 ## Status — what is NOT done
 
 1. **The participation pricing/workflow engine** — the live, tick-driven engine that:
    - consumes DTS tick data (last price + cumulative tape volume),
-   - tracks the three termination triggers (price < `max(explicit, implicit)` floor [SEE OPEN
-     ITEM #1], EOD 16:00 ET, cumulative volume ≥ `V0 + shares/participation`),
+   - tracks the three termination triggers (price < the COALESCE floor `effectivefloorprice`
+     [see design doc §10], EOD 16:00 ET, cumulative volume ≥ `V0 + shares/participation`),
    - accrues emergent DTO shares (`participation × period volume`, capped at target; partial
      fills allowed),
    - computes the period base price (VWAP / Low / avg of n **distinct** lowest) and applies
@@ -69,14 +78,20 @@ is in **`DealTermsServer/docs/participation-eloc-field-catalog.md`** — read th
 3. **New persistence + workflow states** for live sessions.
 4. **A bespoke Portal entry form + live monitor** for the client.
 
-## Open decisions (BLOCKING the engine)
+## Open decisions
 
-- **OPEN ITEM #1 — Minimum Price Threshold: either/or vs `max(explicit, implicit)`.**
-  The PN form reads as *either/or* (designate `$X`, or blank → default % of reference). An
-  earlier decision set the engine floor = `max(explicit, implicit)` (both always live). These
-  conflict and determine when the period terminates. **Unresolved — decide before the engine.**
-- **OPEN ITEM #2 — concurrency rules.** Whether the aggregate participation cap is enforced
-  only at creation or re-checked live; the no-overlapping-intraday lock scope (symbol vs deal).
+- **OPEN ITEM #1 — Minimum Price Threshold — RESOLVED: COALESCE (not max).**
+  `effectivefloorprice = COALESCE(statedfloorprice, referenceprice × defaulttriggerpercentage)`.
+  A Company-stated dollar price **controls even below the default**; the percentage only derives
+  the default when none is stated. Reference per type: pre-market = prior RTH close; intraday =
+  last sale at notice delivery. The per-period default % reuses the existing
+  `default_minimum_price_percentage` / `use_default_minimum_price_percentage` columns on
+  `eloc_pricing_period` (already wired in data-management-ui). **WATCH:** an amendment saying
+  "the higher of the stated price and 75% of [reference]" would flip this back to `max`. See
+  design doc §10.
+- **OPEN ITEM #2 — concurrency rules (still open).** Whether the aggregate participation cap is
+  enforced only at creation or re-checked live; the no-overlapping-intraday lock scope (symbol vs
+  deal).
 
 ## Settled design points (from the design sessions)
 
