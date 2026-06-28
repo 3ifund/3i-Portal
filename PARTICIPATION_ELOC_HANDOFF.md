@@ -37,9 +37,25 @@ is in **`DealTermsServer/docs/participation-eloc-field-catalog.md`** — read th
 - **Workflow routing read** — `Services/Eloc/Participation/ParticipationTemplateReader.cs` +
   `PortalPurchaseNoticeController`: at PN submission, resolves the mapped participation template's
   `allocation_type` from the portal Mongo and records the route on `eloc_data` (`Unknown` ⇒
-  participation, `Known`/absent ⇒ legacy). **Read + record only** — execution still flows through
-  the existing path until the workflow manager is wired (absent mapping ⇒ legacy, so existing
-  traffic is unaffected).
+  participation, `Known`/absent ⇒ legacy; absent mapping ⇒ legacy, so existing traffic is
+  unaffected). `GetMappedTemplateAsync` also returns full template content for PDF construction.
+- **PN PDF construction service** — `Services/Eloc/ParticipationPdf/ParticipationPurchaseNoticePdfService.cs`:
+  resolves the mapped template + merges supplied field values + signatories, rendered in the
+  **existing PN layout** (title/header/body/dynamic field rows/company + Agreed-and-Accepted
+  signature blocks with images) by the enriched `ParticipationPdfRenderer`. Endpoint:
+  `POST /api/participation-pdf/purchase-notice` (construct from stored template).
+- **Shared `ElocContractDeliveryService`** — `Services/Eloc/ElocContractDeliveryService.cs`:
+  the contract-step actions (SharePoint upload + broker/company/admin notifications) extracted
+  from `PortalElocController` so legacy and participation run **identical** step logic (option A —
+  no duplication). The controller's step methods now delegate to it.
+- **`ParticipationWorkflowManager` (first 3 steps)** — `Services/Eloc/Participation/ParticipationWorkflowManager.cs`:
+  runs Save-to-SharePoint → Send-to-Prime-Broker (+ company + admin) via the shared service,
+  advancing `eloc_state` to `SignedContractToPrimeBroker` and stopping (pricing engine is a later
+  phase). Has a duplicate-run guard.
+- **Unknown branch WIRED end-to-end** — submission builds the participation PN PDF (best-effort
+  field values; full set awaits the entry form) and the **accept** endpoint
+  (`PortalElocController`, from `SignedContractToCompany`) runs the manager instead of the legacy
+  auto-process chain for `allocation_type=Unknown`. Legacy (Known) unchanged.
 
 ### 3i-Portal (Python FastAPI backend + vanilla JS frontend)
 - **Template backend** — `3i-portal-backend/app/participation_templates/`
@@ -72,11 +88,17 @@ is in **`DealTermsServer/docs/participation-eloc-field-catalog.md`** — read th
    - maintains the running n-lowest-distinct-prices list (see design doc §8),
    - enforces concurrency (Pre-Market + Intraday under an aggregate participation cap; no
      overlapping intradays).
-2. **The template→values merge** — the workflow code that builds a `ParticipationDocumentModel`
-   by merging a Portal-authored template (labels/order/visibility) with **computed** field
-   values, then calls the renderer. (The renderer itself is done; only the merge/feeder is not.)
-3. **New persistence + workflow states** for live sessions.
-4. **A bespoke Portal entry form + live monitor** for the client.
+   (The first 3 contract steps — Send to Company / SharePoint / Prime Broker — are DONE; the engine
+   is the divergence after them.)
+2. **A bespoke Portal entry form + live monitor** for the client. The entry form is what supplies
+   the full participation field VALUES (PurchaseType, PurchasePercentage, MinimumPriceThreshold /
+   statedfloorprice, etc.). Until it exists, the submission maps only best-effort values
+   (PurchaseShareAmount, PurchaseDate) + signatories, so other fields render blank on the PN PDF.
+3. **New persistence + workflow states** for live participation pricing sessions.
+4. **Runtime verification** — the workflow refactor + Unknown wiring compile but are NOT yet
+   exercised live (needs a mapped Unknown template, a submission, and an accept against a running
+   DTS with SharePoint/email configured). The extraction moved outward-facing email code verbatim;
+   smoke-test the legacy flow too.
 
 ## Open decisions
 
