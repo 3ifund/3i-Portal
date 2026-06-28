@@ -461,6 +461,17 @@
                     <input type="text" id="participation-template-name" class="form-input" placeholder="e.g., Intraday PN — Standard">
                 </div>
                 <div class="form-group">
+                    <label class="form-label">Share Allocation</label>
+                    <div style="display:flex; gap:1.25rem; align-items:center;">
+                        <label style="display:flex; align-items:center; gap:0.4rem; font-weight:400;">
+                            <input type="radio" name="participation-allocation-type" value="Known" checked> Known (legacy workflow)
+                        </label>
+                        <label style="display:flex; align-items:center; gap:0.4rem; font-weight:400;">
+                            <input type="radio" name="participation-allocation-type" value="Unknown"> Unknown (participation workflow)
+                        </label>
+                    </div>
+                </div>
+                <div class="form-group">
                     <label class="form-label" for="participation-template-body-text">Body Text</label>
                     <textarea id="participation-template-body-text" class="form-input" rows="8" placeholder="Enter the narrative body text for this document..."></textarea>
                 </div>

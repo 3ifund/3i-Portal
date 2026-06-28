@@ -44,16 +44,17 @@ async def ensure_indexes() -> None:
 
 async def create_template(name: str, company_id: int, document_type: str,
                           body_text: str, agreed_accepted_entity: str,
-                          fields: list[dict]) -> dict:
+                          fields: list[dict], allocation_type: str = "Known") -> dict:
     template_id = uuid.uuid4().hex
-    logger.info("create_template — name=%s, company_id=%s, document_type=%s, fields=%d -> template_id=%s",
-                name, company_id, document_type, len(fields), template_id)
+    logger.info("create_template — name=%s, company_id=%s, document_type=%s, allocation_type=%s, fields=%d -> template_id=%s",
+                name, company_id, document_type, allocation_type, len(fields), template_id)
     db = get_db()
     doc = {
         "template_id": template_id,
         "name": name,
         "company_id": company_id,
         "document_type": document_type,
+        "allocation_type": allocation_type,
         "body_text": body_text,
         "agreed_accepted_entity": agreed_accepted_entity,
         "fields": fields,
@@ -65,9 +66,9 @@ async def create_template(name: str, company_id: int, document_type: str,
 
 async def update_template(template_id: str, name: str, company_id: int, document_type: str,
                           body_text: str, agreed_accepted_entity: str,
-                          fields: list[dict]) -> dict | None:
-    logger.info("update_template — template_id=%s, name=%s, company_id=%s, document_type=%s, fields=%d",
-                template_id, name, company_id, document_type, len(fields))
+                          fields: list[dict], allocation_type: str = "Known") -> dict | None:
+    logger.info("update_template — template_id=%s, name=%s, company_id=%s, document_type=%s, allocation_type=%s, fields=%d",
+                template_id, name, company_id, document_type, allocation_type, len(fields))
     db = get_db()
     result = await db[TEMPLATES].update_one(
         {"template_id": template_id},
@@ -75,6 +76,7 @@ async def update_template(template_id: str, name: str, company_id: int, document
             "name": name,
             "company_id": company_id,
             "document_type": document_type,
+            "allocation_type": allocation_type,
             "body_text": body_text,
             "agreed_accepted_entity": agreed_accepted_entity,
             "fields": fields,

@@ -141,7 +141,8 @@ async def create_template(
     fields = [f.model_dump() for f in request.fields]
     template = await repo.create_template(
         request.name, request.company_id, request.document_type,
-        request.body_text, request.agreed_accepted_entity, fields)
+        request.body_text, request.agreed_accepted_entity, fields,
+        allocation_type=request.allocation_type)
     logger.info("POST /participation-templates — created template_id=%s", template["template_id"])
     return template
 
@@ -165,7 +166,8 @@ async def update_template(
     fields = [f.model_dump() for f in request.fields]
     template = await repo.update_template(
         template_id, request.name, request.company_id, request.document_type,
-        request.body_text, request.agreed_accepted_entity, fields)
+        request.body_text, request.agreed_accepted_entity, fields,
+        allocation_type=request.allocation_type)
     if template is None:
         logger.warning("PUT /participation-templates/%s — not found", template_id)
         raise HTTPException(status_code=404, detail=f"Template not found: {template_id}")

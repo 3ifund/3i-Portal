@@ -1844,6 +1844,17 @@ const Admin = (() => {
         container.appendChild(row);
     }
 
+    function setParticipationAllocationType(value) {
+        // Absent ⇒ legacy/Known.
+        const v = (value === 'Unknown') ? 'Unknown' : 'Known';
+        const radio = document.querySelector(`input[name="participation-allocation-type"][value="${v}"]`);
+        if (radio) radio.checked = true;
+    }
+
+    function getParticipationAllocationType() {
+        return document.querySelector('input[name="participation-allocation-type"]:checked')?.value || 'Known';
+    }
+
     function collectParticipationFields() {
         const rows = document.querySelectorAll('#participation-fields-container .participation-field-row');
         const fields = [];
@@ -1893,6 +1904,7 @@ const Admin = (() => {
             nameEl.value = tmpl.name || '';
             bodyEl.value = tmpl.body_text || '';
             entityEl.value = tmpl.agreed_accepted_entity || '';
+            setParticipationAllocationType(tmpl.allocation_type);
             const byKey = {};
             catalog.forEach((d) => { byKey[d.key] = d; });
             (tmpl.fields || []).slice().sort((a, b) => (a.order || 0) - (b.order || 0)).forEach((f) => {
@@ -1904,6 +1916,7 @@ const Admin = (() => {
             nameEl.value = '';
             bodyEl.value = '';
             entityEl.value = '';
+            setParticipationAllocationType('Known');
         }
 
         document.getElementById('participation-template-modal-overlay').classList.add('visible');
@@ -1926,6 +1939,7 @@ const Admin = (() => {
             name,
             company_id: company.company_id,
             document_type: docType,
+            allocation_type: getParticipationAllocationType(),
             body_text: document.getElementById('participation-template-body-text').value,
             agreed_accepted_entity: document.getElementById('participation-template-entity').value.trim(),
             fields: collectParticipationFields(),

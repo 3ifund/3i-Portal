@@ -18,6 +18,11 @@ from pydantic import BaseModel, Field
 DOCUMENT_TYPES: tuple[str, ...] = ("PurchaseNotice", "PurchaseConfirmation")
 DocumentType = Literal["PurchaseNotice", "PurchaseConfirmation"]
 
+# Share-allocation type — drives which workflow the notice runs.
+# "Unknown" = the new participation workflow (emergent share allocation).
+# "Known" = the legacy workflow. ABSENT on a document is treated as legacy/Known.
+AllocationType = Literal["Known", "Unknown"]
+
 
 class TemplateField(BaseModel):
     """One catalog field placed on a template, with the admin's label text."""
@@ -35,6 +40,7 @@ class UpsertParticipationTemplateRequest(BaseModel):
     name: str
     company_id: int
     document_type: DocumentType             # validated against DOCUMENT_TYPES
+    allocation_type: AllocationType = "Known"   # absent ⇒ legacy/Known
     body_text: str = ""
     agreed_accepted_entity: str = ""
     fields: list[TemplateField] = Field(default_factory=list)
