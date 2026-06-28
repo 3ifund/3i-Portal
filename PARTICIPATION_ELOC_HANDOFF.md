@@ -99,20 +99,39 @@ is in **`DealTermsServer/docs/participation-eloc-field-catalog.md`** — read th
 
 ## How to resume on another machine
 
-Claude Code conversations do **not** sync across machines (local transcripts only). To continue:
+Claude Code conversations do **not** sync across machines (local transcripts only). You are not
+resuming the chat — you re-orient a fresh session from these repos (everything is committed).
 
-1. Clone/pull the repos:
-   - `https://github.com/3ifund/DealTermsServer.git`
-   - `https://github.com/3ifund/3i-Portal.git`
-   - `https://github.com/3ifund/PositionRiskManagement.git` (separate, allocation-dialog fix)
-2. Read this file + `DealTermsServer/docs/participation-eloc-field-catalog.md` + recent
-   `git log` in DTS and 3i-Portal (commit messages narrate each step).
-3. Start a fresh Claude Code session and prime it: *"Continue the participation-ELOC work — read
-   PARTICIPATION_ELOC_HANDOFF.md and the participation-eloc-field-catalog.md design doc. Next:
-   resolve OPEN ITEM #1, then build the pricing/workflow engine."*
+**1. Clone (or `git pull` if you already have them):**
 
-### Won't transfer (machine-local): the chat transcript, Claude memory, and
-`%APPDATA%\TradingPlatform\database-config.json` (re-set the DB host at work).
+```bash
+git clone https://github.com/3ifund/DealTermsServer.git
+git clone https://github.com/3ifund/3i-Portal.git
+git clone https://github.com/3ifund/PositionRiskManagement.git   # separate, allocation-dialog fix
+```
+
+**2. Start Claude Code in a repo:**
+
+```bash
+cd 3i-Portal
+claude        # run /login if prompted
+```
+
+**3. Paste this as your first message (the primer):**
+
+> Continue the participation-ELOC work. Read `PARTICIPATION_ELOC_HANDOFF.md` here and
+> `DealTermsServer/docs/participation-eloc-field-catalog.md`, plus the recent `git log` in this
+> repo and in DealTermsServer. Then tell me where we left off and what's next.
+
+The next step it should land on: **resolve OPEN ITEM #1** (Minimum Price Threshold: either/or vs
+`max(explicit, implicit)`), then build the pricing/workflow engine.
+
+### Won't transfer (machine-local), set these up at work:
+- The chat transcript and Claude memory (don't sync — that's why this note exists).
+- `%APPDATA%\TradingPlatform\database-config.json` — **re-set the DB host** (or use the app's DB
+  settings dialog).
+- To actually run DTS + Portal for the end-to-end editor/preview test, install their local deps
+  (Python env for the Portal, etc.) on that machine.
 
 ## Suggested next step
 
