@@ -1908,7 +1908,7 @@ const Admin = (() => {
         catalog.forEach((d) => {
             const opt = document.createElement('option');
             opt.value = d.key;
-            opt.textContent = `${d.defaultLabel} (${d.key})`;
+            opt.textContent = d.defaultLabel;
             fieldSelect.appendChild(opt);
         });
 
