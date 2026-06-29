@@ -36,6 +36,15 @@ const Admin = (() => {
                 Object.entries(panels).forEach(([key, panel]) => {
                     if (panel) panel.style.display = key === target ? 'block' : 'none';
                 });
+
+                // Lazily (re)populate the participation company dropdown when its tab is
+                // opened. The init-time populate runs asynchronously and can lose a race if
+                // the user opens this tab before the company load finishes — which left the
+                // dropdown empty until they switched tabs and back. loadElocCompanies() is
+                // cached, so this is cheap on every show.
+                if (target === 'participation-templates') {
+                    populateParticipationCompanyFilter();
+                }
             });
         });
     }
