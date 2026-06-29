@@ -253,31 +253,31 @@ async def list_companies_for_dropdown(admin: UserInfo = Depends(require_admin)):
 
 @router.get("/companies-with-elocs")
 async def list_companies_with_elocs(admin: UserInfo = Depends(require_admin)):
-    """Return companies with active ELOCs and their pricing period types."""
+    """Return all companies that have an eloc_deal, with their pricing period types.
+
+    Sourced from the eloc_deal table (every company with a configured deal), NOT from
+    hasActiveEloc — a company that has a deal but no currently-active ELOC must still be
+    selectable for template configuration (participation + legacy template tabs).
+    """
     t_start = time.monotonic()
     logger.info("GET /admin/companies-with-elocs by admin=%s — START", admin.user_id)
     pool = get_pool()
 
-    # Get all company summaries from DealTermsServer shares-available
-    summaries = await onprem.get_all_company_summaries()
-    active_symbols = [s["symbol"] for s in summaries if s.get("hasActiveEloc")]
-    logger.info("  → %d companies with active ELOCs: %s", len(active_symbols), active_symbols)
+    # Every company that has a configured ELOC deal (distinct company on eloc_deal).
+    rows = await pool.fetch(
+        """SELECT DISTINCT co.company_id, co.symbol, co.name
+           FROM eloc_deal d JOIN company co ON co.company_id = d.company_id
+           ORDER BY co.name"""
+    )
+    companies = [dict(r) for r in rows]
+    logger.info("  → %d companies with an eloc_deal: %s", len(companies), [c["symbol"] for c in companies])
 
-    if not active_symbols:
+    if not companies:
         return []
 
-    # Fetch company DB records by symbol
-    placeholders = ", ".join(f"${i+1}" for i in range(len(active_symbols)))
-    rows = await pool.fetch(
-        f"SELECT company_id, symbol, name FROM company WHERE symbol IN ({placeholders}) ORDER BY name",
-        *active_symbols,
-    )
-    company_map = {r["symbol"]: dict(r) for r in rows}
-
-    # Fetch pricing periods for all active companies in parallel
-    valid_symbols = [s for s in active_symbols if s in company_map]
-    logger.info("  Fetching shares-available for %d companies in parallel", len(valid_symbols))
-    t_start = time.monotonic()
+    # Attach each company's pricing period types (shares-available carries them).
+    logger.info("  Fetching shares-available for %d companies in parallel", len(companies))
+    t_fetch = time.monotonic()
 
     async def _fetch_shares(symbol: str):
         try:
@@ -285,16 +285,17 @@ async def list_companies_with_elocs(admin: UserInfo = Depends(require_admin)):
         except Exception as exc:
             return symbol, None, exc
 
-    fetch_results = await asyncio.gather(*[_fetch_shares(s) for s in valid_symbols])
+    fetch_results = await asyncio.gather(*[_fetch_shares(c["symbol"]) for c in companies])
+    shares_by_symbol = {sym: (data, err) for sym, data, err in fetch_results}
 
-    t_elapsed = (time.monotonic() - t_start) * 1000
-    logger.info("  Parallel shares-available completed in %.1fms for %d companies", t_elapsed, len(valid_symbols))
+    logger.info("  Parallel shares-available completed in %.1fms", (time.monotonic() - t_fetch) * 1000)
 
     result = []
-    for symbol, shares_data, err in fetch_results:
-        company = company_map[symbol]
-        if err:
-            logger.warning("  → shares-available failed for %s: %s", symbol, err)
+    for company in companies:
+        shares_data, err = shares_by_symbol.get(company["symbol"], (None, None))
+        if err or not shares_data:
+            if err:
+                logger.warning("  → shares-available failed for %s: %s", company["symbol"], err)
             period_types = []
             pricing_periods = []
         else:
@@ -311,7 +312,7 @@ async def list_companies_with_elocs(admin: UserInfo = Depends(require_admin)):
         company["pricing_period_types"] = period_types
         company["pricing_periods"] = pricing_periods
         result.append(company)
-        logger.info("  → %s (%s): periods=%s", company["name"], symbol, period_types)
+        logger.info("  → %s (%s): periods=%s", company["name"], company["symbol"], period_types)
 
     t_total = (time.monotonic() - t_start) * 1000
     logger.info("GET /admin/companies-with-elocs — DONE in %.1fms, returned %d companies", t_total, len(result))
