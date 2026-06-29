@@ -255,65 +255,59 @@ async def list_companies_for_dropdown(admin: UserInfo = Depends(require_admin)):
 async def list_companies_with_elocs(admin: UserInfo = Depends(require_admin)):
     """Return all companies that have an eloc_deal, with their pricing period types.
 
-    Sourced from the eloc_deal table (every company with a configured deal), NOT from
-    hasActiveEloc — a company that has a deal but no currently-active ELOC must still be
-    selectable for template configuration (participation + legacy template tabs).
+    Sourced entirely from the DealTerms DB (eloc_deal + eloc_pricing_period) in a single
+    query: every company that has a configured deal, plus the pricing periods of that
+    company's most-recent deal (matching how DTS picks the current deal — latest expiration).
+    No per-company shares-available/Bloomberg round-trips (that path took 10-19s); this is
+    sub-second. Response shape unchanged: {company_id, symbol, name, pricing_period_types,
+    pricing_periods:[{periodType, pricingDirection, isBackwardPricing}]}.
     """
     t_start = time.monotonic()
     logger.info("GET /admin/companies-with-elocs by admin=%s — START", admin.user_id)
     pool = get_pool()
 
-    # Every company that has a configured ELOC deal (distinct company on eloc_deal).
     rows = await pool.fetch(
-        """SELECT DISTINCT co.company_id, co.symbol, co.name
-           FROM eloc_deal d JOIN company co ON co.company_id = d.company_id
-           ORDER BY co.name"""
+        """
+        WITH latest_deal AS (
+            SELECT DISTINCT ON (company_id) eloc_deal_id, company_id
+            FROM eloc_deal
+            ORDER BY company_id, expiration_date DESC, eloc_deal_id DESC
+        )
+        SELECT co.company_id, co.symbol, co.name, pp.period_type, pp.pricing_direction
+        FROM latest_deal ld
+        JOIN company co ON co.company_id = ld.company_id
+        LEFT JOIN eloc_pricing_period pp ON pp.eloc_deal_id = ld.eloc_deal_id
+        ORDER BY co.name, pp.pricing_period_id
+        """
     )
-    companies = [dict(r) for r in rows]
-    logger.info("  → %d companies with an eloc_deal: %s", len(companies), [c["symbol"] for c in companies])
 
-    if not companies:
-        return []
+    # Group the period rows by company, preserving company order (rows are name-ordered).
+    by_company = {}
+    for r in rows:
+        company = by_company.get(r["company_id"])
+        if company is None:
+            company = {
+                "company_id": r["company_id"],
+                "symbol": r["symbol"],
+                "name": r["name"],
+                "pricing_period_types": [],
+                "pricing_periods": [],
+            }
+            by_company[r["company_id"]] = company
+        period_type = r["period_type"]
+        if period_type:  # LEFT JOIN: a company with no pricing periods yields a NULL row
+            direction = r["pricing_direction"] or "Forward"
+            company["pricing_period_types"].append(period_type)
+            company["pricing_periods"].append({
+                "periodType": period_type,
+                "pricingDirection": direction,
+                "isBackwardPricing": direction == "Backward",
+            })
 
-    # Attach each company's pricing period types (shares-available carries them).
-    logger.info("  Fetching shares-available for %d companies in parallel", len(companies))
-    t_fetch = time.monotonic()
-
-    async def _fetch_shares(symbol: str):
-        try:
-            return symbol, await onprem.get_shares_available(symbol), None
-        except Exception as exc:
-            return symbol, None, exc
-
-    fetch_results = await asyncio.gather(*[_fetch_shares(c["symbol"]) for c in companies])
-    shares_by_symbol = {sym: (data, err) for sym, data, err in fetch_results}
-
-    logger.info("  Parallel shares-available completed in %.1fms", (time.monotonic() - t_fetch) * 1000)
-
-    result = []
-    for company in companies:
-        shares_data, err = shares_by_symbol.get(company["symbol"], (None, None))
-        if err or not shares_data:
-            if err:
-                logger.warning("  → shares-available failed for %s: %s", company["symbol"], err)
-            period_types = []
-            pricing_periods = []
-        else:
-            periods_raw = shares_data.get("pricingPeriods", [])
-            period_types = [p.get("periodType", "") for p in periods_raw]
-            pricing_periods = [
-                {
-                    "periodType": p.get("periodType", ""),
-                    "pricingDirection": p.get("pricingDirection", "Forward"),
-                    "isBackwardPricing": p.get("isBackwardPricing", False),
-                }
-                for p in periods_raw
-            ]
-        company["pricing_period_types"] = period_types
-        company["pricing_periods"] = pricing_periods
-        result.append(company)
-        logger.info("  → %s (%s): periods=%s", company["name"], company["symbol"], period_types)
-
+    result = list(by_company.values())
     t_total = (time.monotonic() - t_start) * 1000
-    logger.info("GET /admin/companies-with-elocs — DONE in %.1fms, returned %d companies", t_total, len(result))
+    logger.info(
+        "GET /admin/companies-with-elocs — DONE in %.1fms, returned %d companies: %s",
+        t_total, len(result), [c["symbol"] for c in result],
+    )
     return result
