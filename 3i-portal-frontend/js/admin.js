@@ -1824,22 +1824,27 @@ const Admin = (() => {
         row.setAttribute('data-field-key', key);
         row.style.cssText = 'display:flex; align-items:center; gap:0.5rem; padding:0.4rem 0; border-bottom:1px solid var(--border, #2a2a2a);';
         const badges = [descriptor.renderType, descriptor.source].filter(Boolean).join(' · ');
+        // Show the checkbox/option choices (e.g. Types of Purchase → 1-Day, 2-Day, …)
+        const opts = (descriptor.options && descriptor.options.length)
+            ? ` · options: ${descriptor.options.join(', ')}` : '';
         const cond = descriptor.conditionalOn ? ` · if ${descriptor.conditionalOn}` : '';
         const visible = fieldData ? fieldData.visible !== false : true;
         const labelVal = (fieldData && fieldData.label) || descriptor.defaultLabel || key;
         row.innerHTML = `
             <span style="min-width:170px; font-size:0.85rem;" title="${escapeHtml(key)}">${escapeHtml(key)}</span>
-            <input type="text" class="form-input participation-field-label" style="flex:1;">
+            <input type="text" class="form-input participation-field-label" style="flex:1;" placeholder="label">
+            <input type="text" class="form-input participation-field-note" style="flex:1;" placeholder="note beside value (optional)">
             <label style="font-size:0.8rem; display:flex; align-items:center; gap:0.25rem; white-space:nowrap;">
                 <input type="checkbox" class="participation-field-visible" ${visible ? 'checked' : ''}> visible
             </label>
-            <span style="font-size:0.72rem; color:var(--text-secondary); min-width:150px;">${escapeHtml(badges + cond)}</span>
+            <span style="font-size:0.72rem; color:var(--text-secondary); min-width:150px;">${escapeHtml(badges + opts + cond)}</span>
             <button type="button" class="btn-action participation-field-remove">Remove</button>
         `;
-        // Set the label as a DOM property (not an HTML attribute) so values
+        // Set label + note as DOM properties (not HTML attributes) so values
         // containing quotes can't break out of the markup — escapeHtml does not
         // escape quote characters.
         row.querySelector('.participation-field-label').value = labelVal;
+        row.querySelector('.participation-field-note').value = (fieldData && fieldData.note) || '';
         row.querySelector('.participation-field-remove').addEventListener('click', () => row.remove());
         container.appendChild(row);
     }
@@ -1862,6 +1867,7 @@ const Admin = (() => {
             fields.push({
                 key: row.getAttribute('data-field-key'),
                 label: row.querySelector('.participation-field-label').value.trim(),
+                note: row.querySelector('.participation-field-note').value.trim(),
                 visible: row.querySelector('.participation-field-visible').checked,
                 order: idx,
             });

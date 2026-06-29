@@ -29,6 +29,7 @@ class TemplateField(BaseModel):
 
     key: str                                # catalog enum key, e.g. "PurchaseShareAmount"
     label: str                              # admin-entered display label
+    note: str | None = None                 # optional free-text qualifier rendered beside the value
     visible: bool = True
     order: int = 0
     options_config: dict | None = None      # extra config for OptionSet / CheckOrFill / etc.
