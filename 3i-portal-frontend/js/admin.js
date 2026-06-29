@@ -1839,12 +1839,12 @@ const Admin = (() => {
         const cond = descriptor.conditionalOn ? ` · if ${descriptor.conditionalOn}` : '';
         const visible = fieldData ? fieldData.visible !== false : true;
         const labelVal = (fieldData && fieldData.label) || descriptor.defaultLabel || key;
-        // For a multi-select catalog field (e.g. Types of Purchase) the admin picks ONE
-        // option, which renders as the single checked box on the document. Options are the
-        // fixed enum labels (1-Day/2-Day/3-Day/Intraday Purchase) — no quotes, safe inline.
-        const isCheckbox = descriptor.renderType === 'CheckboxGroup'
+        // Any client-input field with a fixed option set (Purchase Type, Types of Purchase) lets the
+        // admin pick ONE option, which renders as the single checked box on the document. Option
+        // labels are fixed enum values (no quotes), safe to inline.
+        const isSingleSelect = descriptor.source === 'Client'
             && Array.isArray(descriptor.options) && descriptor.options.length > 0;
-        const optionSelectHtml = isCheckbox
+        const optionSelectHtml = isSingleSelect
             ? `<select class="form-input participation-field-option" title="Checked option" style="flex:0 1 160px;">`
               + `<option value="">— choose one —</option>`
               + descriptor.options.map((o) => `<option value="${escapeHtml(o)}">${escapeHtml(o)}</option>`).join('')
