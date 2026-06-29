@@ -1839,21 +1839,37 @@ const Admin = (() => {
         const cond = descriptor.conditionalOn ? ` · if ${descriptor.conditionalOn}` : '';
         const visible = fieldData ? fieldData.visible !== false : true;
         const labelVal = (fieldData && fieldData.label) || descriptor.defaultLabel || key;
+        // For a multi-select catalog field (e.g. Types of Purchase) the admin picks ONE
+        // option, which renders as the single checked box on the document. Options are the
+        // fixed enum labels (1-Day/2-Day/3-Day/Intraday Purchase) — no quotes, safe inline.
+        const isCheckbox = descriptor.renderType === 'CheckboxGroup'
+            && Array.isArray(descriptor.options) && descriptor.options.length > 0;
+        const optionSelectHtml = isCheckbox
+            ? `<select class="form-input participation-field-option" title="Checked option" style="flex:0 1 160px;">`
+              + `<option value="">— choose one —</option>`
+              + descriptor.options.map((o) => `<option value="${escapeHtml(o)}">${escapeHtml(o)}</option>`).join('')
+              + `</select>`
+            : '';
         row.innerHTML = `
             <span style="min-width:170px; font-size:0.85rem;" title="${escapeHtml(key)}">${escapeHtml(key)}</span>
             <input type="text" class="form-input participation-field-label" style="flex:1;" placeholder="label">
             <input type="text" class="form-input participation-field-note" style="flex:1;" placeholder="note beside value (optional)">
+            ${optionSelectHtml}
             <label style="font-size:0.8rem; display:flex; align-items:center; gap:0.25rem; white-space:nowrap;">
                 <input type="checkbox" class="participation-field-visible" ${visible ? 'checked' : ''}> visible
             </label>
             <span style="font-size:0.72rem; color:var(--text-secondary); min-width:150px;">${escapeHtml(badges + opts + cond)}</span>
             <button type="button" class="btn-action participation-field-remove">Remove</button>
         `;
-        // Set label + note as DOM properties (not HTML attributes) so values
+        // Set label + note (and the checked option) as DOM properties so values
         // containing quotes can't break out of the markup — escapeHtml does not
         // escape quote characters.
         row.querySelector('.participation-field-label').value = labelVal;
         row.querySelector('.participation-field-note').value = (fieldData && fieldData.note) || '';
+        const optionSelect = row.querySelector('.participation-field-option');
+        if (optionSelect && fieldData && fieldData.options_config && fieldData.options_config.selected) {
+            optionSelect.value = fieldData.options_config.selected;
+        }
         row.querySelector('.participation-field-remove').addEventListener('click', () => row.remove());
         container.appendChild(row);
     }
@@ -1873,13 +1889,17 @@ const Admin = (() => {
         const rows = document.querySelectorAll('#participation-fields-container .participation-field-row');
         const fields = [];
         rows.forEach((row, idx) => {
-            fields.push({
+            const field = {
                 key: row.getAttribute('data-field-key'),
                 label: row.querySelector('.participation-field-label').value.trim(),
                 note: row.querySelector('.participation-field-note').value.trim(),
                 visible: row.querySelector('.participation-field-visible').checked,
                 order: idx,
-            });
+            };
+            // CheckboxGroup fields carry the single checked option in options_config.
+            const optionSelect = row.querySelector('.participation-field-option');
+            if (optionSelect) field.options_config = { selected: optionSelect.value || null };
+            fields.push(field);
         });
         return fields;
     }
@@ -1999,7 +2019,11 @@ const Admin = (() => {
             bodyText: document.getElementById('participation-template-body-text').value,
             agreedAcceptedEntity: document.getElementById('participation-template-entity').value.trim(),
             // Fill each field with a placeholder value so the layout is visible in the preview.
-            fields: collectParticipationFields().map((f) => ({ ...f, value: `«${f.key}»` })),
+            // A CheckboxGroup field renders its single checked option (checkbox=true) instead.
+            fields: collectParticipationFields().map((f) => {
+                const sel = f.options_config && f.options_config.selected;
+                return sel ? { ...f, value: sel, checkbox: true } : { ...f, value: `«${f.key}»` };
+            }),
         };
         statusEl.textContent = 'Rendering preview…';
         try {
