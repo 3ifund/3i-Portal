@@ -148,6 +148,60 @@ async def get_prm_position_accounts(position_id: int) -> list[dict]:
     return response.json()
 
 
+async def get_conversion_aggregates() -> list[dict]:
+    logger.info("GET /api/conversions/aggregates")
+    response = await _request_with_retry("GET", "/api/conversions/aggregates")
+    logger.info("  → %s (%d bytes)", response.status_code, len(response.content))
+    response.raise_for_status()
+    return response.json()
+
+
+async def get_conversion_lock(company: str) -> dict:
+    logger.info("GET /api/conversions/lock/%s", company)
+    response = await _request_with_retry("GET", f"/api/conversions/lock/{company}")
+    response.raise_for_status()
+    return response.json()
+
+
+async def acquire_conversion_lock(payload: dict) -> tuple[int, dict]:
+    client = _get_client()
+    logger.info("POST /api/conversions/lock company=%s owner=%s", payload.get("company"), payload.get("owner"))
+    response = await client.post("/api/conversions/lock", json=payload)
+    logger.info("  → %s", response.status_code)
+    try:
+        body = response.json()
+    except Exception:
+        body = {"message": response.text}
+    return response.status_code, body
+
+
+async def release_conversion_lock(payload: dict) -> tuple[int, dict]:
+    client = _get_client()
+    logger.info("POST /api/conversions/unlock company=%s owner=%s", payload.get("company"), payload.get("owner"))
+    response = await client.post("/api/conversions/unlock", json=payload)
+    logger.info("  → %s", response.status_code)
+    try:
+        body = response.json()
+    except Exception:
+        body = {"message": response.text}
+    return response.status_code, body
+
+
+async def convert_basic(payload: dict) -> tuple[int, dict]:
+    client = _get_client()
+    logger.info(
+        "POST /api/conversions/convert company=%s price=%s amount=%s owner=%s",
+        payload.get("company"), payload.get("price"), payload.get("amount"), payload.get("owner"),
+    )
+    response = await client.post("/api/conversions/convert", json=payload)
+    logger.info("  → %s", response.status_code)
+    try:
+        body = response.json()
+    except Exception:
+        body = {"message": response.text}
+    return response.status_code, body
+
+
 async def post_prm_synthetic_trade(payload: dict) -> tuple[int, dict]:
     """
     POST /api/prm/positions/synthetic-trade — execute a manual synthetic trade.
