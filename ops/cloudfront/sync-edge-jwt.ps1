@@ -33,6 +33,19 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
+function Invoke-Aws {
+    param([Parameter(Mandatory)] [string[]] $Arguments)
+    $prev = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+        $out = & aws @Arguments 2>$null
+        return [pscustomobject]@{ Code = $LASTEXITCODE; Output = (@($out) -join "`n") }
+    }
+    finally {
+        $ErrorActionPreference = $prev
+    }
+}
+
 $Functions = @(
     [pscustomobject]@{ Name = 'validate-data-management-jwt';         Template = Join-Path $PSScriptRoot 'validate-data-management-jwt.template.js' }
     [pscustomobject]@{ Name = 'validate-position-risk-management-jwt'; Template = Join-Path $PSScriptRoot 'validate-position-risk-management-jwt.template.js' }
@@ -54,11 +67,11 @@ function Get-Fingerprint($secret) {
 }
 
 function Get-CanonicalSecret {
-    $v = & aws ssm get-parameter --name $Param --with-decryption --region $Region --query 'Parameter.Value' --output text 2>$null
-    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($v)) {
+    $r = Invoke-Aws -Arguments @('ssm', 'get-parameter', '--name', $Param, '--with-decryption', '--region', $Region, '--query', 'Parameter.Value', '--output', 'text')
+    if ($r.Code -ne 0 -or [string]::IsNullOrWhiteSpace($r.Output)) {
         throw "Could not read SSM parameter '$Param' in $Region. Confirm it exists and the role has ssm:GetParameter + kms:Decrypt."
     }
-    return $v.Trim()
+    return $r.Output.Trim()
 }
 
 function Get-BackendSecret {
@@ -72,8 +85,8 @@ function Get-BackendSecret {
 function Get-LiveFunctionCode([string] $name) {
     $tmp = [System.IO.Path]::GetTempFileName()
     try {
-        & aws cloudfront get-function --name $name --stage LIVE --region $Region $tmp 2>$null | Out-Null
-        if ($LASTEXITCODE -ne 0) { return $null }
+        $r = Invoke-Aws -Arguments @('cloudfront', 'get-function', '--name', $name, '--stage', 'LIVE', '--region', $Region, $tmp)
+        if ($r.Code -ne 0) { return $null }
         return (Get-Content $tmp -Raw)
     }
     finally {
@@ -135,17 +148,20 @@ function Invoke-Apply {
         try {
             [System.IO.File]::WriteAllText($tmp, $rendered, (New-Object System.Text.UTF8Encoding($false)))
 
-            $desc = & aws cloudfront describe-function --name $f.Name --stage DEVELOPMENT --region $Region | ConvertFrom-Json
+            $descR = Invoke-Aws -Arguments @('cloudfront', 'describe-function', '--name', $f.Name, '--stage', 'DEVELOPMENT', '--region', $Region)
+            if ($descR.Code -ne 0) { throw "describe-function failed for $($f.Name) (need cloudfront:DescribeFunction)." }
+            $desc = $descR.Output | ConvertFrom-Json
             $etag = $desc.ETag
             $comment = $desc.FunctionSummary.FunctionConfig.Comment
             $runtime = $desc.FunctionSummary.FunctionConfig.Runtime
 
-            & aws cloudfront update-function --name $f.Name --if-match $etag --function-code "fileb://$tmp" --function-config "Comment=$comment,Runtime=$runtime" --region $Region | Out-Null
-            if ($LASTEXITCODE -ne 0) { throw "update-function failed for $($f.Name)" }
+            $upR = Invoke-Aws -Arguments @('cloudfront', 'update-function', '--name', $f.Name, '--if-match', $etag, '--function-code', "fileb://$tmp", '--function-config', "Comment=$comment,Runtime=$runtime", '--region', $Region)
+            if ($upR.Code -ne 0) { throw "update-function failed for $($f.Name)" }
 
-            $desc2 = & aws cloudfront describe-function --name $f.Name --stage DEVELOPMENT --region $Region | ConvertFrom-Json
-            & aws cloudfront publish-function --name $f.Name --if-match $desc2.ETag --region $Region | Out-Null
-            if ($LASTEXITCODE -ne 0) { throw "publish-function failed for $($f.Name)" }
+            $desc2R = Invoke-Aws -Arguments @('cloudfront', 'describe-function', '--name', $f.Name, '--stage', 'DEVELOPMENT', '--region', $Region)
+            $desc2 = $desc2R.Output | ConvertFrom-Json
+            $pubR = Invoke-Aws -Arguments @('cloudfront', 'publish-function', '--name', $f.Name, '--if-match', $desc2.ETag, '--region', $Region)
+            if ($pubR.Code -ne 0) { throw "publish-function failed for $($f.Name)" }
 
             Write-Host "Published $($f.Name)"
         }
@@ -156,8 +172,14 @@ function Invoke-Apply {
     Write-Host 'Done. Run -Mode Check to confirm alignment.'
 }
 
-switch ($Mode) {
-    'Check' { Invoke-Check }
-    'Export' { Invoke-Export }
-    'Apply' { Invoke-Apply }
+try {
+    switch ($Mode) {
+        'Check' { Invoke-Check }
+        'Export' { Invoke-Export }
+        'Apply' { Invoke-Apply }
+    }
+}
+catch {
+    Write-Host "ERROR: $($_.Exception.Message)" -ForegroundColor Red
+    exit 1
 }
