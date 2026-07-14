@@ -37,6 +37,9 @@ const Auth = (() => {
         sessionStorage.setItem('company_name', data.company_name || '');
         sessionStorage.setItem('user_id', data.user_id || '');
         sessionStorage.setItem('must_change_password', data.must_change_password ? 'true' : 'false');
+        if (data.refresh_token) {
+            localStorage.setItem('refresh_token', data.refresh_token);
+        }
     }
 
     /**
@@ -48,6 +51,7 @@ const Auth = (() => {
         sessionStorage.removeItem('company_name');
         sessionStorage.removeItem('user_id');
         sessionStorage.removeItem('must_change_password');
+        localStorage.removeItem('refresh_token');
         window.location.href = 'index.html';
     }
 
@@ -114,15 +118,23 @@ const Auth = (() => {
     }
 
     // Auto-initialize based on current page
-    document.addEventListener('DOMContentLoaded', () => {
+    document.addEventListener('DOMContentLoaded', async () => {
         const isLoginPage = !!document.getElementById('login-form');
 
         if (isLoginPage) {
             initLoginForm();
-        } else {
-            if (!requireAuth()) return;
-            initNavbar();
+            return;
         }
+
+        if (!sessionStorage.getItem('access_token')) {
+            const ok = await API.refreshAccessToken();
+            if (!ok) {
+                window.location.href = 'index.html';
+                return;
+            }
+        }
+        API.startProactiveRefresh();
+        initNavbar();
     });
 
     return {

@@ -31,7 +31,13 @@ const API = (() => {
      */
     async function handleResponse(response) {
         if (response.status === 401) {
+            if (!handleResponse._retried && await refreshAccessToken()) {
+                handleResponse._retried = true;
+                window.location.reload();
+                return null;
+            }
             sessionStorage.removeItem('access_token');
+            localStorage.removeItem('refresh_token');
             window.location.href = 'index.html';
             return null;
         }
@@ -601,8 +607,53 @@ const API = (() => {
         return response.blob();
     }
 
+    function decodeExpMs(token) {
+        try {
+            return (JSON.parse(atob(token.split('.')[1])).exp || 0) * 1000;
+        } catch (e) {
+            return 0;
+        }
+    }
+
+    let refreshTimer = null;
+
+    async function refreshAccessToken() {
+        const rt = localStorage.getItem('refresh_token');
+        if (!rt) return false;
+        try {
+            const resp = await fetch(`${BASE_URL}/auth/refresh`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ refresh_token: rt }),
+            });
+            if (!resp.ok) {
+                if (resp.status === 401) localStorage.removeItem('refresh_token');
+                return false;
+            }
+            const data = await resp.json();
+            sessionStorage.setItem('access_token', data.access_token);
+            if (data.refresh_token) localStorage.setItem('refresh_token', data.refresh_token);
+            return true;
+        } catch (e) {
+            return false;
+        }
+    }
+
+    function startProactiveRefresh() {
+        if (refreshTimer) clearTimeout(refreshTimer);
+        const token = getToken();
+        if (!token) return;
+        const delay = Math.max(30000, decodeExpMs(token) - Date.now() - 120000);
+        refreshTimer = setTimeout(async () => {
+            await refreshAccessToken();
+            startProactiveRefresh();
+        }, delay);
+    }
+
     return {
         login,
+        refreshAccessToken,
+        startProactiveRefresh,
         getMe,
         getElocs,
         getEloc,
