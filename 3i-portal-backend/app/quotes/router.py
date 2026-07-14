@@ -48,13 +48,14 @@ async def _connect_and_subscribe(ws_url: str, symbol: str):
 
 
 @router.websocket("/quotes")
-async def websocket_quotes(websocket: WebSocket, token: str = ""):
+async def websocket_quotes(websocket: WebSocket, token: str = "", symbol: str = ""):
     """
     Proxy WebSocket for real-time quote streaming.
-    Frontend connects with ?token=JWT, backend validates and relays
-    to the on-prem quote feed for the user's company symbol.
-    If the on-prem connection drops, the backend reconnects automatically
-    with exponential backoff while keeping the frontend WS alive.
+    Frontend connects with ?token=JWT (and optionally ?symbol=TICKER), backend
+    validates and relays to the on-prem quote feed. Company users get their own
+    company's symbol from the JWT; admins (e.g. the CONV view) may request any
+    symbol via ?symbol=. If the on-prem connection drops, the backend reconnects
+    automatically with exponential backoff while keeping the frontend WS alive.
     """
     client_host = websocket.client.host if websocket.client else "unknown"
     logger.info("WS /quotes connection from %s", client_host)
@@ -74,13 +75,20 @@ async def websocket_quotes(websocket: WebSocket, token: str = ""):
         await websocket.close(code=4001, reason="Invalid or expired token")
         return
 
-    symbol = payload.get("company_symbol")
+    requested = (symbol or "").strip().upper()
+    role = payload.get("role")
+    jwt_symbol = payload.get("company_symbol")
+    # Admins may stream any symbol (the CONV view picks per-company); everyone else
+    # is pinned to their own company's symbol from the JWT.
+    symbol = requested if (requested and role == "admin") else jwt_symbol
     if not symbol:
-        logger.warning("WS /quotes: no company_symbol in JWT for user=%s", payload.get("user_id"))
-        await websocket.close(code=4002, reason="No company assigned")
+        logger.warning("WS /quotes: no symbol resolved (requested=%s, role=%s, jwt_symbol=%s) for user=%s",
+                       requested, role, jwt_symbol, payload.get("user_id"))
+        await websocket.close(code=4002, reason="No symbol")
         return
 
-    logger.info("WS /quotes: company_symbol=%s from JWT", symbol)
+    logger.info("WS /quotes: streaming symbol=%s (requested=%s, role=%s, user=%s)",
+                symbol, requested or "none", role, payload.get("user_id"))
 
     await websocket.accept()
     logger.info("WS /quotes: connection accepted for symbol=%s", symbol)
