@@ -163,6 +163,26 @@ async def get_conversion_lock(company: str) -> dict:
     return response.json()
 
 
+async def get_conversion_rule144() -> list[dict]:
+    logger.info("GET /api/conversions/rule144")
+    response = await _request_with_retry("GET", "/api/conversions/rule144")
+    logger.info("  → %s (%d bytes)", response.status_code, len(response.content))
+    response.raise_for_status()
+    return response.json()
+
+
+async def set_conversion_allow144(payload: dict) -> tuple[int, dict]:
+    client = _get_client()
+    logger.info("POST /api/conversions/rule144/allow company=%s allow=%s", payload.get("company"), payload.get("allow"))
+    response = await client.post("/api/conversions/rule144/allow", json=payload)
+    logger.info("  → %s", response.status_code)
+    try:
+        body = response.json()
+    except Exception:
+        body = {"message": response.text}
+    return response.status_code, body
+
+
 async def acquire_conversion_lock(payload: dict) -> tuple[int, dict]:
     client = _get_client()
     logger.info("POST /api/conversions/lock company=%s owner=%s", payload.get("company"), payload.get("owner"))
