@@ -4,11 +4,13 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException, status
 import bcrypt
 
-from app.auth.jwt import create_access_token
+from app.auth.jwt import create_access_token, create_refresh_token, decode_refresh_token
 from app.auth.models import (
     ChangePasswordRequest,
     LoginRequest,
     LoginResponse,
+    RefreshRequest,
+    RefreshResponse,
     UserInfo,
 )
 from app.auth.dependencies import get_current_user
@@ -70,6 +72,7 @@ async def login(request: LoginRequest):
             "company_symbol": db_user.get("company_symbol"),
         }
         access_token = create_access_token(token_data)
+        refresh_token = create_refresh_token(token_data)
 
         logger.info(
             "Login OK (portal_users): user_id=%s role=%s company=%s",
@@ -78,6 +81,7 @@ async def login(request: LoginRequest):
 
         return LoginResponse(
             access_token=access_token,
+            refresh_token=refresh_token,
             role=db_user["role"],
             company_name=db_user.get("company_name"),
             company_symbol=db_user.get("company_symbol"),
@@ -123,6 +127,7 @@ async def login(request: LoginRequest):
         "company_symbol": company["symbol"],
     }
     access_token = create_access_token(token_data)
+    refresh_token = create_refresh_token(token_data)
 
     logger.info(
         "Login OK (test convention): user_id=%s symbol=%s company_id=%s",
@@ -131,12 +136,61 @@ async def login(request: LoginRequest):
 
     return LoginResponse(
         access_token=access_token,
+        refresh_token=refresh_token,
         role="user",
         company_name=company["name"],
         company_symbol=company["symbol"],
         user_id=user_id,
         must_change_password=False,
     )
+
+
+@router.post("/refresh", response_model=RefreshResponse)
+async def refresh(request: RefreshRequest):
+    try:
+        payload = decode_refresh_token(request.refresh_token)
+    except Exception as exc:
+        logger.warning("Refresh FAILED: %s", exc)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired refresh token",
+        )
+
+    user_id = payload.get("user_id", "")
+    db_user = await users_repo.get_user_by_id(user_id)
+    if db_user:
+        if not db_user["is_active"]:
+            logger.warning("Refresh denied for user_id=%s (account disabled)", user_id)
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Account is disabled",
+            )
+        token_data = {
+            "user_id": user_id,
+            "role": db_user["role"],
+            "company_id": str(db_user["company_id"]) if db_user["company_id"] else None,
+            "company_name": db_user.get("company_name"),
+            "company_symbol": db_user.get("company_symbol"),
+        }
+    else:
+        if not settings.allow_test_login:
+            logger.warning("Refresh denied for user_id=%s (not in portal_users)", user_id)
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Session cannot be refreshed",
+            )
+        token_data = {
+            "user_id": user_id,
+            "role": payload.get("role", "user"),
+            "company_id": payload.get("company_id"),
+            "company_name": payload.get("company_name"),
+            "company_symbol": payload.get("company_symbol"),
+        }
+
+    access_token = create_access_token(token_data)
+    new_refresh = create_refresh_token(token_data)
+    logger.info("Refresh OK for user_id=%s", user_id)
+    return RefreshResponse(access_token=access_token, refresh_token=new_refresh)
 
 
 @router.post("/change-password")

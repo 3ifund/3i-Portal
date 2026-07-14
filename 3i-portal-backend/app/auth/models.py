@@ -9,12 +9,23 @@ class LoginRequest(BaseModel):
 
 class LoginResponse(BaseModel):
     access_token: str
+    refresh_token: str
     token_type: str = "bearer"
     role: str
     company_name: str | None = None
     company_symbol: str | None = None
     user_id: str
     must_change_password: bool = False
+
+
+class RefreshRequest(BaseModel):
+    refresh_token: str
+
+
+class RefreshResponse(BaseModel):
+    access_token: str
+    refresh_token: str
+    token_type: str = "bearer"
 
 
 class ChangePasswordRequest(BaseModel):

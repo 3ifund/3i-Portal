@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     jwt_secret: str = "CHANGE-ME-IN-PRODUCTION"
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 480
+    refresh_expire_minutes: int = 43200
 
     onprem_base_url: str = "http://localhost:9000"
     onprem_timeout_seconds: int = 30
