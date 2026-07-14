@@ -18,6 +18,7 @@ from app.elocs.router import router as elocs_router
 from app.internal_elocs.router import router as internal_elocs_router
 from app.prm.router import router as prm_router
 from app.conversions.router import router as conversions_router
+from app.conversions.ws_router import ws_router as conversions_ws_router
 from app.admin.router import router as admin_router
 from app.quotes.router import router as quotes_router
 from app.workflows.router import router as workflows_router, connect_dealterms_ws
@@ -128,6 +129,7 @@ app.include_router(pn_admin_router, prefix="/admin", tags=["admin-templates"])
 app.include_router(participation_admin_router, prefix="/admin", tags=["admin-participation-templates"])
 app.include_router(pn_router, prefix="/purchase-notices", tags=["purchase-notices"])
 app.include_router(quotes_router, prefix="/ws", tags=["quotes"])
+app.include_router(conversions_ws_router, prefix="/ws", tags=["conversions-ws"])
 app.include_router(workflows_router, prefix="/ws", tags=["workflows"])
 app.include_router(approval_router, tags=["approval"])
 app.include_router(approval_admin_router, prefix="/admin", tags=["admin-approval"])
