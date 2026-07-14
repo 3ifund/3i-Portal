@@ -1,12 +1,3 @@
-"""
-3i Fund Portal — MongoDB Repository for Participation-ELOC Templates
-
-Collections (in portal_3i):
-  - participation_templates          — named, company-specific templates
-  - participation_template_mappings  — (company_id, pricing_period_type, document_type) -> template_id
-
-Isolated from the legacy purchase_notice* collections. Extensive logging throughout.
-"""
 
 import logging
 import uuid
@@ -19,12 +10,8 @@ TEMPLATES = "participation_templates"
 MAPPINGS = "participation_template_mappings"
 
 
-# ---------------------------------------------------------------------------
-# Indexes
-# ---------------------------------------------------------------------------
 
 async def ensure_indexes() -> None:
-    """Create unique indexes for templates + mappings (idempotent). Called at startup."""
     logger.info("ensure_indexes — creating participation template/mapping unique indexes")
     db = get_db()
     await db[TEMPLATES].create_index(
@@ -38,9 +25,6 @@ async def ensure_indexes() -> None:
     logger.info("ensure_indexes — participation template/mapping indexes ensured")
 
 
-# ---------------------------------------------------------------------------
-# Templates
-# ---------------------------------------------------------------------------
 
 async def create_template(name: str, company_id: int, document_type: str,
                           body_text: str, agreed_accepted_entity: str,
@@ -136,9 +120,6 @@ async def name_exists(company_id: int, document_type: str, name: str,
     return exists
 
 
-# ---------------------------------------------------------------------------
-# Mappings
-# ---------------------------------------------------------------------------
 
 async def upsert_mapping(company_id: int, pricing_period_type: str,
                          document_type: str, template_id: str) -> dict | None:
@@ -204,7 +185,6 @@ async def delete_mapping(company_id: int, pricing_period_type: str,
 
 async def resolve(company_id: int, pricing_period_type: str,
                   document_type: str) -> dict | None:
-    """Resolve (company, pricing_period, document_type) -> the mapped template document."""
     logger.info("resolve — company_id=%s, pricing_period_type=%s, document_type=%s",
                 company_id, pricing_period_type, document_type)
     mapping = await get_mapping(company_id, pricing_period_type, document_type)

@@ -1,7 +1,3 @@
-"""
-3i Fund Portal — Auth Dependencies
-FastAPI dependency injection for authenticated and admin-only routes.
-"""
 
 import logging
 
@@ -18,7 +14,6 @@ _bearer_scheme = HTTPBearer()
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(_bearer_scheme),
 ) -> UserInfo:
-    """Extract and validate the current user from the JWT token."""
     try:
         payload = decode_access_token(credentials.credentials)
     except Exception as exc:
@@ -40,7 +35,6 @@ async def get_current_user(
 
 
 async def require_admin(user: UserInfo = Depends(get_current_user)) -> UserInfo:
-    """Ensure the current user has admin role."""
     if user.role != "admin":
         logger.warning("Admin access denied for user_id=%s (role=%s)", user.user_id, user.role)
         raise HTTPException(

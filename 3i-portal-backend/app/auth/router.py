@@ -1,11 +1,3 @@
-"""
-3i Fund Portal — Auth Router
-Handles login, user info, and password management.
-
-Dual-path login:
-1. Check portal_users table first (real user accounts)
-2. Fall back to test convention: user_id = {symbol}123 with shared password
-"""
 
 import logging
 
@@ -27,16 +19,10 @@ from app.users import repository as users_repo
 logger = logging.getLogger("portal.auth")
 router = APIRouter()
 
-# Universal password hash for test convention (test123)
 _UNIVERSAL_HASH = b"$2b$12$2uFjOIipv9ahAYvCatquqOT.bSB6E5Vj5tKbnflR4guf9gRvO1.wS"
 
 
 def _extract_symbol(user_id: str) -> str | None:
-    """
-    Extract ticker symbol from user_id (test convention).
-    Convention: everything before '123' is the symbol.
-    Returns uppercase symbol or None if pattern doesn't match.
-    """
     user_id_lower = user_id.strip().lower()
     if not user_id_lower.endswith("123"):
         return None
@@ -48,11 +34,9 @@ def _extract_symbol(user_id: str) -> str | None:
 
 @router.post("/login", response_model=LoginResponse)
 async def login(request: LoginRequest):
-    """Authenticate user and return JWT token."""
     user_id = request.user_id.strip().lower()
     logger.info("Login attempt for user_id=%s", user_id)
 
-    # --- Path 1: Check portal_users table ---
     db_user = await users_repo.get_user_by_id(user_id)
     if db_user:
         logger.info("Login: found user in portal_users: %s (role=%s)", user_id, db_user["role"])
@@ -101,7 +85,6 @@ async def login(request: LoginRequest):
             must_change_password=db_user["must_change_password"],
         )
 
-    # --- Path 2: Test convention fallback ({symbol}123) ---
     if not settings.allow_test_login:
         logger.warning("Login FAILED for user_id=%s (not in portal_users, test login disabled)", user_id)
         raise HTTPException(
@@ -161,7 +144,6 @@ async def change_password(
     request: ChangePasswordRequest,
     user: UserInfo = Depends(get_current_user),
 ):
-    """Change the current user's password."""
     logger.info("Password change attempt for user_id=%s", user.user_id)
 
     db_user = await users_repo.get_user_by_id(user.user_id)
@@ -195,6 +177,5 @@ async def change_password(
 
 @router.get("/me", response_model=UserInfo)
 async def me(user: UserInfo = Depends(get_current_user)):
-    """Return current authenticated user info."""
     logger.debug("GET /me user_id=%s", user.user_id)
     return user

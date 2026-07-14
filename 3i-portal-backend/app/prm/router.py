@@ -1,14 +1,3 @@
-"""
-3i Fund Portal — PRM (Positions & Traders) Router.
-
-Admin-only REST endpoints that back the position_risk_management web app's
-P&T view (the Synthetic Trade mirror). Thin proxies over the DTS `app.onprem`
-client — DTS owns the connection to PRM's Positions & Traders PostgreSQL DB.
-
-Slice 1 is READ-ONLY (companies + firm common-stock positions). The atomic
-trade write operations arrive in a later slice. Mounted at /api/internal/prm
-so CloudFront forwards it (only /api/* and /ws/* reach the origin).
-"""
 
 import logging
 import time
@@ -61,7 +50,7 @@ class TransferBody(BaseModel):
 
 class DerivativeTradeBody(BaseModel):
     """Legacy BUY/SELL for Preferred/Warrant/Convertible. Trader stamped server-side."""
-    instrument_type: str  # "Preferred" | "Warrant" | "Convertible"
+    instrument_type: str
     company_id: int
     symbol: str
     position_id: int
@@ -72,10 +61,6 @@ class DerivativeTradeBody(BaseModel):
 
 @router.get("/companies")
 async def list_companies(admin: UserInfo = Depends(require_admin)):
-    """
-    GET /api/internal/prm/companies — every company (for the Synthetic Trade
-    company picker). Proxies DTS GET /api/companies.
-    """
     t_start = time.monotonic()
     logger.info("GET /internal/prm/companies by user=%s — START", admin.user_id)
     try:
@@ -97,10 +82,6 @@ async def list_common_positions(
     company_id: int = Query(..., description="PRM companyid"),
     admin: UserInfo = Depends(require_admin),
 ):
-    """
-    GET /api/internal/prm/positions/common?company_id= — firm common-stock
-    positions for a company. Proxies DTS GET /api/prm/positions/common.
-    """
     t_start = time.monotonic()
     logger.info(
         "GET /internal/prm/positions/common company_id=%s by user=%s — START",
@@ -131,10 +112,6 @@ async def list_position_accounts(
     position_id: int,
     admin: UserInfo = Depends(require_admin),
 ):
-    """
-    GET /api/internal/prm/positions/{position_id}/accounts — account/broker
-    allocations for a position (Synthetic Trade pickers). Proxies DTS.
-    """
     t_start = time.monotonic()
     logger.info("GET /internal/prm/positions/%s/accounts by user=%s — START", position_id, admin.user_id)
     if position_id <= 0:
@@ -156,12 +133,6 @@ async def execute_synthetic_trade(
     body: SyntheticTradeBody,
     admin: UserInfo = Depends(require_admin),
 ):
-    """
-    POST /api/internal/prm/synthetic-trade — execute a manual Unrestricted
-    synthetic trade. WRITE. The trader identity is stamped from the
-    authenticated admin (never the client). Proxies DTS
-    POST /api/prm/positions/synthetic-trade.
-    """
     t_start = time.monotonic()
     side = "BUY" if body.is_buy else "SELL"
     logger.info(
@@ -183,7 +154,6 @@ async def execute_synthetic_trade(
         "accountId": body.account_id,
         "brokerId": body.broker_id,
         "source": body.source or "SYNTHETIC",
-        # Server-stamped identity for the positiontransaction audit trail.
         "traderIdentifier": admin.user_id,
     }
 
@@ -201,8 +171,6 @@ async def execute_synthetic_trade(
         )
         return result
 
-    # Surface a DTS business rejection (e.g. oversell) as a 400 with its message;
-    # anything else is an upstream failure.
     msg = (result or {}).get("message") or "Synthetic trade failed"
     if status_code == 400:
         logger.warning("POST /internal/prm/synthetic-trade — REJECTED (%.1fms): %s", t_total, msg)
@@ -212,7 +180,6 @@ async def execute_synthetic_trade(
 
 
 def _surface(label: str, status_code: int, result: dict, t_total: float):
-    """Map a DTS (status, body) write result to a FastAPI response/exception."""
     if status_code == 200:
         logger.info("%s — DONE in %.1fms (%s, txnId=%s)", label, t_total, result.get("message"), result.get("transactionId"))
         return result
@@ -229,10 +196,6 @@ async def execute_restricted_trade(
     body: RestrictedTradeBody,
     admin: UserInfo = Depends(require_admin),
 ):
-    """
-    POST /api/internal/prm/restricted-trade — BUY/SELL on the restricted pool.
-    WRITE. Proxies DTS POST /api/prm/positions/restricted-trade.
-    """
     t_start = time.monotonic()
     act = "ADD" if body.is_buy else "REMOVE"
     logger.info(
@@ -263,10 +226,6 @@ async def execute_transfer(
     body: TransferBody,
     admin: UserInfo = Depends(require_admin),
 ):
-    """
-    POST /api/internal/prm/transfer — move shares restricted ↔ unrestricted.
-    WRITE. Proxies DTS POST /api/prm/positions/transfer.
-    """
     t_start = time.monotonic()
     direction = "R->U" if body.is_restricted_to_unrestricted else "U->R"
     logger.info(
@@ -327,10 +286,6 @@ async def list_convertible(company_id: int = Query(...), admin: UserInfo = Depen
 
 @router.post("/derivative-trade")
 async def execute_derivative_trade(body: DerivativeTradeBody, admin: UserInfo = Depends(require_admin)):
-    """
-    POST /api/internal/prm/derivative-trade — legacy BUY/SELL for Preferred/
-    Warrant/Convertible. WRITE. Proxies DTS POST /api/prm/positions/derivative-trade.
-    """
     t_start = time.monotonic()
     side = "BUY" if body.is_buy else "SELL"
     logger.info("POST /internal/prm/derivative-trade by user=%s — %s %s %s %s positionId=%s @ %s — START",

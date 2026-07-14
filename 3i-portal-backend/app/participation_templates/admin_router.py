@@ -1,12 +1,3 @@
-"""
-3i Fund Portal — Admin Participation-ELOC Template Endpoints
-
-Named, company-specific Purchase Notice / Purchase Confirmation templates plus
-(company, pricing_period, document_type) -> template mappings, for the new
-participation-ELOC workflow. All endpoints require admin role.
-
-Isolated from the legacy purchase-notice-template endpoints. Extensive logging throughout.
-"""
 
 import logging
 
@@ -35,13 +26,9 @@ def _validate_document_type(document_type: str) -> None:
         )
 
 
-# ---------------------------------------------------------------------------
-# Field catalog (proxied from DealTermsServer)
-# ---------------------------------------------------------------------------
 
 @router.get("/participation-field-catalog/{document_type}")
 async def get_field_catalog(document_type: str, admin: UserInfo = Depends(require_admin)):
-    """Proxy the DealTermsServer field catalog for the editor's field dropdown."""
     logger.info("GET /participation-field-catalog/%s — admin=%s", document_type, admin.user_id)
     _validate_document_type(document_type)
     try:
@@ -56,7 +43,6 @@ async def get_field_catalog(document_type: str, admin: UserInfo = Depends(requir
 
 @router.post("/participation-pdf/preview")
 async def preview_participation_pdf(payload: dict, admin: UserInfo = Depends(require_admin)):
-    """Proxy the DealTermsServer PDF preview renderer; returns the rendered PDF bytes."""
     logger.info("POST /participation-pdf/preview — admin=%s, docType=%s, fields=%d",
                 admin.user_id, payload.get("documentType"), len(payload.get("fields") or []))
     try:
@@ -71,9 +57,6 @@ async def preview_participation_pdf(payload: dict, admin: UserInfo = Depends(req
     return Response(content=content, media_type=content_type or "application/pdf")
 
 
-# ---------------------------------------------------------------------------
-# Templates
-# ---------------------------------------------------------------------------
 
 @router.get("/participation-templates")
 async def list_templates(
@@ -81,7 +64,6 @@ async def list_templates(
     document_type: str | None = Query(None),
     admin: UserInfo = Depends(require_admin),
 ):
-    """List participation templates, optionally filtered by company and/or document type."""
     logger.info("GET /participation-templates — admin=%s, company_id=%s, document_type=%s",
                 admin.user_id, company_id, document_type)
     if document_type is not None:
@@ -91,7 +73,6 @@ async def list_templates(
     return templates
 
 
-# NOTE: declared BEFORE /{template_id} so the literal path wins the route match.
 @router.get("/participation-templates/resolve")
 async def resolve_template(
     company_id: int = Query(...),
@@ -99,7 +80,6 @@ async def resolve_template(
     document_type: str = Query(...),
     admin: UserInfo = Depends(require_admin),
 ):
-    """Resolve (company, pricing period, document type) -> the mapped template."""
     logger.info("GET /participation-templates/resolve — admin=%s, company_id=%s, pricing_period_type=%s, document_type=%s",
                 admin.user_id, company_id, pricing_period_type, document_type)
     _validate_document_type(document_type)
@@ -194,9 +174,6 @@ async def delete_template(template_id: str, admin: UserInfo = Depends(require_ad
     return {"deleted": True, "template_id": template_id}
 
 
-# ---------------------------------------------------------------------------
-# Mappings
-# ---------------------------------------------------------------------------
 
 @router.get("/participation-template-mappings")
 async def list_mappings(

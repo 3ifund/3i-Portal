@@ -1,7 +1,3 @@
-"""
-3i Fund Portal — PostgreSQL Connection (DealTerms DB)
-Uses asyncpg for async access to the on-prem DealTerms database.
-"""
 
 import logging
 
@@ -14,7 +10,6 @@ _pool: asyncpg.Pool | None = None
 
 
 async def connect_postgres():
-    """Create the asyncpg connection pool on app startup."""
     global _pool
     logger.info("Connecting to PostgreSQL at %s:%s/%s (user=%s)",
                 settings.pg_host, settings.pg_port, settings.pg_database, settings.pg_user)
@@ -31,7 +26,6 @@ async def connect_postgres():
 
 
 async def close_postgres():
-    """Close the pool on app shutdown."""
     global _pool
     if _pool:
         await _pool.close()
@@ -39,7 +33,6 @@ async def close_postgres():
 
 
 def get_pool() -> asyncpg.Pool:
-    """Return the connection pool. Call after connect_postgres()."""
     if _pool is None:
         raise RuntimeError("PostgreSQL not connected. Call connect_postgres() first.")
     return _pool

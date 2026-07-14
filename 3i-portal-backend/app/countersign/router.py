@@ -1,10 +1,3 @@
-"""
-3i Fund Portal — Purchase Confirmation Countersign via SMS
-Token-based standalone countersign page and response endpoint.
-Each company signatory with a phone number gets a unique token link via SMS.
-First signatory to countersign wins; all other tokens are superseded.
-On countersign: stores signature data in MongoDB, then DTS advances the ELOC.
-"""
 
 import logging
 from datetime import datetime, timezone
@@ -24,10 +17,8 @@ logger = logging.getLogger("portal.countersign")
 router = APIRouter()
 
 
-# ---- Helper: format currency ----
 
 def _fmt_currency(value):
-    """Format a number as $X,XXX.XX or return empty string."""
     if value is None:
         return ""
     try:
@@ -37,7 +28,6 @@ def _fmt_currency(value):
 
 
 def _fmt_shares(value):
-    """Format shares with comma separator."""
     if value is None:
         return ""
     try:
@@ -46,14 +36,11 @@ def _fmt_shares(value):
         return str(value)
 
 
-# ---- Standalone Countersign Page ----
 
 @router.get("/countersign/{token}", response_class=HTMLResponse)
 async def countersign_page(token: str):
-    """Serve the standalone countersign page for SMS-based Purchase Confirmation signing."""
     logger.info("Countersign page accessed: token=%s", token[:12] + "...")
 
-    # 1. Look up and validate token
     token_data = await get_countersign_token(token)
     if not token_data:
         logger.warning("Countersign token not found: %s", token[:12] + "...")
@@ -74,7 +61,6 @@ async def countersign_page(token: str):
                 )
         return _done_page(f"Already {status.title()}", f"This Purchase Confirmation has already been {status}.")
 
-    # Check if another signatory in the group already responded
     group_responded = await check_group_responded(group_id)
     if group_responded:
         logger.info("Group %s already responded by %s", group_id, group_responded["signatory_name"])
@@ -87,7 +73,6 @@ async def countersign_page(token: str):
         logger.warning("Countersign token expired: %s", token[:12] + "...")
         return _error_page("Link Expired", "This countersign link has expired.")
 
-    # 2. Load ELOC data from MongoDB
     eloc_id = token_data["eloc_id"]
     company_name = token_data["company_name"]
     signatory_id = token_data["signatory_id"]
@@ -100,7 +85,6 @@ async def countersign_page(token: str):
         logger.error("ELOC data not found for countersign: eloc_id=%s", eloc_id)
         return _error_page("Data Not Found", "The Purchase Confirmation data could not be loaded.")
 
-    # 3. Load confirmation template
     from app.purchase_notices import mongo_repository as mongo_repo
     period_type = eloc_data.get("period_type", "")
     company_id = eloc_data.get("company_id")
@@ -108,7 +92,6 @@ async def countersign_page(token: str):
     body_text = template.get("body_text", "") if template else ""
     agreed_entity = template.get("agreed_accepted_entity", company_name) if template else company_name
 
-    # 3b. Substitute placeholder tags in body_text with ELOC values
     if body_text and "{{" in body_text:
         shares_val = eloc_data.get("shares", 0)
         vwap_price_val = eloc_data.get("vwap_purchase_price")
@@ -137,7 +120,6 @@ async def countersign_page(token: str):
         logger.info("Countersign page %s: no placeholder tags in body_text (length=%d)",
                      eloc_id, len(body_text) if body_text else 0)
 
-    # 4. Load signatory details from PostgreSQL
     from app.purchase_notices.pg_repository import get_company_signatories
     signatories = await get_company_signatories(company_id) if company_id else []
     signatory = next((s for s in signatories if s["id"] == signatory_id), None)
@@ -146,7 +128,6 @@ async def countersign_page(token: str):
     sig_address = signatory.get("address", "") if signatory else ""
     sig_image = signatory.get("signature_image", "") if signatory else ""
 
-    # 5. Extract VWAP pricing fields
     shares = _fmt_shares(eloc_data.get("shares"))
     exercise_date = eloc_data.get("exercise_date", "")
     period_start = eloc_data.get("valuation_period_start", "")
@@ -155,8 +136,6 @@ async def countersign_page(token: str):
     vwap_price = _fmt_currency(eloc_data.get("vwap_purchase_price"))
     total_price = _fmt_currency(eloc_data.get("dollar_amount_calculated"))
 
-    # 6. Firm signature (already signed during purchase notice submission)
-    #    DTS stores the signature image as raw base64 (no data URI prefix).
     firm_name = eloc_data.get("firm_signatory_name", "")
     firm_title = eloc_data.get("firm_signatory_title", "")
     firm_address = eloc_data.get("firm_signatory_address", "")
@@ -167,24 +146,19 @@ async def countersign_page(token: str):
         logger.info("Countersign page %s: added data URI prefix to firm signature image", eloc_id)
     logger.debug("Countersign page %s: firm_sig name=%s, has_image=%s", eloc_id, firm_name, bool(firm_sig_image))
 
-    # To / Email from eloc_data
     to_name = eloc_data.get("company_signatory_name", signatory_name)
     to_email = eloc_data.get("to_email", "")
 
-    # Dated
     dated = datetime.now(timezone.utc).strftime("%B %d, %Y")
 
-    # Firm entity name
     firm_entity = "3i, LP"
 
-    # Firm signature image tag
     firm_sig_html = ""
     if firm_sig_image:
         firm_sig_html = f'<img src="{_esc(firm_sig_image)}" style="max-height:50px; max-width:250px; background:#fff; padding:3px 6px; border-radius:3px;" alt="Firm Signature">'
     else:
         firm_sig_html = '<span style="display:inline-block; width:200px; border-bottom:1px solid #666; height:1.2em;"></span>'
 
-    # Company signatory signature image tag
     co_sig_html = ""
     if sig_image:
         co_sig_html = f'<img src="{_esc(sig_image)}" style="max-height:50px; max-width:250px; background:#fff; padding:3px 6px; border-radius:3px;" alt="Signature">'
@@ -221,14 +195,11 @@ async def countersign_page(token: str):
     )
 
 
-# ---- Countersign Response Handler ----
 
 @router.post("/countersign/{token}/respond", response_class=HTMLResponse)
 async def countersign_respond(token: str):
-    """Handle countersign submission. First responder wins."""
     logger.info("Countersign response: token=%s", token[:12] + "...")
 
-    # 1. Validate token
     token_data = await get_countersign_token(token)
     if not token_data:
         return _error_page("Invalid Link", "This countersign link is not valid.")
@@ -239,7 +210,6 @@ async def countersign_respond(token: str):
             f"This Purchase Confirmation has already been {token_data['status']}.",
         )
 
-    # Check expiry
     expires = token_data.get("expires_at")
     if expires and datetime.now(timezone.utc) > expires.replace(tzinfo=timezone.utc):
         logger.warning("Countersign token expired on POST: %s", token[:12] + "...")
@@ -252,7 +222,6 @@ async def countersign_respond(token: str):
     company_name = token_data["company_name"]
     eloc_id = token_data["eloc_id"]
 
-    # 2. Atomic claim: UPDATE only if still pending (eliminates TOCTOU race)
     from app.countersign.repository import try_claim_token
     claimed = await try_claim_token(token, "approved")
     if not claimed:
@@ -266,10 +235,8 @@ async def countersign_respond(token: str):
         return _done_page("Already Countersigned", "This Purchase Confirmation has already been countersigned.")
     logger.info("Countersign atomic claim succeeded: token=%s, signatory=%s", token[:12] + "...", signatory_name)
 
-    # 3. Supersede other tokens in the group
     await supersede_group_tokens(group_id, token)
 
-    # 4. Load signatory details for countersign data
     from app.purchase_notices.pg_repository import get_company_signatories
     from app.database.mongo import get_db
 
@@ -286,7 +253,6 @@ async def countersign_respond(token: str):
             sig_title = signatory.get("title", "")
             sig_image = signatory.get("signature_image")
 
-    # 5. Store countersign data in MongoDB eloc_data
     countersigned_by = f"{signatory_name} ({signatory_phone})"
     now = datetime.now(timezone.utc)
     update_fields = {
@@ -303,7 +269,6 @@ async def countersign_respond(token: str):
     )
     logger.info("Countersign data stored for %s by %s", eloc_id, countersigned_by)
 
-    # 6. Accept the workflow step via DTS
     try:
         result = await onprem.accept_portal_eloc(eloc_id)
         logger.info("DTS accept successful after countersign: eloc_id=%s result=%s", eloc_id, result)
@@ -320,10 +285,8 @@ async def countersign_respond(token: str):
     )
 
 
-# ---- HTML Page Builders ----
 
 def _esc(s):
-    """Basic HTML entity escaping."""
     if not s:
         return ""
     return str(s).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
@@ -336,7 +299,6 @@ def _countersign_page(
     firm_entity, firm_name, firm_title, firm_address, firm_email, firm_sig_html,
     signatory_name, signatory_title, co_sig_html,
 ):
-    """Build the full standalone countersign HTML page."""
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>

@@ -1,6 +1,3 @@
-"""
-3i Fund Portal — Admin User Management Models
-"""
 
 from pydantic import BaseModel
 

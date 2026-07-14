@@ -1,4 +1,3 @@
-"""Twilio SMS sender for purchase notice approval notifications."""
 
 import asyncio
 import logging
@@ -10,7 +9,6 @@ _twilio_client = None
 
 
 def _get_twilio_client():
-    """Get or create a cached Twilio client (reuses HTTP connections)."""
     global _twilio_client
     if _twilio_client is None:
         from twilio.rest import Client
@@ -21,7 +19,6 @@ def _get_twilio_client():
 
 
 async def send_approval_sms(phone_number: str, company_name: str, amount: str, approval_url: str):
-    """Send SMS with approval link via Twilio."""
     logger.info("send_approval_sms — to=%s, company=%s, amount=$%s", phone_number, company_name, amount)
     logger.debug("send_approval_sms — approval_url=%s", approval_url)
     logger.debug("send_approval_sms — twilio from=%s, account_sid=%s...",

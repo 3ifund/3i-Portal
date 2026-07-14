@@ -1,8 +1,3 @@
-"""
-3i Fund Portal — Countersign Token Repository
-Manages countersign_tokens table in PostgreSQL (DealTerms DB).
-Used for SMS-based Purchase Confirmation countersigning.
-"""
 
 import logging
 import uuid
@@ -15,10 +10,8 @@ logger = logging.getLogger("portal.countersign")
 TOKEN_EXPIRY_HOURS = 24
 
 
-# ---- Table Creation ----
 
 async def ensure_countersign_tables() -> None:
-    """Create the countersign_tokens table if it doesn't exist."""
     pool = get_pool()
 
     await pool.execute("""
@@ -48,7 +41,6 @@ async def ensure_countersign_tables() -> None:
     logger.info("company_countersign_settings table ensured")
 
 
-# ---- Token CRUD ----
 
 async def create_countersign_token(
     group_id: str,
@@ -58,7 +50,6 @@ async def create_countersign_token(
     company_name: str,
     eloc_id: str,
 ) -> dict:
-    """Create a countersign token for a signatory. Returns dict with token and url."""
     token = str(uuid.uuid4())
     now = datetime.now(timezone.utc)
     expires_at = now + timedelta(hours=TOKEN_EXPIRY_HOURS)
@@ -83,7 +74,6 @@ async def create_countersign_token(
 
 
 async def get_countersign_token(token: str) -> dict | None:
-    """Look up a countersign token. Returns dict or None."""
     logger.debug("get_countersign_token — token=%s", token[:12] + "...")
     pool = get_pool()
     row = await pool.fetchrow(
@@ -99,8 +89,6 @@ async def get_countersign_token(token: str) -> dict | None:
 
 
 async def check_group_responded(group_id: str) -> dict | None:
-    """Check if any token in the group has already been responded to.
-    Returns the first approved/rejected token dict, or None."""
     logger.debug("check_group_responded — group=%s", group_id)
     pool = get_pool()
     row = await pool.fetchrow(
@@ -118,8 +106,6 @@ async def check_group_responded(group_id: str) -> dict | None:
 
 
 async def try_claim_token(token: str, status: str) -> bool:
-    """Atomically claim a token — UPDATE only if still pending.
-    Returns True if this call claimed it, False if already claimed (race-safe)."""
     logger.info("try_claim_token — token=%s, status=%s", token[:12] + "...", status)
     now = datetime.now(timezone.utc)
     pool = get_pool()
@@ -133,7 +119,6 @@ async def try_claim_token(token: str, status: str) -> bool:
 
 
 async def supersede_group_tokens(group_id: str, except_token: str) -> None:
-    """Mark all other pending tokens in the group as superseded."""
     logger.info("supersede_group_tokens — group=%s, except=%s", group_id, except_token[:12] + "...")
     now = datetime.now(timezone.utc)
     pool = get_pool()
@@ -147,8 +132,6 @@ async def supersede_group_tokens(group_id: str, except_token: str) -> None:
 
 
 async def supersede_all_tokens_for_eloc(eloc_id: str) -> None:
-    """Supersede ALL pending countersign tokens for an ELOC.
-    Called when Portal UI countersign completes (prevents stale SMS links)."""
     logger.info("supersede_all_tokens_for_eloc — eloc_id=%s", eloc_id)
     now = datetime.now(timezone.utc)
     pool = get_pool()
@@ -162,10 +145,6 @@ async def supersede_all_tokens_for_eloc(eloc_id: str) -> None:
 
 
 async def has_pending_countersign(eloc_id: str) -> bool:
-    """Check if active (pending) countersign SMS tokens exist for this ELOC.
-    Prevents duplicate sends on WebSocket reconnect.
-    Only checks pending tokens — superseded/expired tokens are ignored so
-    SMS can be re-sent if the workflow re-enters VwapNotificationToCompany."""
     logger.debug("has_pending_countersign — eloc_id=%s", eloc_id)
     pool = get_pool()
     row = await pool.fetchrow(
@@ -177,10 +156,8 @@ async def has_pending_countersign(eloc_id: str) -> bool:
     return exists
 
 
-# ---- Company Countersign SMS Settings ----
 
 async def get_countersign_sms_enabled(company_id: int) -> bool:
-    """Check if countersign SMS is enabled for a company."""
     logger.debug("get_countersign_sms_enabled(company_id=%d)", company_id)
     pool = get_pool()
     row = await pool.fetchrow(
@@ -194,7 +171,6 @@ async def get_countersign_sms_enabled(company_id: int) -> bool:
 
 
 async def set_countersign_sms_enabled(company_id: int, enabled: bool) -> None:
-    """Set whether countersign SMS is enabled for a company (upsert)."""
     logger.info("set_countersign_sms_enabled(company_id=%d, enabled=%s)", company_id, enabled)
     pool = get_pool()
     await pool.execute("""
@@ -207,7 +183,6 @@ async def set_countersign_sms_enabled(company_id: int, enabled: bool) -> None:
 
 
 async def get_all_countersign_settings() -> list[dict]:
-    """List all companies with active ELOC deals and their countersign SMS settings."""
     logger.debug("get_all_countersign_settings() — querying companies with countersign settings")
     pool = get_pool()
     rows = await pool.fetch("""

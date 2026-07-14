@@ -1,38 +1,23 @@
-"""
-3i Fund Portal — Participation-ELOC Template Models
-
-Pydantic models for the new participation-based ELOC Purchase Notice / Purchase
-Confirmation templates. These are NAMED, company-specific templates whose fields are
-chosen from the DealTermsServer field catalog
-(GET /api/template-field-catalog/{documentType}).
-
-Separate from the legacy `purchase_notices` templates — nothing here touches the
-existing collections.
-"""
 
 from typing import Literal
 
 from pydantic import BaseModel, Field
 
-# Document types must match DealTermsServer's TemplateDocumentType enum.
 DOCUMENT_TYPES: tuple[str, ...] = ("PurchaseNotice", "PurchaseConfirmation")
 DocumentType = Literal["PurchaseNotice", "PurchaseConfirmation"]
 
-# Share-allocation type — drives which workflow the notice runs.
-# "Unknown" = the new participation workflow (emergent share allocation).
-# "Known" = the legacy workflow. ABSENT on a document is treated as legacy/Known.
 AllocationType = Literal["Known", "Unknown"]
 
 
 class TemplateField(BaseModel):
     """One catalog field placed on a template, with the admin's label text."""
 
-    key: str                                # catalog enum key, e.g. "PurchaseShareAmount"
-    label: str                              # admin-entered display label
-    note: str | None = None                 # optional free-text qualifier rendered beside the value
+    key: str
+    label: str
+    note: str | None = None
     visible: bool = True
     order: int = 0
-    options_config: dict | None = None      # extra config for OptionSet / CheckOrFill / etc.
+    options_config: dict | None = None
 
 
 class UpsertParticipationTemplateRequest(BaseModel):
@@ -40,8 +25,8 @@ class UpsertParticipationTemplateRequest(BaseModel):
 
     name: str
     company_id: int
-    document_type: DocumentType             # validated against DOCUMENT_TYPES
-    allocation_type: AllocationType = "Known"   # absent ⇒ legacy/Known
+    document_type: DocumentType
+    allocation_type: AllocationType = "Known"
     body_text: str = ""
     agreed_accepted_entity: str = ""
     fields: list[TemplateField] = Field(default_factory=list)
@@ -52,5 +37,5 @@ class UpsertMappingRequest(BaseModel):
 
     company_id: int
     pricing_period_type: str
-    document_type: DocumentType             # validated against DOCUMENT_TYPES
+    document_type: DocumentType
     template_id: str

@@ -1,6 +1,3 @@
-"""
-3i Fund Portal — FastAPI Application Entry Point
-"""
 
 import asyncio
 import logging
@@ -35,14 +32,12 @@ from app.countersign.repository import ensure_countersign_tables
 from app.countersign.router import router as countersign_router
 from app.countersign.admin_router import router as countersign_admin_router
 
-# Initialize logging before anything else
 setup_logging()
 logger = logging.getLogger("portal.main")
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Startup and shutdown events."""
     logger.info("=== 3i Fund Portal starting up ===")
     logger.info("CORS origins: %s", settings.cors_origins)
     logger.info("On-prem base URL: %s", settings.onprem_base_url)
@@ -72,7 +67,6 @@ async def lifespan(app: FastAPI):
     await connect_mongo()
     logger.info("MongoDB connected")
 
-    # Ensure participation-template unique indexes (only when Mongo is available)
     from app.database.mongo import is_connected
     from app.participation_templates import mongo_repository as participation_repo
     if is_connected():
@@ -81,11 +75,9 @@ async def lifespan(app: FastAPI):
     else:
         logger.warning("MongoDB not connected — skipping participation template index creation")
 
-    # Warm the DTS HTTP client (avoids cold-start latency on first user request)
     from app.onprem.client import warm_client
     await warm_client()
 
-    # Connect to DealTermsServer WebSocket for workflow state updates
     watcher_task = asyncio.create_task(connect_dealterms_ws())
     logger.info("DealTermsServer WebSocket client started")
 
@@ -117,7 +109,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Routers
 app.include_router(auth_router, prefix="/auth", tags=["auth"])
 app.include_router(elocs_router, prefix="/elocs", tags=["elocs"])
 app.include_router(internal_elocs_router, prefix="/api/internal", tags=["internal-elocs"])

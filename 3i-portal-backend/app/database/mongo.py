@@ -1,9 +1,3 @@
-"""
-3i Fund Portal — MongoDB Connection (portal_3i)
-Uses Motor for async access to the portal_3i MongoDB database.
-Stores purchase notice templates and user signatories.
-Connection is optional — app will start without MongoDB but purchase notice features will be unavailable.
-"""
 
 import logging
 
@@ -18,7 +12,6 @@ _connected: bool = False
 
 
 async def connect_mongo():
-    """Create the Motor client and connect to portal_3i on app startup."""
     global _client, _db, _connected
     logger.info("Connecting to MongoDB at %s, db=%s", settings.mongo_uri, settings.mongo_db_name)
     try:
@@ -35,7 +28,6 @@ async def connect_mongo():
 
 
 async def close_mongo():
-    """Close the Motor client on app shutdown."""
     global _client, _db, _connected
     if _client:
         _client.close()
@@ -46,12 +38,10 @@ async def close_mongo():
 
 
 def is_connected() -> bool:
-    """Check if MongoDB is available."""
     return _connected
 
 
 def get_db() -> AsyncIOMotorDatabase:
-    """Return the database handle. Call after connect_mongo()."""
     if _db is None:
         raise RuntimeError("MongoDB not connected")
     return _db

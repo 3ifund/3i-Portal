@@ -1,10 +1,3 @@
-"""
-3i Fund Portal — Purchase Notice Approval
-Token-based mobile approval page and response endpoint.
-Each contact gets a unique token; first responder wins.
-On approval, DTS advances the ELOC to SavedContractToSharePoint.
-On rejection, DTS marks the ELOC as Rejected and removes it from workflow.
-"""
 
 import uuid
 import logging
@@ -25,7 +18,6 @@ TOKEN_EXPIRY_HOURS = 24
 
 
 def _esc(s):
-    """Basic HTML entity escaping to prevent XSS."""
     if not s:
         return ""
     return str(s).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
@@ -39,7 +31,6 @@ async def create_approval_token(
     amount: str,
     eloc_id: str,
 ) -> dict:
-    """Create an approval token for one contact. Called once per contact per submission."""
     pool = get_pool()
     token = str(uuid.uuid4())
     now = datetime.now(timezone.utc)
@@ -58,7 +49,6 @@ async def create_approval_token(
 
 @router.get("/approve/{token}", response_class=HTMLResponse)
 async def approval_page(token: str):
-    """Serve the mobile approval page."""
     logger.info("Approval page accessed: %s", token)
     pool = get_pool()
 
@@ -75,11 +65,9 @@ async def approval_page(token: str):
     status = row["status"]
     expires = row["expires_at"]
 
-    # Check if this specific token was already used
     if status != "pending":
         logger.info("Approval token already used: %s status=%s", token, status)
         if status == "superseded":
-            # Another contact already responded — find who
             responder = await pool.fetchrow(
                 "SELECT contact_name, status FROM approval_tokens WHERE group_id = $1 AND status IN ('approved', 'rejected')",
                 group_id,
@@ -91,7 +79,6 @@ async def approval_page(token: str):
                 )
         return _done_page(f"Already {status.title()}", f"This purchase notice has already been {status}.")
 
-    # Check if another token in the group was already used
     group_responded = await pool.fetchrow(
         "SELECT contact_name, status FROM approval_tokens WHERE group_id = $1 AND status IN ('approved', 'rejected')",
         group_id,
@@ -152,9 +139,6 @@ async def approval_page(token: str):
 
 @router.post("/approve/{token}/respond", response_class=HTMLResponse)
 async def approval_respond(token: str, action: str = Form(...)):
-    """Handle approval or rejection. First responder wins.
-    On approval: DTS advances ELOC from SignedContractToCompany → SavedContractToSharePoint.
-    On rejection: DTS marks ELOC as Rejected, sets include=false, removes from tracker."""
     logger.info("Approval response: token=%s action=%s", token, action)
     pool = get_pool()
 
@@ -180,13 +164,11 @@ async def approval_respond(token: str, action: str = Form(...)):
     eloc_id = row["eloc_id"]
     now = datetime.now(timezone.utc)
 
-    # Atomic claim: UPDATE only if still pending (eliminates TOCTOU race)
     claimed = await pool.fetchrow(
         "UPDATE approval_tokens SET status = $1, responded_at = $2 WHERE token = $3 AND status = 'pending' RETURNING token, contact_name",
         action, now, token,
     )
     if not claimed:
-        # Token was already claimed by another concurrent request
         logger.info("Approval atomic claim failed — token %s already claimed", token)
         group_responded = await pool.fetchrow(
             "SELECT contact_name, status FROM approval_tokens WHERE group_id = $1 AND status IN ('approved', 'rejected')",
@@ -200,7 +182,6 @@ async def approval_respond(token: str, action: str = Form(...)):
         return _done_page("Already Responded", "This purchase notice has already been responded to.")
     logger.info("Approval atomic claim succeeded: token=%s, action=%s, contact=%s", token, action, contact_name)
 
-    # Mark all other tokens in the group as superseded
     await pool.execute(
         "UPDATE approval_tokens SET status = 'superseded', responded_at = $1 WHERE group_id = $2 AND token != $3 AND status = 'pending'",
         now, group_id, token,
@@ -211,12 +192,10 @@ async def approval_respond(token: str, action: str = Form(...)):
                 action, verified_by, group_id, company_name, amount, eloc_id)
 
     if action == "approved":
-        # Accept the ELOC — DTS advances from SignedContractToCompany → SavedContractToSharePoint
         try:
             result = await onprem.accept_portal_eloc(eloc_id)
             logger.info("DTS accept successful after approval: eloc_id=%s result=%s", eloc_id, result)
 
-            # Write verified_by to MongoDB eloc_data
             await mongo_repo.set_verified_by(eloc_id, verified_by)
 
         except Exception as exc:
@@ -229,7 +208,6 @@ async def approval_respond(token: str, action: str = Form(...)):
         return _done_page("Accepted", f"Purchase notice from {company_name} for ${amount} has been accepted and submitted.")
 
     else:
-        # Reject the ELOC — DTS sets Rejected, include=false, removes from tracker
         try:
             result = await onprem.reject_portal_eloc(eloc_id)
             logger.info("DTS reject successful: eloc_id=%s result=%s", eloc_id, result)

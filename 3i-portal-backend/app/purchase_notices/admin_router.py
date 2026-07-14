@@ -1,7 +1,3 @@
-"""
-3i Fund Portal — Admin Purchase Notice Template Endpoints
-All endpoints require admin role.
-"""
 
 import logging
 
@@ -18,7 +14,6 @@ router = APIRouter()
 
 @router.get("/purchase-notice-templates")
 async def list_templates(admin: UserInfo = Depends(require_admin)):
-    """List all purchase notice templates."""
     logger.info("GET /purchase-notice-templates — admin=%s", admin.user_id)
     templates = await repo.get_all_templates()
     logger.debug("GET /purchase-notice-templates — returned %d templates", len(templates))
@@ -27,7 +22,6 @@ async def list_templates(admin: UserInfo = Depends(require_admin)):
 
 @router.get("/purchase-notice-templates/company/{company_id}")
 async def list_company_templates(company_id: int, admin: UserInfo = Depends(require_admin)):
-    """List all templates for a specific company."""
     logger.info("GET /purchase-notice-templates/company/%s — admin=%s", company_id, admin.user_id)
     templates = await repo.get_templates_by_company(company_id)
     logger.debug("GET /purchase-notice-templates/company/%s — returned %d templates", company_id, len(templates))
@@ -36,7 +30,6 @@ async def list_company_templates(company_id: int, admin: UserInfo = Depends(requ
 
 @router.get("/purchase-notice-templates/{company_id}/{period_type}")
 async def get_template(company_id: int, period_type: str, admin: UserInfo = Depends(require_admin)):
-    """Get a template by company and pricing period type."""
     logger.info("GET /purchase-notice-templates/%s/%s — admin=%s", company_id, period_type, admin.user_id)
     template = await repo.get_template_by_period_type(period_type, company_id)
     if not template:
@@ -52,7 +45,6 @@ async def upsert_template(
     request: UpsertTemplateRequest,
     admin: UserInfo = Depends(require_admin),
 ):
-    """Create or update a template for a company and pricing period type."""
     logger.info("PUT /purchase-notice-templates/%s/%s — admin=%s, body_text_len=%d, entity=%s",
                 company_id, period_type, admin.user_id, len(request.body_text), request.agreed_accepted_entity)
     result = await repo.upsert_template(
@@ -62,11 +54,9 @@ async def upsert_template(
     return result
 
 
-# ---- Backward Purchase Notice Templates ----
 
 @router.get("/purchase-notice-backward-templates")
 async def list_backward_templates(admin: UserInfo = Depends(require_admin)):
-    """List all backward purchase notice templates."""
     logger.info("GET /purchase-notice-backward-templates — admin=%s", admin.user_id)
     templates = await repo.get_all_backward_notice_templates()
     logger.debug("GET /purchase-notice-backward-templates — returned %d templates", len(templates))
@@ -75,7 +65,6 @@ async def list_backward_templates(admin: UserInfo = Depends(require_admin)):
 
 @router.get("/purchase-notice-backward-templates/company/{company_id}")
 async def list_company_backward_templates(company_id: int, admin: UserInfo = Depends(require_admin)):
-    """List all backward purchase notice templates for a specific company."""
     logger.info("GET /purchase-notice-backward-templates/company/%s — admin=%s", company_id, admin.user_id)
     templates = await repo.get_backward_notice_templates_by_company(company_id)
     logger.debug("GET /purchase-notice-backward-templates/company/%s — returned %d templates", company_id, len(templates))
@@ -84,7 +73,6 @@ async def list_company_backward_templates(company_id: int, admin: UserInfo = Dep
 
 @router.get("/purchase-notice-backward-templates/{company_id}/{period_type}")
 async def get_backward_template(company_id: int, period_type: str, admin: UserInfo = Depends(require_admin)):
-    """Get a backward purchase notice template by company and pricing period type."""
     logger.info("GET /purchase-notice-backward-templates/%s/%s — admin=%s", company_id, period_type, admin.user_id)
     template = await repo.get_backward_notice_template_by_period_type(period_type, company_id)
     if not template:
@@ -100,7 +88,6 @@ async def upsert_backward_template(
     request: UpsertTemplateRequest,
     admin: UserInfo = Depends(require_admin),
 ):
-    """Create or update a backward purchase notice template."""
     logger.info("PUT /purchase-notice-backward-templates/%s/%s — admin=%s, body_text_len=%d, entity=%s",
                 company_id, period_type, admin.user_id, len(request.body_text), request.agreed_accepted_entity)
     result = await repo.upsert_backward_notice_template(
@@ -110,11 +97,9 @@ async def upsert_backward_template(
     return result
 
 
-# ---- Purchase Confirmation Templates (admin CRUD) ----
 
 @router.get("/purchase-confirmation-templates")
 async def list_confirmation_templates(admin: UserInfo = Depends(require_admin)):
-    """List all purchase confirmation templates."""
     logger.info("GET /purchase-confirmation-templates — admin=%s", admin.user_id)
     templates = await repo.get_all_confirmation_templates()
     return templates
@@ -122,7 +107,6 @@ async def list_confirmation_templates(admin: UserInfo = Depends(require_admin)):
 
 @router.get("/purchase-confirmation-templates/company/{company_id}")
 async def list_company_confirmation_templates(company_id: int, admin: UserInfo = Depends(require_admin)):
-    """List all purchase confirmation templates for a specific company."""
     logger.info("GET /purchase-confirmation-templates/company/%s — admin=%s", company_id, admin.user_id)
     templates = await repo.get_confirmation_templates_by_company(company_id)
     return templates
@@ -130,7 +114,6 @@ async def list_company_confirmation_templates(company_id: int, admin: UserInfo =
 
 @router.get("/purchase-confirmation-templates/{company_id}/{period_type}")
 async def get_confirmation_template(company_id: int, period_type: str, admin: UserInfo = Depends(require_admin)):
-    """Get a purchase confirmation template by company and pricing period type."""
     logger.info("GET /purchase-confirmation-templates/%s/%s — admin=%s", company_id, period_type, admin.user_id)
     template = await repo.get_confirmation_template_by_period_type(period_type, company_id)
     if not template:
@@ -145,7 +128,6 @@ async def upsert_confirmation_template(
     request: UpsertTemplateRequest,
     admin: UserInfo = Depends(require_admin),
 ):
-    """Create or update a purchase confirmation template for a company and pricing period type."""
     logger.info("PUT /purchase-confirmation-templates/%s/%s — admin=%s, body_text_len=%d, entity=%s",
                 company_id, period_type, admin.user_id, len(request.body_text), request.agreed_accepted_entity)
     result = await repo.upsert_confirmation_template(

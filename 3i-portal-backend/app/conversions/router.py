@@ -1,12 +1,3 @@
-"""
-3i Fund Portal — Convertible-note Conversions router.
-
-Admin-only endpoints backing the position_risk_management CONV view. Thin proxies over the DTS
-app.onprem client (DTS owns the note registry + the PRM conversions). The per-company convert-lock
-owner is stamped server-side with the authenticated admin — never taken from the client. DTS status
-codes (200 / 400 business reject / 409 lock held) are passed through verbatim. Mounted at
-/api/internal/conversions so CloudFront forwards it (only /api/* and /ws/* reach the origin).
-"""
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException

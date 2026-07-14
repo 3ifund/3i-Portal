@@ -1,8 +1,3 @@
-"""
-3i Fund Portal — MongoDB Repository for Purchase Notice Templates
-Collections: purchase_notice_templates (in three_i_fund_portal DB)
-Company signatories are in PostgreSQL (see pg_repository.py).
-"""
 
 import logging
 from app.database.mongo import get_db
@@ -10,10 +5,8 @@ from app.database.mongo import get_db
 logger = logging.getLogger("portal.purchase_notices.repo")
 
 
-# ---- Purchase Notice Templates ----
 
 async def get_all_templates() -> list[dict]:
-    """Get all purchase notice templates."""
     logger.debug("get_all_templates() — querying purchase_notice_templates collection")
     db = get_db()
     cursor = db.purchase_notice_templates.find({}, {"_id": 0})
@@ -23,7 +16,6 @@ async def get_all_templates() -> list[dict]:
 
 
 async def get_templates_by_company(company_id: int) -> list[dict]:
-    """Get all templates for a specific company."""
     logger.debug("get_templates_by_company(%s) — querying", company_id)
     db = get_db()
     cursor = db.purchase_notice_templates.find({"company_id": company_id}, {"_id": 0})
@@ -33,12 +25,9 @@ async def get_templates_by_company(company_id: int) -> list[dict]:
 
 
 async def get_template_by_period_type(period_type: str, company_id: int | None = None) -> dict | None:
-    """Get a template by company and pricing period type.
-    Falls back to legacy template (no company_id) if company-specific not found."""
     logger.debug("get_template_by_period_type(%s, company_id=%s) — querying", period_type, company_id)
     db = get_db()
 
-    # Try company-specific template first
     if company_id is not None:
         doc = await db.purchase_notice_templates.find_one(
             {"company_id": company_id, "pricing_period_type": period_type}, {"_id": 0}
@@ -50,7 +39,6 @@ async def get_template_by_period_type(period_type: str, company_id: int | None =
         logger.debug("get_template_by_period_type(%s, company_id=%s) — no company-specific, trying legacy",
                       period_type, company_id)
 
-    # Fallback to legacy template (no company_id field)
     doc = await db.purchase_notice_templates.find_one(
         {"pricing_period_type": period_type, "company_id": {"$exists": False}}, {"_id": 0}
     )
@@ -64,7 +52,6 @@ async def get_template_by_period_type(period_type: str, company_id: int | None =
 
 async def upsert_template(period_type: str, body_text: str, agreed_accepted_entity: str,
                            company_id: int | None = None) -> dict:
-    """Create or update a template for a company and pricing period type."""
     logger.info("upsert_template(company_id=%s, %s) — body_text_len=%d, entity=%s",
                 company_id, period_type, len(body_text), agreed_accepted_entity)
     db = get_db()
@@ -89,10 +76,8 @@ async def upsert_template(period_type: str, body_text: str, agreed_accepted_enti
     return await get_template_by_period_type(period_type, company_id)
 
 
-# ---- Purchase Confirmation Templates ----
 
 async def get_all_confirmation_templates() -> list[dict]:
-    """Get all purchase confirmation templates."""
     logger.debug("get_all_confirmation_templates() — querying purchase_confirmation_templates collection")
     db = get_db()
     cursor = db.purchase_confirmation_templates.find({}, {"_id": 0})
@@ -102,7 +87,6 @@ async def get_all_confirmation_templates() -> list[dict]:
 
 
 async def get_confirmation_templates_by_company(company_id: int) -> list[dict]:
-    """Get all purchase confirmation templates for a specific company."""
     logger.debug("get_confirmation_templates_by_company(%s) — querying", company_id)
     db = get_db()
     cursor = db.purchase_confirmation_templates.find({"company_id": company_id}, {"_id": 0})
@@ -112,8 +96,6 @@ async def get_confirmation_templates_by_company(company_id: int) -> list[dict]:
 
 
 async def get_confirmation_template_by_period_type(period_type: str, company_id: int | None = None) -> dict | None:
-    """Get a purchase confirmation template by company and pricing period type.
-    Falls back to legacy template (no company_id) if company-specific not found."""
     logger.debug("get_confirmation_template_by_period_type(%s, company_id=%s) — querying", period_type, company_id)
     db = get_db()
 
@@ -138,7 +120,6 @@ async def get_confirmation_template_by_period_type(period_type: str, company_id:
 
 async def upsert_confirmation_template(period_type: str, body_text: str, agreed_accepted_entity: str,
                                          company_id: int | None = None) -> dict:
-    """Create or update a purchase confirmation template."""
     logger.info("upsert_confirmation_template(company_id=%s, %s) — body_text_len=%d, entity=%s",
                 company_id, period_type, len(body_text), agreed_accepted_entity)
     db = get_db()
@@ -163,10 +144,8 @@ async def upsert_confirmation_template(period_type: str, body_text: str, agreed_
     return await get_confirmation_template_by_period_type(period_type, company_id)
 
 
-# ---- Backward Purchase Notice Templates ----
 
 async def get_all_backward_notice_templates() -> list[dict]:
-    """Get all backward purchase notice templates."""
     logger.debug("get_all_backward_notice_templates() — querying purchase_notice_backward_templates collection")
     db = get_db()
     cursor = db.purchase_notice_backward_templates.find({}, {"_id": 0})
@@ -176,7 +155,6 @@ async def get_all_backward_notice_templates() -> list[dict]:
 
 
 async def get_backward_notice_templates_by_company(company_id: int) -> list[dict]:
-    """Get all backward purchase notice templates for a specific company."""
     logger.debug("get_backward_notice_templates_by_company(%s) — querying", company_id)
     db = get_db()
     cursor = db.purchase_notice_backward_templates.find({"company_id": company_id}, {"_id": 0})
@@ -186,8 +164,6 @@ async def get_backward_notice_templates_by_company(company_id: int) -> list[dict
 
 
 async def get_backward_notice_template_by_period_type(period_type: str, company_id: int | None = None) -> dict | None:
-    """Get a backward purchase notice template by company and pricing period type.
-    Falls back to legacy template (no company_id) if company-specific not found."""
     logger.debug("get_backward_notice_template_by_period_type(%s, company_id=%s) — querying", period_type, company_id)
     db = get_db()
 
@@ -215,7 +191,6 @@ async def get_backward_notice_template_by_period_type(period_type: str, company_
 
 async def upsert_backward_notice_template(period_type: str, body_text: str, agreed_accepted_entity: str,
                                             company_id: int | None = None) -> dict:
-    """Create or update a backward purchase notice template."""
     logger.info("upsert_backward_notice_template(company_id=%s, %s) — body_text_len=%d, entity=%s",
                 company_id, period_type, len(body_text), agreed_accepted_entity)
     db = get_db()
@@ -240,10 +215,8 @@ async def upsert_backward_notice_template(period_type: str, body_text: str, agre
     return await get_backward_notice_template_by_period_type(period_type, company_id)
 
 
-# ---- Verified By ----
 
 async def set_verified_by(eloc_id: str, verified_by: str) -> bool:
-    """Set the verified_by field on an eloc_data document in portal_3i."""
     logger.info("set_verified_by — eloc_id=%s, verified_by=%s", eloc_id, verified_by)
     db = get_db()
     result = await db.eloc_data.update_one(

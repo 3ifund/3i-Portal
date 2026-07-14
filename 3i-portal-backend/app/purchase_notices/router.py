@@ -1,7 +1,3 @@
-"""
-3i Fund Portal — Purchase Notice Endpoints (User)
-Signatory management + purchase notice prefill + submission with optional SMS verification.
-"""
 
 import logging
 import uuid
@@ -29,11 +25,9 @@ router = APIRouter()
 
 
 async def _verify_eloc_ownership(eloc_id: str, user: UserInfo) -> None:
-    """Check that the ELOC belongs to the user's company. Raises 403 if not."""
     if not user.company_id:
         raise HTTPException(status_code=400, detail="User has no company assigned")
 
-    # Check portal_3i MongoDB first (portal-initiated ELOCs)
     try:
         from app.database.mongo import get_db, is_connected
         if is_connected():
@@ -47,13 +41,12 @@ async def _verify_eloc_ownership(eloc_id: str, user: UserInfo) -> None:
                         status_code=status.HTTP_403_FORBIDDEN,
                         detail="Access denied: ELOC belongs to a different company",
                     )
-                return  # Ownership confirmed
+                return
     except HTTPException:
         raise
     except Exception as exc:
         logger.warning("Ownership check via MongoDB failed for eloc_id=%s: %s", eloc_id, exc)
 
-    # Fallback: check DTS state
     state = await onprem.get_eloc_state_by_id(eloc_id)
     if not state:
         logger.warning("Ownership check: ELOC %s not found", eloc_id)
@@ -67,11 +60,9 @@ async def _verify_eloc_ownership(eloc_id: str, user: UserInfo) -> None:
         )
 
 
-# ---- User Signatory (each user has one signatory, details entered by the user) ----
 
 @router.get("/my-signatory")
 async def get_my_signatory(user: UserInfo = Depends(get_current_user)):
-    """Get the current user's signatory data."""
     logger.info("GET /my-signatory — user=%s", user.user_id)
     sig = await users_repo.get_user_signatory(user.user_id)
     if not sig:
@@ -87,8 +78,6 @@ async def update_my_signatory(
     request: UpdateSignatoryDetailsRequest,
     user: UserInfo = Depends(get_current_user),
 ):
-    """Update the current user's signatory details (title, address, phone, signature)."""
-    # Map the request fields to the portal_users column names
     raw = request.model_dump(exclude_none=True)
     updates = {}
     if "title" in raw:
@@ -110,7 +99,6 @@ async def update_my_signatory(
     return {"status": "updated"}
 
 
-# ---- Purchase Notice Prefill ----
 
 @router.get("/prefill/{symbol}/{pricing_period_id}")
 async def get_prefill(
@@ -120,15 +108,9 @@ async def get_prefill(
     backward: bool = Query(False),
     user: UserInfo = Depends(get_current_user),
 ):
-    """
-    Get all data needed to render a purchase notice.
-    Merges DTS calculated fields + MongoDB template + PostgreSQL signatories.
-    Pass backward=true for backward pricing to fetch from the backward template collection.
-    """
     logger.info("GET /prefill/%s/%d?shares=%d&backward=%s — user=%s, company=%s",
                 symbol, pricing_period_id, shares, backward, user.user_id, user.company_name)
 
-    # 1. Get calculated fields from DTS
     logger.info("Prefill %s/%d: calling DTS get_purchase_notice_fields", symbol, pricing_period_id)
     fields = await onprem.get_purchase_notice_fields(symbol, pricing_period_id)
     if not fields:
@@ -137,7 +119,6 @@ async def get_prefill(
             status_code=404,
             detail=f"No purchase notice data for {symbol} / period {pricing_period_id}",
         )
-    # Log every field DTS returned for debugging date/field issues
     logger.info("Prefill %s/%d: DTS raw response keys: %s", symbol, pricing_period_id, list(fields.keys()))
     logger.info("Prefill %s/%d: DTS periodType=%s exerciseDate=%s settlementDate=%s",
                 symbol, pricing_period_id, fields.get("periodType"), fields.get("exerciseDate"), fields.get("settlementDate"))
@@ -153,7 +134,6 @@ async def get_prefill(
                 symbol, pricing_period_id, fields.get("totalCommitmentRemaining"), fields.get("dollarCapPerNotice"),
                 fields.get("pricingDirection"), fields.get("backwardVwapPrice"))
 
-    # 1b. Auto-detect backward pricing from shares-available if frontend didn't pass it
     is_backward = backward
     if not is_backward:
         try:
@@ -169,8 +149,6 @@ async def get_prefill(
     logger.info("Prefill %s/%d: is_backward=%s (frontend=%s, auto-detect=%s)",
                 symbol, pricing_period_id, is_backward, backward, is_backward and not backward)
 
-    # 2. Get template from MongoDB (company-specific, with legacy fallback)
-    #    Use backward collection for backward pricing
     period_type = fields.get("periodType", "")
     company_id = int(user.company_id) if user.company_id else None
     if is_backward:
@@ -184,7 +162,6 @@ async def get_prefill(
     logger.info("Prefill %s/%d: template found=%s, is_backward=%s, body_text_len=%d, entity=%s",
                 symbol, pricing_period_id, template is not None, is_backward, len(body_text), agreed_entity)
 
-    # 3. Get the current user's signatory from portal_users
     signatory = await users_repo.get_user_signatory(user.user_id)
     logger.info("Prefill %s/%d: user signatory name=%s has_title=%s has_signature=%s",
                 symbol, pricing_period_id,
@@ -192,7 +169,6 @@ async def get_prefill(
                 bool(signatory.get("signatory_title")) if signatory else False,
                 bool(signatory.get("signatory_signature_image")) if signatory else False)
 
-    # 4. Return merged response
     response = {
         **fields,
         "body_text": body_text,
@@ -209,25 +185,18 @@ async def get_prefill(
     return response
 
 
-# ---- Portal-Initiated Purchase Notice Submission ----
 
 @router.post("/submit")
 async def submit_portal_purchase_notice(
     request: PortalPurchaseNoticeRequest,
     user: UserInfo = Depends(get_current_user),
 ):
-    """
-    Submit a portal-initiated purchase notice to DTS.
-    DTS generates the PDF, creates eloc_id, writes to three_i_fund_portal MongoDB,
-    and returns the eloc_id.
-    """
     if not user.company_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="User has no company assigned",
         )
 
-    # Get the submitting user's signatory from their profile
     sig = await users_repo.get_user_signatory(user.user_id)
     if not sig or not sig.get("signatory_name"):
         raise HTTPException(
@@ -246,14 +215,12 @@ async def submit_portal_purchase_notice(
         "company_id": int(user.company_id),
         "company_name": user.company_name or "",
         "submitted_by": user.user_id,
-        # Override signatory from user's profile (not from request)
         "signatory_name": sig.get("signatory_name", ""),
         "signatory_title": sig.get("signatory_title", ""),
         "signatory_address": sig.get("signatory_address", ""),
         "signatory_signature_image": sig.get("signatory_signature_image"),
     }
 
-    # Auto-detect backward pricing if frontend didn't set it
     if payload.get("pricing_direction") != "Backward":
         try:
             shares_data = await onprem.get_shares_available(request.symbol)
@@ -279,14 +246,10 @@ async def submit_portal_purchase_notice(
                 payload.get("signatory_name"), payload.get("signatory_title"),
                 payload.get("company_name"), payload.get("submitted_by"))
 
-    # 1. Always submit to DTS first — creates ELOC at SignedContractToCompany / Pending
     company_id = int(user.company_id)
     try:
         result = await onprem.submit_portal_purchase_notice(payload)
     except onprem.ElocAlreadyPricingError as race:
-        # Concurrent submission for the same company — surface a clean 409 so
-        # the frontend can show "An ELOC is already in progress" and redirect
-        # back to the landing page. NOT a server error, so no stack trace.
         logger.warning(
             "POST /submit REJECT (concurrency): user=%s company=%s symbol=%s shares=%s — "
             "blocking elocId=%s step=%s",
@@ -313,7 +276,6 @@ async def submit_portal_purchase_notice(
     eloc_id = result.get("elocId") or result.get("eloc_id")
     logger.info("POST /submit — DTS created ELOC: eloc_id=%s at SignedContractToCompany/Pending", eloc_id)
 
-    # 2. Check if company requires SMS verification
     requires_verification = await get_company_verification(company_id)
     logger.info("POST /submit — company_id=%s requires_verification=%s", company_id, requires_verification)
 
@@ -352,7 +314,6 @@ async def submit_portal_purchase_notice(
 
         logger.info("POST /submit — verification required but no included contacts, auto-accepting")
 
-    # 3. Auto-accept: advance to SavedContractToSharePoint and set verified_by = "Auto"
     if eloc_id:
         try:
             accept_result = await onprem.accept_portal_eloc(eloc_id)
@@ -375,10 +336,6 @@ async def get_portal_document(
     step: str,
     user: UserInfo = Depends(get_current_user),
 ):
-    """
-    Fetch document for a portal-initiated ELOC workflow step.
-    Returns PDF data from three_i_fund_portal.eloc_data via DTS.
-    """
     logger.info("GET /documents/%s/%s — user=%s", eloc_id, step, user.user_id)
     await _verify_eloc_ownership(eloc_id, user)
 
@@ -394,24 +351,18 @@ async def get_portal_document(
     return doc
 
 
-# ---- Purchase Confirmation Countersign ----
 
 @router.get("/confirmation-prefill/{eloc_id}")
 async def get_confirmation_prefill(
     eloc_id: str,
     user: UserInfo = Depends(get_current_user),
 ):
-    """
-    Get prefill data for countersigning a purchase confirmation.
-    Reads VWAP pricing data + template + firm signature + company signatories.
-    """
     logger.info("GET /confirmation-prefill/%s — user=%s company_id=%s", eloc_id, user.user_id, user.company_id)
     await _verify_eloc_ownership(eloc_id, user)
 
     from app.database.mongo import get_db
     db = get_db()
 
-    # 1. Load eloc_data from portal_3i
     eloc_data = await db.eloc_data.find_one({"eloc_id": eloc_id})
     if not eloc_data:
         raise HTTPException(status_code=404, detail=f"ELOC data not found: {eloc_id}")
@@ -421,12 +372,10 @@ async def get_confirmation_prefill(
     company_name = eloc_data.get("company_name", "")
     period_type = eloc_data.get("period_type", "")
 
-    # 2. Load confirmation template
     template = await repo.get_confirmation_template_by_period_type(period_type, company_id)
     body_text = template.get("body_text", "") if template else ""
     agreed_accepted_entity = template.get("agreed_accepted_entity", company_name) if template else company_name
 
-    # 2b. Substitute placeholder tags in body_text with ELOC values
     if body_text and "{{" in body_text:
         shares_val = eloc_data.get("shares", 0)
         vwap_price_val = eloc_data.get("vwap_purchase_price")
@@ -455,26 +404,12 @@ async def get_confirmation_prefill(
         logger.info("Confirmation prefill %s: no placeholder tags in body_text (length=%d)",
                      eloc_id, len(body_text) if body_text else 0)
 
-    # 3. Live recipient resolution via DTS.
-    #    Three fields are sourced *live* from Postgres (via DTS HTTP) so that
-    #    edits made in data-management-ui (firm_signatures.email, etc.) or in
-    #    the DTS WPF UI (eloc_deal.to, company.email_addresses) show up on the
-    #    Portal page immediately, instead of being frozen to the snapshot copy
-    #    on Mongo eloc_data:
-    #      to_name        ← eloc_deal.to                  (DTS WPF ELOC Deal Mgmt)
-    #      to_email       ← company.email_addresses[0]    (data-management-ui Company Contacts)
-    #      firm_signature ← firm_signatures row           (data-management-ui Firm Signatures)
-    #    DTS returns raw base64 for the signature image; this endpoint adds the
-    #    "data:image/png;base64," prefix the <img> tag needs.
-    #    If DTS is unreachable: firm_signature falls back to the Mongo snapshot
-    #    (so the page keeps rendering); to_name/to_email fall back to "" (no
-    #    snapshot exists for those fields).
     import time
     to_name = ""
     to_email = ""
     to_name_source = "(empty)"
     to_email_source = "(empty)"
-    firm_signature_source = "snapshot"  # overridden below if DTS responded
+    firm_signature_source = "snapshot"
     firm_signature = None
     recipients = None
     dts_call_elapsed_ms = 0.0
@@ -501,15 +436,11 @@ async def get_confirmation_prefill(
         )
 
     if recipients:
-        # Top-of-page recipient fields (no Mongo snapshot exists; "" if missing/blank in DB).
         to_name = recipients.get("to_name") or ""
         to_email = recipients.get("to_email") or ""
         to_name_source = recipients.get("to_name_source", "(empty)")
         to_email_source = recipients.get("to_email_source", "(empty)")
 
-        # Firm signature block — prefer live values from DTS. DTS already did
-        # its own snapshot fallback on missing firm_signature_id / missing row,
-        # so whatever it returned is the right value; we just apply the data URI.
         dts_firm = recipients.get("firm_signature") or {}
         dts_firm_src = recipients.get("firm_signature_source") or {}
         firm_sig_image = dts_firm.get("signature_image_base64") or ""
@@ -522,10 +453,6 @@ async def get_confirmation_prefill(
             "email":           dts_firm.get("email", ""),
             "signature_image": firm_sig_image,
         }
-        # If any firm-sig field came from DTS as "snapshot", that means DTS itself
-        # fell back (e.g. firm_signature_id was null). We tag the whole block
-        # "snapshot" only when all five sub-fields are snapshot/(none); otherwise
-        # "live" (or "mixed" if a subset diverged).
         srcs = {dts_firm_src.get(k) for k in ("name", "title", "address", "email", "signature_image")}
         if srcs <= {"live"}:
             firm_signature_source = "live"
@@ -541,8 +468,6 @@ async def get_confirmation_prefill(
             firm_signature_source,
         )
     else:
-        # DTS unreachable OR returned 404 — fall back to the Mongo snapshot for
-        # firm_signature so the page still renders. to_name/to_email stay "".
         firm_sig_image = eloc_data.get("firm_signatory_signature_image") or ""
         if firm_sig_image and not firm_sig_image.startswith("data:"):
             firm_sig_image = f"data:image/png;base64,{firm_sig_image}"
@@ -561,7 +486,6 @@ async def get_confirmation_prefill(
         )
     logger.debug("Confirmation prefill %s: final firm_sig has_image=%s", eloc_id, bool(firm_signature.get("signature_image")))
 
-    # 4. Get the current user's signatory from portal_users
     signatory = await users_repo.get_user_signatory(user.user_id)
     logger.info("Confirmation prefill %s: user signatory name=%s has_title=%s has_signature=%s",
                 eloc_id,
@@ -569,17 +493,14 @@ async def get_confirmation_prefill(
                 bool(signatory.get("signatory_title")) if signatory else False,
                 bool(signatory.get("signatory_signature_image")) if signatory else False)
 
-    # 5. Build response
     result = {
         "eloc_id": eloc_id,
         "symbol": symbol,
         "company_id": company_id,
         "company_name": company_name,
         "period_type": period_type,
-        # Template content
         "body_text": body_text,
         "agreed_accepted_entity": agreed_accepted_entity,
-        # VWAP pricing data (from VwapPricingService results)
         "shares": eloc_data.get("shares", 0),
         "exercise_date": eloc_data.get("exercise_date", ""),
         "valuation_period_start": eloc_data.get("valuation_period_start", ""),
@@ -589,20 +510,15 @@ async def get_confirmation_prefill(
         "lowest_vwap": eloc_data.get("lowest_vwap"),
         "vwap_used": eloc_data.get("vwap_used"),
         "dollar_amount_calculated": eloc_data.get("dollar_amount_calculated"),
-        # Top-of-document recipient (live from DTS; empty if lookup failed)
         "to_name": to_name,
         "to_email": to_email,
         "to_name_source": to_name_source,
         "to_email_source": to_email_source,
-        # Firm signature (live from DTS firm_signatures; Mongo snapshot fallback)
         "firm_signature": firm_signature,
         "firm_signature_source": firm_signature_source,
-        # User's signatory (for countersign)
         "signatory": signatory,
     }
 
-    # Best-effort response size logging — useful when debugging payload bloat
-    # (large signature images, body_text with embedded substitutions, etc.).
     try:
         import json as _json
         response_size_bytes = len(_json.dumps(result, default=str).encode("utf-8"))
@@ -626,10 +542,6 @@ async def submit_countersign(
     payload: dict,
     user: UserInfo = Depends(get_current_user),
 ):
-    """
-    Submit a countersigned purchase confirmation.
-    Advances the Portal workflow past VwapNotificationToCompany.
-    """
     eloc_id = payload.get("eloc_id", "")
     logger.info("POST /countersign — user=%s, eloc_id=%s", user.user_id, eloc_id)
 
@@ -638,7 +550,6 @@ async def submit_countersign(
 
     await _verify_eloc_ownership(eloc_id, user)
 
-    # Get signatory from the user's profile (not from the request payload)
     sig = await users_repo.get_user_signatory(user.user_id)
     if not sig or not sig.get("signatory_name"):
         raise HTTPException(status_code=400, detail="Signatory name not set — contact your administrator")
@@ -650,7 +561,6 @@ async def submit_countersign(
     from app.database.mongo import get_db
     db = get_db()
 
-    # 1. Store countersign data in eloc_data
     from datetime import datetime, timezone
     now = datetime.now(timezone.utc)
     update_fields = {
@@ -667,14 +577,12 @@ async def submit_countersign(
     )
     logger.info("Countersign data stored for %s by %s (%s)", eloc_id, signatory_name, user.user_id)
 
-    # 2. Supersede any pending SMS countersign tokens for this ELOC
     try:
         from app.countersign.repository import supersede_all_tokens_for_eloc
         await supersede_all_tokens_for_eloc(eloc_id)
     except Exception as sup_exc:
         logger.warning("Failed to supersede countersign tokens for %s: %s", eloc_id, sup_exc)
 
-    # 3. Accept the current workflow step (VwapNotificationToCompany) via DTS
     try:
         result = await onprem.accept_portal_eloc(eloc_id)
         logger.info("Workflow advanced for %s: %s", eloc_id, result)

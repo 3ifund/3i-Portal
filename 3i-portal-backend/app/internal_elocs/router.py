@@ -1,23 +1,3 @@
-"""
-3i Fund Portal — Internal (PRM-replica) ELOC Router.
-
-Admin-only REST endpoints that back the position_risk_management web app's
-ELOC workflow view. The endpoints are thin shims over the existing
-`app.onprem` DTS client; the value-add at this layer is:
-
-  • Admin JWT gate (require_admin) instead of the per-company auth used by
-    `app.elocs.router`, so an operator sees ALL companies' active workflows
-    the same way PRM-WPF does.
-  • Server-side derivation of the full 10-forward / 4-backward step grid
-    (see internal_elocs.models.derive_workflow_steps), so the initial
-    REST payload arrives ready-to-render with no extra round-trip.
-  • Structured logging keyed on user_id + eloc_id so the audit trail for
-    Remove/Delete clicks lines up cleanly with DTS's DealTermsDelta logs.
-
-The matching live-update path lives in `app.workflows.router`
-(`_internal_connections` pool + `/ws/elocs/internal` endpoint, added in a
-sibling commit).
-"""
 
 import json
 import logging
@@ -32,14 +12,10 @@ from app.internal_elocs.models import derive_workflow_steps
 from app.onprem import client as onprem
 
 logger = logging.getLogger("portal.internal_elocs")
-# Dedicated logger for browser-shipped PRM web-app logs so the disk trail for
-# the client side (which can't write to disk itself) is easy to grep apart
-# from the server-side internal_elocs lines.
 client_logger = logging.getLogger("portal.prm_client")
 router = APIRouter()
 
 
-# ---- POST clientlog (browser → disk log sink) ------------------------------
 
 
 class ClientLogEntry(BaseModel):
@@ -49,18 +25,11 @@ class ClientLogEntry(BaseModel):
     message: str = ""
     eloc_id: str | None = None
     data: dict | None = None
-    ts: str | None = None  # client-side ISO timestamp (best-effort)
+    ts: str | None = None
 
 
 @router.post("/clientlog")
 async def client_log(entry: ClientLogEntry, admin: UserInfo = Depends(require_admin)):
-    """
-    POST /api/internal/clientlog — append a browser log line to the portal
-    backend's on-disk log. The PRM web app can't write to disk; this gives
-    its delete/remove/WS-removal lifecycle a durable, grep-able audit trail
-    alongside the server-side DTS logs. Admin-gated and fire-and-forget from
-    the client; failures here never affect the UI.
-    """
     level = (entry.level or "info").lower()
     log_fn = {
         "debug": client_logger.debug,
@@ -83,20 +52,10 @@ async def client_log(entry: ClientLogEntry, admin: UserInfo = Depends(require_ad
     return {"ok": True}
 
 
-# ---- GET states/included ---------------------------------------------------
 
 
 @router.get("/elocs/states/included")
 async def list_included_states(admin: UserInfo = Depends(require_admin)):
-    """
-    GET /api/internal/elocs/states/included — every Portal-flow ELOC that is
-    currently included in the workflow (include=true), across ALL companies.
-    Mirrors the data PRM-WPF's ElocViewModel loads via
-    ElocWorkflowApiClient.GetPortalIncludedStatesAsync().
-
-    Each entry carries the raw DTS enums plus a server-derived `steps` list
-    so the browser can paint the workflow grid on first frame.
-    """
     t_start = time.monotonic()
     logger.info("GET /internal/elocs/states/included by user=%s — START", admin.user_id)
 
@@ -111,8 +70,6 @@ async def list_included_states(admin: UserInfo = Depends(require_admin)):
     items: list[dict] = []
     skipped_hidden = 0
     for state in raw:
-        # PRM-WPF hides workflow_visible=false entries from its main view
-        # (they came in via the client portal's hide action). Match that.
         if state.get("workflowVisible") is False:
             skipped_hidden += 1
             continue
@@ -148,25 +105,10 @@ async def list_included_states(admin: UserInfo = Depends(require_admin)):
     return items
 
 
-# ---- POST exclude ----------------------------------------------------------
 
 
 @router.post("/elocs/{eloc_id}/exclude")
 async def exclude_eloc(eloc_id: str, admin: UserInfo = Depends(require_admin)):
-    """
-    POST /api/internal/elocs/{eloc_id}/exclude — PRM "Remove" action.
-
-    Excludes the Portal-flow ELOC from the workflow:
-      • sets include=false on the Mongo eloc_state document
-      • marks the eloc_status_tracker row as Removed (frees the
-        shares-available block for the company)
-      • DOES NOT delete the tracker row or reverse any applied DealTerms
-        deltas — those are only undone by the DELETE route below
-
-    The WebSocket relay picks up the include=false change and broadcasts
-    workflow_removed to internal subscribers, so the UI doesn't need to
-    update its own state from this response.
-    """
     t_start = time.monotonic()
     logger.info("POST /internal/elocs/%s/exclude by user=%s — START", eloc_id, admin.user_id)
 
@@ -194,25 +136,10 @@ async def exclude_eloc(eloc_id: str, admin: UserInfo = Depends(require_admin)):
     return {"status": "excluded", "eloc_id": eloc_id}
 
 
-# ---- DELETE ----------------------------------------------------------------
 
 
 @router.delete("/elocs/{eloc_id}")
 async def delete_eloc(eloc_id: str, admin: UserInfo = Depends(require_admin)):
-    """
-    DELETE /api/internal/elocs/{eloc_id} — PRM "Delete" action.
-
-    Calls DTS's DELETE /api/portal/eloc/states/{eloc_id}, which:
-      1. reverses any applied DealTerms deltas (registered_shares from
-         DTO completion, total_commitment from VWAP)
-      2. deletes the eloc_status_tracker row
-      3. deletes the Mongo eloc_state + eloc_data documents
-
-    Returns the DTS response verbatim — the new sharesReversed /
-    commitmentReversed booleans plus sharesOutcome / commitmentOutcome
-    enum strings are surfaced to the UI so the operator can see exactly
-    what hit eloc_deal.
-    """
     t_start = time.monotonic()
     logger.info("DELETE /internal/elocs/%s by user=%s — START", eloc_id, admin.user_id)
 

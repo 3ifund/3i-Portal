@@ -1,8 +1,3 @@
-"""
-3i Fund Portal — Approval Repository
-Manages approval_contacts, company_verification_settings, and approval_tokens
-tables in PostgreSQL (DealTerms DB).
-"""
 
 import logging
 
@@ -11,10 +6,8 @@ from app.database.postgres import get_pool
 logger = logging.getLogger("portal.approval")
 
 
-# ---- Table Creation ----
 
 async def ensure_approval_tables() -> None:
-    """Create approval-related tables if they don't exist."""
     pool = get_pool()
 
     await pool.execute("""
@@ -54,7 +47,6 @@ async def ensure_approval_tables() -> None:
         )
     """)
 
-    # Migration: add eloc_id column and make payload_json nullable for existing tables
     await pool.execute("""
         DO $$
         BEGIN
@@ -80,7 +72,6 @@ async def ensure_approval_tables() -> None:
     logger.info("approval_tokens table ensured (with eloc_id column)")
 
 
-# ---- Approval Contacts CRUD ----
 
 async def get_approval_contacts() -> list[dict]:
     logger.debug("get_approval_contacts() — querying all contacts")
@@ -154,7 +145,6 @@ async def get_included_contacts() -> list[dict]:
     return contacts
 
 
-# ---- Company Verification Settings ----
 
 async def get_company_verification(company_id: int) -> bool:
     logger.debug("get_company_verification(company_id=%d)", company_id)

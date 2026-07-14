@@ -1,15 +1,3 @@
-"""
-3i Fund Portal — Internal (PRM-replica) ELOC schemas.
-
-The client-facing `app.elocs.models` filters the workflow down to 4 visible
-steps for forward / 1 for backward — what a company user needs to see. This
-module is the internal/admin counterpart that mirrors PRM-WPF and shows the
-FULL workflow: 10 steps for forward, 4 for backward, no filtering.
-
-We deliberately keep this separate from `app.elocs.models` so the two views
-can evolve independently without one accidentally widening or narrowing the
-other.
-"""
 
 import logging
 from enum import Enum
@@ -48,9 +36,6 @@ class InternalWorkflowStepState(str, Enum):
     Failed = "Failed"
 
 
-# Short labels (mirrors WorkflowStepToLabelConverter.cs in PRM).
-# Used by REST initial-state responses; the web app keeps its own copy too,
-# but emitting both makes the API self-describing.
 INTERNAL_STEP_LABELS: dict[InternalWorkflowStep, str] = {
     InternalWorkflowStep.SignedContractToCompany: "To Co",
     InternalWorkflowStep.SavedContractToSharePoint: "Save Doc",
@@ -65,8 +50,6 @@ INTERNAL_STEP_LABELS: dict[InternalWorkflowStep, str] = {
 }
 
 
-# Forward pricing: full 10-step order. Mirrors PortalForwardWorkflowStepOrder
-# in PositionRiskManagement\Models\Eloc\Eloc.cs (line 168).
 PORTAL_FORWARD_STEPS: list[InternalWorkflowStep] = [
     InternalWorkflowStep.SignedContractToCompany,
     InternalWorkflowStep.SavedContractToSharePoint,
@@ -81,9 +64,6 @@ PORTAL_FORWARD_STEPS: list[InternalWorkflowStep] = [
 ]
 
 
-# Backward pricing: abbreviated 4-step order. Mirrors PortalBackwardWorkflowStepOrder
-# in PositionRiskManagement\Models\Eloc\Eloc.cs (line 186). Price is
-# pre-calculated; workflow ends at DeemedToOwnPosition.
 PORTAL_BACKWARD_STEPS: list[InternalWorkflowStep] = [
     InternalWorkflowStep.SignedContractToCompany,
     InternalWorkflowStep.SavedContractToSharePoint,
@@ -97,20 +77,6 @@ def derive_workflow_steps(
     current_status: str,
     pricing_direction: str = "Forward",
 ) -> list[dict]:
-    """
-    Port of PRM's `Eloc.DerivePortalWorkflowSteps`. Returns one entry per
-    step (10 forward / 4 backward), each `{key, label, state}`.
-
-    Rules:
-      - When current_step isn't in the order list (or unknown), all steps
-        get state="Pending" — matches PRM's behavior when currentIndex < 0.
-      - Steps before current → "Completed".
-      - The current step → carries the passed status (verbatim).
-      - Steps after current → "Pending".
-
-    This is intentionally identical to the PRM-WPF derivation so the web
-    UI can render the exact same grid as the desktop app.
-    """
     is_backward = (
         pricing_direction is not None
         and str(pricing_direction).strip().lower() == "backward"
@@ -149,7 +115,6 @@ def derive_workflow_steps(
     return steps
 
 
-# ---- Response/payload schemas ----------------------------------------------
 
 
 class InternalElocWorkflowStep(BaseModel):

@@ -1,6 +1,3 @@
-"""
-3i Fund Portal — Auth Request/Response Schemas
-"""
 
 from pydantic import BaseModel
 
@@ -27,7 +24,7 @@ class ChangePasswordRequest(BaseModel):
 
 class UserInfo(BaseModel):
     user_id: str
-    role: str  # "user" or "admin"
+    role: str
     company_id: str | None = None
     company_name: str | None = None
     company_symbol: str | None = None

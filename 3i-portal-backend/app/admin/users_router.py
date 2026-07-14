@@ -1,7 +1,3 @@
-"""
-3i Fund Portal — Admin User Management Router
-CRUD endpoints for managing portal user accounts.
-"""
 
 import asyncio
 import logging
@@ -23,10 +19,8 @@ router = APIRouter()
 
 @router.get("/users")
 async def list_users(admin: UserInfo = Depends(require_admin)):
-    """List all portal users."""
     logger.info("GET /admin/users by admin=%s", admin.user_id)
     users = await users_repo.list_users()
-    # Convert datetime fields to strings for JSON serialization
     for u in users:
         if u.get("created_at"):
             u["created_at"] = str(u["created_at"])
@@ -41,7 +35,6 @@ async def create_user(
     request: CreateUserRequest,
     admin: UserInfo = Depends(require_admin),
 ):
-    """Create a new portal user."""
     user_id = request.user_id.strip().lower()
     logger.info("POST /admin/users by admin=%s: creating user_id=%s role=%s company_id=%s",
                 admin.user_id, user_id, request.role, request.company_id)
@@ -70,7 +63,6 @@ async def create_user(
             detail="Password must be at least 8 characters",
         )
 
-    # Check for duplicate
     existing = await users_repo.get_user_by_id(user_id)
     if existing:
         raise HTTPException(
@@ -98,7 +90,6 @@ async def update_user(
     request: UpdateUserRequest,
     admin: UserInfo = Depends(require_admin),
 ):
-    """Update a portal user's role, company, or active status."""
     logger.info("PUT /admin/users/%s by admin=%s: %s", user_id, admin.user_id, request.model_dump(exclude_none=True))
 
     if request.role is not None and request.role not in ("user", "admin"):
@@ -107,14 +98,12 @@ async def update_user(
             detail="Role must be 'user' or 'admin'",
         )
 
-    # Prevent admin from deactivating themselves
     if request.is_active is False and user_id.lower() == admin.user_id.lower():
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Cannot deactivate your own account",
         )
 
-    # If role is being changed to admin, clear company_id
     clear_company = request.role == "admin"
 
     signatory_name = request.signatory_name if request.role != "admin" else None
@@ -148,7 +137,6 @@ async def reset_password(
     request: ResetPasswordRequest,
     admin: UserInfo = Depends(require_admin),
 ):
-    """Admin resets a user's password (forces password change on next login)."""
     logger.info("POST /admin/users/%s/reset-password by admin=%s", user_id, admin.user_id)
 
     if len(request.new_password) < 8:
@@ -175,7 +163,6 @@ async def delete_user(
     user_id: str,
     admin: UserInfo = Depends(require_admin),
 ):
-    """Deactivate a portal user (soft delete)."""
     logger.info("DELETE /admin/users/%s by admin=%s", user_id, admin.user_id)
 
     if user_id.lower() == admin.user_id.lower():
@@ -184,7 +171,6 @@ async def delete_user(
             detail="Cannot deactivate your own account",
         )
 
-    # Prevent deactivation of any admin-role user
     target_user = await users_repo.get_user_by_id(user_id)
     if target_user and target_user.get("role") == "admin":
         raise HTTPException(
@@ -208,7 +194,6 @@ async def permanent_delete_user(
     user_id: str,
     admin: UserInfo = Depends(require_admin),
 ):
-    """Permanently delete a portal user."""
     logger.info("DELETE /admin/users/%s/permanent by admin=%s", user_id, admin.user_id)
 
     if user_id.lower() == admin.user_id.lower():
@@ -242,7 +227,6 @@ async def permanent_delete_user(
 
 @router.get("/companies-list")
 async def list_companies_for_dropdown(admin: UserInfo = Depends(require_admin)):
-    """Lightweight company list for user assignment dropdowns."""
     logger.info("GET /admin/companies-list by admin=%s", admin.user_id)
     pool = get_pool()
     rows = await pool.fetch("SELECT company_id, symbol, name FROM company ORDER BY name")
@@ -253,15 +237,6 @@ async def list_companies_for_dropdown(admin: UserInfo = Depends(require_admin)):
 
 @router.get("/companies-with-elocs")
 async def list_companies_with_elocs(admin: UserInfo = Depends(require_admin)):
-    """Return all companies that have an eloc_deal, with their pricing period types.
-
-    Sourced entirely from the DealTerms DB (eloc_deal + eloc_pricing_period) in a single
-    query: every company that has a configured deal, plus the pricing periods of that
-    company's most-recent deal (matching how DTS picks the current deal — latest expiration).
-    No per-company shares-available/Bloomberg round-trips (that path took 10-19s); this is
-    sub-second. Response shape unchanged: {company_id, symbol, name, pricing_period_types,
-    pricing_periods:[{periodType, pricingDirection, isBackwardPricing}]}.
-    """
     t_start = time.monotonic()
     logger.info("GET /admin/companies-with-elocs by admin=%s — START", admin.user_id)
     pool = get_pool()
@@ -281,7 +256,6 @@ async def list_companies_with_elocs(admin: UserInfo = Depends(require_admin)):
         """
     )
 
-    # Group the period rows by company, preserving company order (rows are name-ordered).
     by_company = {}
     for r in rows:
         company = by_company.get(r["company_id"])
@@ -295,7 +269,7 @@ async def list_companies_with_elocs(admin: UserInfo = Depends(require_admin)):
             }
             by_company[r["company_id"]] = company
         period_type = r["period_type"]
-        if period_type:  # LEFT JOIN: a company with no pricing periods yields a NULL row
+        if period_type:
             direction = r["pricing_direction"] or "Forward"
             company["pricing_period_types"].append(period_type)
             company["pricing_periods"].append({

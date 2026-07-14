@@ -1,7 +1,3 @@
-"""
-3i Fund Portal — ELOC Router
-Endpoints for ELOC listing, detail, workflow, documents, and purchase notices.
-"""
 
 import logging
 
@@ -24,25 +20,6 @@ router = APIRouter()
 
 
 async def _verify_eloc_ownership(eloc_id: str, company_id: int) -> None:
-    """
-    Check that the ELOC belongs to the user's company. Raises 403 if not,
-    404 if the ELOC does not exist in either Portal or DTS state.
-
-    ELOC state lives in two separate DTS collections:
-      • Portal-initiated ELOCs    → portal_3i.eloc_state
-        (exposed by DTS via GET /api/portal/eloc/states/{elocId})
-      • DTS-initiated ELOCs       → DTS-side eloc_state
-        (exposed by DTS via GET /api/eloc/states/{elocId})
-
-    Try the Portal endpoint first since this router serves client Portal users
-    acting on their own ELOCs (overwhelmingly Portal-initiated). Fall back to
-    the DTS endpoint only on 404, so a DTS-initiated ELOC the user can also
-    see (rare but valid) still passes ownership check.
-
-    Past incident: hard-coding the DTS endpoint caused every Portal Remove
-    click to 404 silently because Portal ELOCs never exist in DTS-side
-    eloc_state — see 2026-05-25 CAPS-00000082 forensics.
-    """
     import time
     t_start = time.monotonic()
     tag = f"verify-ownership:{eloc_id}"
@@ -54,7 +31,6 @@ async def _verify_eloc_ownership(eloc_id: str, company_id: int) -> None:
     state = None
     source = None
 
-    # Attempt 1: Portal state
     t_portal_start = time.monotonic()
     try:
         state = await onprem.get_portal_eloc_state_by_id(eloc_id)
@@ -77,7 +53,6 @@ async def _verify_eloc_ownership(eloc_id: str, company_id: int) -> None:
             tag, portal_ms, type(exc).__name__, exc,
         )
 
-    # Attempt 2: DTS state (fallback)
     if not state:
         t_dts_start = time.monotonic()
         try:
@@ -136,7 +111,6 @@ async def list_elocs(
     status_filter: str | None = Query(None, alias="status"),
     user: UserInfo = Depends(get_current_user),
 ):
-    """List ELOCs for the authenticated user's company."""
     logger.info("GET /elocs user=%s company_id=%s status=%s", user.user_id, user.company_id, status_filter)
     company_id = int(user.company_id) if user.company_id else None
     if company_id is None:
@@ -153,7 +127,6 @@ async def list_elocs(
 async def get_shares_available(
     user: UserInfo = Depends(get_current_user),
 ):
-    """Get available shares for all pricing periods from DealTermsServer."""
     logger.info("GET /elocs/shares-available user=%s symbol=%s", user.user_id, user.company_symbol)
     if not user.company_symbol:
         raise HTTPException(
@@ -176,7 +149,6 @@ async def get_shares_available(
 async def get_action_items(
     user: UserInfo = Depends(get_current_user),
 ):
-    """Get pending action items for the authenticated user's company."""
     logger.info("GET /elocs/action-items user=%s company_id=%s", user.user_id, user.company_id)
     company_id = int(user.company_id) if user.company_id else None
     if company_id is None:
@@ -193,7 +165,6 @@ async def get_action_items(
 async def get_pricing_workflows(
     user: UserInfo = Depends(get_current_user),
 ):
-    """Get workflow states for ELOCs currently pricing (include=true)."""
     logger.info("GET /elocs/pricing-workflows user=%s company_id=%s", user.user_id, user.company_id)
     company_id = int(user.company_id) if user.company_id else None
     if company_id is None:
@@ -211,7 +182,6 @@ async def remove_pricing_workflow(
     eloc_id: str,
     user: UserInfo = Depends(get_current_user),
 ):
-    """Hide an ELOC from the client Portal UI by setting workflow_visible=false."""
     logger.info("POST /elocs/%s/workflow/remove (hide) user=%s", eloc_id, user.user_id)
     company_id = int(user.company_id) if user.company_id else None
     if company_id is None:
@@ -235,7 +205,6 @@ async def get_eloc(
     eloc_id: str,
     user: UserInfo = Depends(get_current_user),
 ):
-    """Get ELOC detail: pricing periods, shares, deal terms."""
     logger.info("GET /elocs/%s user=%s company_id=%s", eloc_id, user.user_id, user.company_id)
     company_id = int(user.company_id) if user.company_id else None
     if company_id is None:
@@ -259,7 +228,6 @@ async def get_workflow(
     eloc_id: str,
     user: UserInfo = Depends(get_current_user),
 ):
-    """Get workflow state and event data from DealTermsServer."""
     logger.info("GET /elocs/%s/workflow user=%s", eloc_id, user.user_id)
     company_id = int(user.company_id) if user.company_id else None
     if company_id is None:
@@ -279,7 +247,6 @@ async def get_document(
     step: str,
     user: UserInfo = Depends(get_current_user),
 ):
-    """Get the document for a specific workflow step."""
     logger.info("GET /elocs/%s/documents/%s user=%s", eloc_id, step, user.user_id)
     company_id = int(user.company_id) if user.company_id else None
     if company_id is None:

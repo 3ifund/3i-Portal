@@ -1,7 +1,3 @@
-"""
-3i Fund Portal — DealTerms Repository
-Queries the on-prem PostgreSQL DealTerms database for company data (auth only).
-"""
 
 import logging
 
@@ -11,7 +7,6 @@ logger = logging.getLogger("portal.dealterms")
 
 
 async def get_company_by_symbol(symbol: str) -> dict | None:
-    """Fetch a company by its ticker symbol. Used by auth login."""
     logger.debug("get_company_by_symbol(%s)", symbol)
     pool = get_pool()
     row = await pool.fetchrow(

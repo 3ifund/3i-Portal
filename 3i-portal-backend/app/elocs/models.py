@@ -1,6 +1,3 @@
-"""
-3i Fund Portal — ELOC Schemas
-"""
 
 import logging
 from enum import Enum
@@ -11,7 +8,6 @@ from datetime import date, time
 logger = logging.getLogger("portal.elocs.models")
 
 
-# ---- Workflow Enums ----
 
 class WorkflowStepEnum(str, Enum):
     """Sequential steps of the Portal ELOC workflow."""
@@ -34,10 +30,8 @@ class WorkflowStepState(str, Enum):
     Failed = "Failed"
 
 
-# Ordered list for index-based comparison
 WORKFLOW_STEPS_ORDERED = list(WorkflowStepEnum)
 
-# Human-readable labels for each step
 WORKFLOW_STEP_LABELS = {
     WorkflowStepEnum.SignedContractToCompany: "Signed Contract to Company",
     WorkflowStepEnum.SavedContractToSharePoint: "Saved Contract to SharePoint",
@@ -49,7 +43,6 @@ WORKFLOW_STEP_LABELS = {
     WorkflowStepEnum.VwapNotificationToPrimeBroker: "VWAP Notification to Prime Broker",
 }
 
-# Steps visible to the client UI (internal/auto-processed steps are hidden)
 CLIENT_VISIBLE_STEPS = {
     WorkflowStepEnum.SignedContractToCompany,
     WorkflowStepEnum.FinalVwapPricingCalculated,
@@ -64,26 +57,10 @@ def build_workflow_steps(
     pricing_direction: str = "Forward",
     workflow_complete: bool = False,
 ) -> tuple[list[dict], bool]:
-    """
-    Derive all step statuses from the current step and its status.
-    Returns (steps_list, can_remove).
-
-    Rules:
-    - Steps before current_step → "Completed"
-    - current_step → step_status value (Pending/InProgress/Completed/Rejected/Failed)
-    - Steps after current_step → "Awaiting" (not started)
-    - can_remove = True if workflow_complete or Rejected/Failed
-    - Only client-visible steps are included in the returned list;
-      hidden steps inherit their status to the next visible step.
-    - Backward pricing: show only 1 step (SignedContractToCompany / "Purchase Notice")
-    """
     logger.debug("build_workflow_steps: current=%s/%s, pricing_direction=%s, workflow_complete=%s",
                  current_step, step_status, pricing_direction, workflow_complete)
 
-    # Backward pricing: single step display
     if pricing_direction == "Backward":
-        # Fallback: if DTS didn't set workflow_complete but the last backward step is Completed,
-        # treat it as complete (DeemedToOwnPosition is the last step for backward pricing)
         if not workflow_complete and current_step == "DeemedToOwnPosition" and step_status == WorkflowStepState.Completed.value:
             logger.info("build_workflow_steps: backward fallback — DeemedToOwnPosition/Completed → treating as workflow_complete")
             workflow_complete = True
@@ -105,7 +82,6 @@ def build_workflow_steps(
                      effective_status, can_remove, workflow_complete)
         return steps, can_remove
 
-    # Forward pricing: 4 client-visible steps with status inheritance
     try:
         current_idx = WORKFLOW_STEPS_ORDERED.index(WorkflowStepEnum(current_step))
     except (ValueError, KeyError):
@@ -113,7 +89,6 @@ def build_workflow_steps(
 
     last_idx = len(WORKFLOW_STEPS_ORDERED) - 1
 
-    # Build full status for all 8 steps
     all_steps = []
     for i, step in enumerate(WORKFLOW_STEPS_ORDERED):
         if i < current_idx:
@@ -124,16 +99,11 @@ def build_workflow_steps(
             status = "Awaiting"
         all_steps.append((step, status))
 
-    # Filter to client-visible steps only.
-    # A visible step's status is the latest status from itself and any
-    # hidden steps that follow it (before the next visible step).
     steps = []
     for i, (step, status) in enumerate(all_steps):
         if step not in CLIENT_VISIBLE_STEPS:
             continue
 
-        # Check if any hidden steps after this one (before the next visible step)
-        # have a non-Completed status — if so, this visible step inherits that status.
         effective_status = status
         for j in range(i + 1, len(all_steps)):
             next_step, next_status = all_steps[j]
@@ -164,7 +134,7 @@ def build_workflow_steps(
 
 class PricingPeriod(BaseModel):
     pricing_period_id: int
-    period_type: str  # e.g. "ThreeDay", "Intraday"
+    period_type: str
     dollar_cap_per_notice: float
     discount_multiplier: float
     volume_pct_cap: float | None = None
@@ -182,7 +152,7 @@ class ElocSummary(BaseModel):
     total_commitment_remaining: float
     registered_shares_available: int
     expiration_date: date | None = None
-    status: str  # "active", "completed", "expired"
+    status: str
     pricing_period_types: list[str] = []
     pricing_periods_count: int = 0
 
@@ -209,8 +179,8 @@ class ElocDetail(BaseModel):
 
 class WorkflowResponse(BaseModel):
     eloc_id: str
-    steps: dict[str, str]  # step_key -> state
-    events: dict[str, dict] = {}  # step_key -> {event_datetime, ...}
+    steps: dict[str, str]
+    events: dict[str, dict] = {}
 
 
 class PricingWorkflowState(BaseModel):

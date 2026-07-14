@@ -1,8 +1,3 @@
-"""
-3i Fund Portal — DealTermsServer Client
-All communication with the on-premises DealTermsServer goes through here.
-Includes retry with exponential backoff for transient failures.
-"""
 
 import asyncio
 import logging
@@ -14,14 +9,12 @@ from app.config import settings
 logger = logging.getLogger("portal.onprem")
 _client: httpx.AsyncClient | None = None
 
-# Retry settings
 MAX_RETRIES = 3
-INITIAL_RETRY_DELAY = 2  # seconds
-MAX_RETRY_DELAY = 15  # seconds
+INITIAL_RETRY_DELAY = 2
+MAX_RETRY_DELAY = 15
 
 
 def _get_client() -> httpx.AsyncClient:
-    """Lazily create a shared async HTTP client."""
     global _client
     if _client is None or _client.is_closed:
         logger.info("Creating on-prem HTTP client → %s (timeout=%ss)", settings.onprem_base_url, settings.onprem_timeout_seconds)
@@ -33,8 +26,6 @@ def _get_client() -> httpx.AsyncClient:
 
 
 async def warm_client():
-    """Pre-create the HTTP client and test connectivity to DTS.
-    Called during app startup to avoid cold-start latency on first user request."""
     import time
     t_start = time.monotonic()
     logger.info("Warming on-prem HTTP client → %s", settings.onprem_base_url)
@@ -49,10 +40,6 @@ async def warm_client():
 
 
 async def _request_with_retry(method: str, url: str, **kwargs) -> httpx.Response:
-    """
-    Make an HTTP request with retry and exponential backoff.
-    Retries on connection errors, timeouts, and 5xx responses.
-    """
     import time
     client = _get_client()
     delay = INITIAL_RETRY_DELAY
@@ -91,16 +78,11 @@ async def _request_with_retry(method: str, url: str, **kwargs) -> httpx.Response
             await asyncio.sleep(delay)
             delay = min(delay * 2, MAX_RETRY_DELAY)
 
-    # Should not reach here, but just in case
     raise httpx.ConnectError(f"Failed after {MAX_RETRIES} attempts")
 
 
-# ---- Workflow State Endpoints ----
 
 async def get_included_eloc_states() -> list[dict]:
-    """
-    GET /api/eloc/states/included — all active ELOC workflow states.
-    """
     logger.info("GET /api/eloc/states/included")
     response = await _request_with_retry("GET", "/api/eloc/states/included")
     logger.info("  → %s (%d bytes)", response.status_code, len(response.content))
@@ -109,12 +91,6 @@ async def get_included_eloc_states() -> list[dict]:
 
 
 async def get_prm_companies() -> list[dict]:
-    """
-    GET /api/prm/positions/companies — companies from the PRM Positions & Traders
-    DB. Their companyId matches firmcommonstockposition.companyid (NOT the
-    DealTerms company id), so the P&T picker must use THIS list — otherwise the
-    chosen company's id resolves to a different PRM company's positions.
-    """
     logger.info("GET /api/prm/positions/companies")
     response = await _request_with_retry("GET", "/api/prm/positions/companies")
     logger.info("  → %s (%d bytes)", response.status_code, len(response.content))
@@ -123,10 +99,6 @@ async def get_prm_companies() -> list[dict]:
 
 
 async def get_prm_common_positions(company_id: int) -> list[dict]:
-    """
-    GET /api/prm/positions/common?companyId= — firm common-stock positions for
-    a company from the PRM Positions & Traders DB. Read-only.
-    """
     logger.info("GET /api/prm/positions/common?companyId=%s", company_id)
     response = await _request_with_retry(
         "GET", "/api/prm/positions/common", params={"companyId": company_id}
@@ -137,10 +109,6 @@ async def get_prm_common_positions(company_id: int) -> list[dict]:
 
 
 async def get_prm_position_accounts(position_id: int) -> list[dict]:
-    """
-    GET /api/prm/positions/{positionId}/accounts — account/broker allocations for
-    a position (with all-accounts fallback) for the Synthetic Trade pickers.
-    """
     logger.info("GET /api/prm/positions/%s/accounts", position_id)
     response = await _request_with_retry("GET", f"/api/prm/positions/{position_id}/accounts")
     logger.info("  → %s (%d bytes)", response.status_code, len(response.content))
@@ -223,14 +191,6 @@ async def convert_basic(payload: dict) -> tuple[int, dict]:
 
 
 async def post_prm_synthetic_trade(payload: dict) -> tuple[int, dict]:
-    """
-    POST /api/prm/positions/synthetic-trade — execute a manual synthetic trade.
-
-    WRITE: deliberately a SINGLE attempt (no _request_with_retry) so a transient
-    read-timeout after the trade committed can't trigger a retry that
-    double-executes. Returns (status_code, body) so the caller can distinguish a
-    400 business rejection (e.g. oversell) from a 5xx upstream error.
-    """
     client = _get_client()
     logger.info(
         "POST /api/prm/positions/synthetic-trade %s %s qty=%s (single attempt — write)",
@@ -246,10 +206,6 @@ async def post_prm_synthetic_trade(payload: dict) -> tuple[int, dict]:
 
 
 async def post_prm_restricted_trade(payload: dict) -> tuple[int, dict]:
-    """
-    POST /api/prm/positions/restricted-trade — BUY/SELL on the restricted pool.
-    WRITE: single attempt (no retry) to avoid double-execution. Returns (status, body).
-    """
     client = _get_client()
     logger.info(
         "POST /api/prm/positions/restricted-trade %s %s qty=%s (single attempt — write)",
@@ -265,10 +221,6 @@ async def post_prm_restricted_trade(payload: dict) -> tuple[int, dict]:
 
 
 async def post_prm_transfer(payload: dict) -> tuple[int, dict]:
-    """
-    POST /api/prm/positions/transfer — move shares restricted ↔ unrestricted.
-    WRITE: single attempt (no retry) to avoid double-execution. Returns (status, body).
-    """
     client = _get_client()
     logger.info(
         "POST /api/prm/positions/transfer %s %s qty=%s (single attempt — write)",
@@ -284,7 +236,6 @@ async def post_prm_transfer(payload: dict) -> tuple[int, dict]:
 
 
 async def get_prm_preferred_positions(company_id: int) -> list[dict]:
-    """GET /api/prm/positions/preferred?companyId= — firm preferred positions."""
     logger.info("GET /api/prm/positions/preferred?companyId=%s", company_id)
     response = await _request_with_retry("GET", "/api/prm/positions/preferred", params={"companyId": company_id})
     logger.info("  → %s (%d bytes)", response.status_code, len(response.content))
@@ -293,7 +244,6 @@ async def get_prm_preferred_positions(company_id: int) -> list[dict]:
 
 
 async def get_prm_warrant_positions(company_id: int) -> list[dict]:
-    """GET /api/prm/positions/warrant?companyId= — firm warrant positions."""
     logger.info("GET /api/prm/positions/warrant?companyId=%s", company_id)
     response = await _request_with_retry("GET", "/api/prm/positions/warrant", params={"companyId": company_id})
     logger.info("  → %s (%d bytes)", response.status_code, len(response.content))
@@ -302,7 +252,6 @@ async def get_prm_warrant_positions(company_id: int) -> list[dict]:
 
 
 async def get_prm_convertible_positions(company_id: int) -> list[dict]:
-    """GET /api/prm/positions/convertible?companyId= — firm convertible positions."""
     logger.info("GET /api/prm/positions/convertible?companyId=%s", company_id)
     response = await _request_with_retry("GET", "/api/prm/positions/convertible", params={"companyId": company_id})
     logger.info("  → %s (%d bytes)", response.status_code, len(response.content))
@@ -311,10 +260,6 @@ async def get_prm_convertible_positions(company_id: int) -> list[dict]:
 
 
 async def post_prm_derivative_trade(payload: dict) -> tuple[int, dict]:
-    """
-    POST /api/prm/positions/derivative-trade — legacy BUY/SELL for Preferred/
-    Warrant/Convertible. WRITE: single attempt (no retry). Returns (status, body).
-    """
     client = _get_client()
     logger.info("POST /api/prm/positions/derivative-trade %s %s %s qty=%s (single attempt — write)",
                 payload.get("instrumentType"), "BUY" if payload.get("isBuy") else "SELL",
@@ -329,9 +274,6 @@ async def post_prm_derivative_trade(payload: dict) -> tuple[int, dict]:
 
 
 async def get_eloc_state_by_id(eloc_id: str) -> dict | None:
-    """
-    GET /api/eloc/states/{elocId} — single ELOC workflow state.
-    """
     logger.info("GET /api/eloc/states/%s", eloc_id)
     response = await _request_with_retry("GET", f"/api/eloc/states/{eloc_id}")
     if response.status_code == 404:
@@ -343,9 +285,6 @@ async def get_eloc_state_by_id(eloc_id: str) -> dict | None:
 
 
 async def exclude_eloc(eloc_id: str) -> bool:
-    """
-    POST /api/eloc/workflow/{elocId}/exclude — exclude ELOC from workflow.
-    """
     logger.info("POST /api/eloc/workflow/%s/exclude", eloc_id)
     response = await _request_with_retry("POST", f"/api/eloc/workflow/{eloc_id}/exclude")
     logger.info("  → %s", response.status_code)
@@ -353,10 +292,6 @@ async def exclude_eloc(eloc_id: str) -> bool:
 
 
 async def hide_portal_eloc(eloc_id: str) -> bool:
-    """
-    POST /api/portal/eloc/states/{elocId}/hide — hide ELOC from client Portal UI.
-    Sets workflow_visible=false in MongoDB. Cosmetic only — workflow continues.
-    """
     logger.info("POST /api/portal/eloc/states/%s/hide", eloc_id)
     response = await _request_with_retry("POST", f"/api/portal/eloc/states/{eloc_id}/hide")
     logger.info("  → %s (%d bytes)", response.status_code, len(response.content))
@@ -368,12 +303,6 @@ async def hide_portal_eloc(eloc_id: str) -> bool:
 
 
 async def exclude_portal_eloc(eloc_id: str) -> bool:
-    """
-    POST /api/portal/eloc/states/{elocId}/exclude — exclude a Portal-flow ELOC
-    from the workflow. Sets include=false in MongoDB and marks the tracker row
-    as "Removed" (kept for the purchase-notice acceptance window). Mirrors PRM
-    WPF's Remove action.
-    """
     logger.info("POST /api/portal/eloc/states/%s/exclude", eloc_id)
     response = await _request_with_retry("POST", f"/api/portal/eloc/states/{eloc_id}/exclude")
     logger.info("  → %s (%d bytes)", response.status_code, len(response.content))
@@ -385,17 +314,6 @@ async def exclude_portal_eloc(eloc_id: str) -> bool:
 
 
 async def delete_portal_eloc(eloc_id: str) -> dict | None:
-    """
-    DELETE /api/portal/eloc/states/{elocId} — permanently delete a Portal-flow
-    ELOC. DTS reverses any applied DealTerms deltas (registered_shares from
-    DTO completion, total_commitment from VWAP), deletes the tracker row, and
-    deletes the eloc_state + eloc_data Mongo documents. Mirrors PRM WPF's
-    Delete action.
-
-    Returns the parsed JSON response from DTS — includes deletedCount and the
-    new sharesReversed/commitmentReversed booleans plus sharesOutcome /
-    commitmentOutcome enum strings. Returns None on a non-success response.
-    """
     logger.info("DELETE /api/portal/eloc/states/%s", eloc_id)
     response = await _request_with_retry("DELETE", f"/api/portal/eloc/states/{eloc_id}")
     logger.info("  → %s (%d bytes)", response.status_code, len(response.content))
@@ -416,9 +334,6 @@ async def delete_portal_eloc(eloc_id: str) -> dict | None:
 
 
 async def get_eloc_data(eloc_id: str) -> dict | None:
-    """
-    GET /api/eloc/data/{elocId} — full ELOC data (extracted fields, documents, timestamps).
-    """
     logger.info("GET /api/eloc/data/%s", eloc_id)
     response = await _request_with_retry("GET", f"/api/eloc/data/{eloc_id}")
     if response.status_code == 404:
@@ -430,10 +345,6 @@ async def get_eloc_data(eloc_id: str) -> dict | None:
 
 
 async def get_all_company_summaries() -> list[dict]:
-    """
-    GET /api/sharesavailable — all companies with active ELOC status.
-    Returns list of {symbol, companyName, hasActiveEloc}.
-    """
     logger.info("GET /api/sharesavailable")
     response = await _request_with_retry("GET", "/api/sharesavailable")
     logger.info("  → %s (%d bytes)", response.status_code, len(response.content))
@@ -441,13 +352,8 @@ async def get_all_company_summaries() -> list[dict]:
     return response.json()
 
 
-# ---- Pricing & Shares Endpoints ----
 
 async def get_shares_available(symbol: str) -> dict:
-    """
-    Fetch available shares calculation from the on-prem C# server.
-    Returns all pricing periods for the company's active ELOC.
-    """
     logger.info("GET /api/sharesavailable/%s", symbol)
     response = await _request_with_retry("GET", f"/api/sharesavailable/{symbol}")
     logger.info("  → %s (%d bytes)", response.status_code, len(response.content))
@@ -457,10 +363,6 @@ async def get_shares_available(symbol: str) -> dict:
 
 
 async def get_purchase_notice_fields(symbol: str, pricing_period_id: int) -> dict | None:
-    """
-    GET /api/purchasenotice/fields/{symbol}/{pricingPeriodId}
-    Returns calculated fields for rendering a purchase notice.
-    """
     logger.info("GET /api/purchasenotice/fields/%s/%s", symbol, pricing_period_id)
     response = await _request_with_retry(
         "GET", f"/api/purchasenotice/fields/{symbol}/{pricing_period_id}")
@@ -472,14 +374,8 @@ async def get_purchase_notice_fields(symbol: str, pricing_period_id: int) -> dic
     return response.json()
 
 
-# ---- Participation-ELOC Field Catalog ----
 
 async def get_template_field_catalog(document_type: str) -> list[dict]:
-    """
-    GET /api/template-field-catalog/{documentType} — participation-ELOC field
-    catalog (PurchaseNotice | PurchaseConfirmation). DealTermsServer owns the
-    catalog; the Portal admin template editor consumes it through this proxy.
-    """
     logger.info("GET /api/template-field-catalog/%s", document_type)
     response = await _request_with_retry("GET", f"/api/template-field-catalog/{document_type}")
     logger.info("  → %s (%d bytes)", response.status_code, len(response.content))
@@ -488,11 +384,6 @@ async def get_template_field_catalog(document_type: str) -> list[dict]:
 
 
 async def render_participation_pdf_preview(payload: dict) -> tuple[int, bytes, str]:
-    """
-    POST /api/participation-pdf/preview — render a participation template + field
-    values to a PDF. Returns (status_code, content_bytes, content_type) so the caller
-    can pass the PDF straight through, or surface a DTS error body on non-200.
-    """
     logger.info(
         "POST /api/participation-pdf/preview docType=%s fields=%d",
         payload.get("documentType"), len(payload.get("fields") or []),
@@ -503,7 +394,6 @@ async def render_participation_pdf_preview(payload: dict) -> tuple[int, bytes, s
     return response.status_code, response.content, content_type
 
 
-# ---- Portal-Initiated Purchase Notice Endpoints ----
 
 class ElocAlreadyPricingError(Exception):
     """
@@ -523,20 +413,11 @@ class ElocAlreadyPricingError(Exception):
 
 
 async def submit_portal_purchase_notice(payload: dict) -> dict:
-    """
-    POST /api/portal/purchase-notice — submit portal-initiated purchase notice.
-    DTS generates eloc_id, PDF, and writes to three_i_fund_portal MongoDB.
-
-    Raises ElocAlreadyPricingError on HTTP 409 with code=ELOC_ALREADY_PRICING
-    so the caller can render the proper "already pricing" UI without treating
-    it as a server error.
-    """
     logger.info(
         "POST /api/portal/purchase-notice symbol=%s period=%s shares=%s company=%s",
         payload.get("symbol"), payload.get("pricing_period_id"),
         payload.get("shares"), payload.get("company_id"),
     )
-    # Log all payload keys and values (excluding large fields like signature images)
     safe_payload = {
         k: (v[:80] + "..." if isinstance(v, str) and len(v) > 80 else v)
         for k, v in payload.items()
@@ -547,12 +428,6 @@ async def submit_portal_purchase_notice(payload: dict) -> dict:
     response = await _request_with_retry("POST", "/api/portal/purchase-notice", json=payload)
     logger.info("  → %s (%d bytes)", response.status_code, len(response.content))
 
-    # Concurrency-rejection path: DTS returns 409 with a structured body when
-    # the company already has an active ELOC (enforced by the unique partial
-    # index on eloc_status_tracker (company_id) WHERE current_status IN
-    # ('Pending','InProgress')). Surface this as a typed exception so the
-    # FastAPI router translates it to a clean 409 for the frontend rather
-    # than the generic 500 path used by other DTS errors.
     if response.status_code == 409:
         try:
             body = response.json()
@@ -578,9 +453,6 @@ async def submit_portal_purchase_notice(payload: dict) -> dict:
 
 
 async def get_portal_eloc_states_included() -> list[dict]:
-    """
-    GET /api/portal/eloc/states/included — all active portal ELOC workflow states.
-    """
     logger.info("GET /api/portal/eloc/states/included")
     response = await _request_with_retry("GET", "/api/portal/eloc/states/included")
     logger.info("  → %s (%d bytes)", response.status_code, len(response.content))
@@ -589,9 +461,6 @@ async def get_portal_eloc_states_included() -> list[dict]:
 
 
 async def get_portal_eloc_state_by_id(eloc_id: str) -> dict | None:
-    """
-    GET /api/portal/eloc/states/{elocId} — single portal ELOC workflow state.
-    """
     logger.info("GET /api/portal/eloc/states/%s", eloc_id)
     response = await _request_with_retry("GET", f"/api/portal/eloc/states/{eloc_id}")
     if response.status_code == 404:
@@ -603,37 +472,6 @@ async def get_portal_eloc_state_by_id(eloc_id: str) -> dict | None:
 
 
 async def get_document_recipients(eloc_id: str) -> dict | None:
-    """
-    GET /api/portal/eloc/{elocId}/document-recipients — resolves live recipient
-    fields for the Purchase Confirmation document.
-
-    DTS does the full chain on its side (Mongo eloc_data → Postgres
-    eloc_pricing_period → eloc_deal.to / company.email_addresses[0] /
-    firm_signatures.*) so the Portal stays a thin pass-through and the firm-sig
-    snapshot fallback logic lives in exactly one place.
-
-    Response shape:
-      {
-        "elocId": "...",
-        "to_name": "Mathew Lipman",                    # eloc_deal.to (live)
-        "to_name_source": "live" | "(empty)",
-        "to_email": "lipmanm@brookstonepartners.com",  # company.email_addresses[0]
-        "to_email_source": "live" | "(empty)",
-        "to_email_count": 7,                           # total emails on company row
-        "firm_signature": {
-          "name": "...", "title": "...", "address": "...",
-          "email": "...", "signature_image_base64": "..."   # raw base64, no data: prefix
-        },
-        "firm_signature_source": {
-          "name": "live"|"snapshot", ...
-        },
-        "outcomes": { "firm_signature": "ok", "to_name": "ok", "recipient_email": "ok" }
-      }
-
-    Returns None on 404 (no eloc_data for this elocId). Raises on other errors;
-    callers should wrap in try/except and degrade gracefully (per the Portal's
-    "never block a page render on DTS" policy).
-    """
     import time
     t_start = time.monotonic()
     logger.info("GET /api/portal/eloc/%s/document-recipients", eloc_id)
@@ -656,9 +494,6 @@ async def get_document_recipients(eloc_id: str) -> dict | None:
         raise
     elapsed_ms = (time.monotonic() - t_start) * 1000
 
-    # Surface the source attribution and outcomes prominently in the Portal log
-    # so when a user reports "the wrong email is showing" you can grep one
-    # eloc_id and see whether DTS returned live or snapshot/empty for each field.
     outcomes = data.get("outcomes", {})
     firm_sig = data.get("firm_signature") or {}
     firm_sig_src = data.get("firm_signature_source") or {}
@@ -682,9 +517,6 @@ async def get_document_recipients(eloc_id: str) -> dict | None:
 
 
 async def get_portal_eloc_document(eloc_id: str, step: str) -> dict | None:
-    """
-    GET /api/portal/eloc/documents/{elocId}/{step} — document for a portal ELOC step.
-    """
     logger.info("GET /api/portal/eloc/documents/%s/%s", eloc_id, step)
     response = await _request_with_retry(
         "GET", f"/api/portal/eloc/documents/{eloc_id}/{step}")
@@ -697,10 +529,6 @@ async def get_portal_eloc_document(eloc_id: str, step: str) -> dict | None:
 
 
 async def accept_portal_eloc(eloc_id: str) -> dict:
-    """
-    POST /api/portal/eloc/{elocId}/accept — accept current workflow step.
-    DTS advances to the next step in the portal sequence.
-    """
     logger.info("POST /api/portal/eloc/%s/accept", eloc_id)
     response = await _request_with_retry("POST", f"/api/portal/eloc/{eloc_id}/accept")
     logger.info("  → %s (%d bytes)", response.status_code, len(response.content))
@@ -713,10 +541,6 @@ async def accept_portal_eloc(eloc_id: str) -> dict:
 
 
 async def reject_portal_eloc(eloc_id: str) -> dict:
-    """
-    POST /api/portal/eloc/{elocId}/reject — reject portal ELOC.
-    DTS sets status=Rejected, include=false, and removes from tracker.
-    """
     logger.info("POST /api/portal/eloc/%s/reject", eloc_id)
     response = await _request_with_retry("POST", f"/api/portal/eloc/{eloc_id}/reject")
     logger.info("  → %s (%d bytes)", response.status_code, len(response.content))

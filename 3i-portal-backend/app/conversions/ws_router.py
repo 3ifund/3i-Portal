@@ -1,11 +1,3 @@
-"""
-3i Fund Portal — WebSocket proxy for CONV deal-change events.
-
-Relays DTS /ws/conversions (allow_144_transactions toggles etc.) to authenticated ADMIN
-frontend clients so open CONV pages update live. Reconnects to DTS on drop while keeping the
-frontend WS alive. Mounted under /ws (→ /ws/conversions; Caddy/CloudFront forward /ws/*).
-Broadcast-only: DTS → client; client frames are drained only to detect disconnect.
-"""
 import asyncio
 import logging
 from urllib.parse import urlparse

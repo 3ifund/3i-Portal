@@ -1,8 +1,3 @@
-"""
-3i Fund Portal — Admin Router
-Admin-only endpoints for viewing all companies.
-Data sourced from DealTermsServer REST API.
-"""
 
 import logging
 import time
@@ -19,11 +14,9 @@ router = APIRouter()
 
 @router.get("/companies")
 async def list_companies(admin: UserInfo = Depends(require_admin)):
-    """List all companies with ELOC counts."""
     t_start = time.monotonic()
     logger.info("GET /admin/companies by user=%s — START", admin.user_id)
 
-    # Get company list from DealTermsServer
     t_dts = time.monotonic()
     summaries = await onprem.get_all_company_summaries()
     logger.info("GET /admin/companies — DTS call completed in %.1fms (summaries=%d)",

@@ -1,9 +1,3 @@
-"""
-3i Fund Portal — WebSocket Proxy for Real-Time Quotes
-Proxies the on-prem quote WebSocket to authenticated frontend clients.
-Automatically reconnects to on-prem if the upstream connection drops,
-keeping the frontend WebSocket alive.
-"""
 
 import asyncio
 import json
@@ -19,13 +13,11 @@ from app.config import settings
 logger = logging.getLogger("portal.quotes")
 router = APIRouter()
 
-# Reconnect settings
-MAX_RECONNECT_DELAY = 30  # seconds
-INITIAL_RECONNECT_DELAY = 2  # seconds
+MAX_RECONNECT_DELAY = 30
+INITIAL_RECONNECT_DELAY = 2
 
 
 def _get_onprem_ws_url() -> str:
-    """Derive the on-prem WebSocket URL from the HTTP base URL."""
     parsed = urlparse(settings.onprem_base_url)
     ws_scheme = "wss" if parsed.scheme == "https" else "ws"
     url = f"{ws_scheme}://{parsed.netloc}/ws/quotes"
@@ -34,10 +26,6 @@ def _get_onprem_ws_url() -> str:
 
 
 async def _connect_and_subscribe(ws_url: str, symbol: str):
-    """
-    Connect to on-prem WS, receive welcome, subscribe to symbol.
-    Returns (onprem_ws, welcome_message).
-    """
     onprem_ws = await websockets.connect(ws_url)
     welcome = await onprem_ws.recv()
     logger.info("WS /quotes: received welcome from on-prem: %s", welcome[:500])
@@ -49,18 +37,9 @@ async def _connect_and_subscribe(ws_url: str, symbol: str):
 
 @router.websocket("/quotes")
 async def websocket_quotes(websocket: WebSocket, token: str = "", symbol: str = ""):
-    """
-    Proxy WebSocket for real-time quote streaming.
-    Frontend connects with ?token=JWT (and optionally ?symbol=TICKER), backend
-    validates and relays to the on-prem quote feed. Company users get their own
-    company's symbol from the JWT; admins (e.g. the CONV view) may request any
-    symbol via ?symbol=. If the on-prem connection drops, the backend reconnects
-    automatically with exponential backoff while keeping the frontend WS alive.
-    """
     client_host = websocket.client.host if websocket.client else "unknown"
     logger.info("WS /quotes connection from %s", client_host)
 
-    # Validate JWT token
     if not token:
         logger.warning("WS /quotes: no token provided from %s", client_host)
         await websocket.close(code=4001, reason="Invalid or expired token")
@@ -78,8 +57,6 @@ async def websocket_quotes(websocket: WebSocket, token: str = "", symbol: str = 
     requested = (symbol or "").strip().upper()
     role = payload.get("role")
     jwt_symbol = payload.get("company_symbol")
-    # Admins may stream any symbol (the CONV view picks per-company); everyone else
-    # is pinned to their own company's symbol from the JWT.
     symbol = requested if (requested and role == "admin") else jwt_symbol
     if not symbol:
         logger.warning("WS /quotes: no symbol resolved (requested=%s, role=%s, jwt_symbol=%s) for user=%s",
@@ -96,11 +73,9 @@ async def websocket_quotes(websocket: WebSocket, token: str = "", symbol: str = 
     ws_url = _get_onprem_ws_url()
     client_disconnected = False
 
-    # Task that listens for client messages (and detects client disconnect)
     client_msg_queue = asyncio.Queue()
 
     async def listen_client():
-        """Listen for messages from the frontend client."""
         nonlocal client_disconnected
         try:
             while True:
@@ -122,18 +97,14 @@ async def websocket_quotes(websocket: WebSocket, token: str = "", symbol: str = 
         while not client_disconnected:
             onprem_ws = None
             try:
-                # Connect to on-prem
                 logger.info("WS /quotes: connecting to on-prem at %s", ws_url)
                 onprem_ws, welcome = await _connect_and_subscribe(ws_url, symbol)
                 logger.info("WS /quotes: on-prem WS connected for symbol=%s", symbol)
 
-                # Reset backoff on successful connect
                 reconnect_delay = INITIAL_RECONNECT_DELAY
 
-                # Relay welcome to client
                 await websocket.send_text(welcome)
 
-                # Relay loop: on-prem → client, and forward any queued client messages
                 msg_count = 0
                 async for message in onprem_ws:
                     if client_disconnected:
@@ -144,12 +115,10 @@ async def websocket_quotes(websocket: WebSocket, token: str = "", symbol: str = 
                         logger.debug("WS /quotes: on-prem→client msg #%d: %s", msg_count, message[:500])
                     await websocket.send_text(message)
 
-                    # Forward any pending client messages to on-prem
                     while not client_msg_queue.empty():
                         client_data = client_msg_queue.get_nowait()
                         await onprem_ws.send(client_data)
 
-                # If we get here, the on-prem WS closed (iterator ended)
                 if not client_disconnected:
                     logger.warning("WS /quotes: on-prem WS closed for symbol=%s, will reconnect in %ds",
                                    symbol, reconnect_delay)
@@ -192,7 +161,6 @@ async def websocket_quotes(websocket: WebSocket, token: str = "", symbol: str = 
             if client_disconnected:
                 break
 
-            # Exponential backoff before reconnecting
             await asyncio.sleep(reconnect_delay)
             reconnect_delay = min(reconnect_delay * 2, MAX_RECONNECT_DELAY)
 
