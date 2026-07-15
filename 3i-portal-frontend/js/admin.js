@@ -13,38 +13,63 @@ const Admin = (() => {
      * Set up tab switching between Companies / ELOCs / Notices / Users.
      */
     function initTabs() {
-        const tabs = document.querySelectorAll('.tab');
-        const panels = {
-            companies: document.getElementById('companies-panel'),
-            elocs: document.getElementById('elocs-panel'),
-            notices: document.getElementById('notices-panel'),
-            users: document.getElementById('users-panel'),
-            templates: document.getElementById('templates-panel'),
-            signatories: document.getElementById('signatories-panel'),
-            'backward-templates': document.getElementById('backward-templates-panel'),
-            'confirm-templates': document.getElementById('confirm-templates-panel'),
-            'participation-templates': document.getElementById('participation-templates-panel'),
-            verification: document.getElementById('verification-panel'),
+        const panelIds = {
+            companies: 'companies-panel',
+            users: 'users-panel',
+            templates: 'templates-panel',
+            'backward-templates': 'backward-templates-panel',
+            'confirm-templates': 'confirm-templates-panel',
+            'participation-templates': 'participation-templates-panel',
+            verification: 'verification-panel',
+            'conversion-notice': 'conversion-notice-panel',
         };
+        const groups = {
+            eloc: {
+                subbar: 'eloc-subtabs',
+                members: ['templates', 'backward-templates', 'confirm-templates', 'participation-templates', 'verification'],
+                active: 'templates',
+            },
+            conversions: {
+                subbar: 'conversions-subtabs',
+                members: ['conversion-notice'],
+                active: 'conversion-notice',
+            },
+        };
+        const disp = (id, on) => { const el = document.getElementById(id); if (el) el.style.display = on ? '' : 'none'; };
+        const hideAllPanels = () => Object.values(panelIds).forEach((id) => disp(id, false));
 
-        tabs.forEach((tab) => {
+        function showSub(key) {
+            hideAllPanels();
+            disp(panelIds[key], true);
+            document.querySelectorAll('.subtab').forEach((s) => s.classList.toggle('active', s.getAttribute('data-subtab') === key));
+            if (key === 'participation-templates') {
+                populateParticipationCompanyFilter();
+            }
+        }
+
+        document.querySelectorAll('.tab').forEach((tab) => {
             tab.addEventListener('click', () => {
-                tabs.forEach((t) => t.classList.remove('active'));
+                document.querySelectorAll('.tab').forEach((t) => t.classList.remove('active'));
                 tab.classList.add('active');
-
                 const target = tab.getAttribute('data-tab');
-                Object.entries(panels).forEach(([key, panel]) => {
-                    if (panel) panel.style.display = key === target ? 'block' : 'none';
-                });
-
-                // Lazily (re)populate the participation company dropdown when its tab is
-                // opened. The init-time populate runs asynchronously and can lose a race if
-                // the user opens this tab before the company load finishes — which left the
-                // dropdown empty until they switched tabs and back. loadElocCompanies() is
-                // cached, so this is cheap on every show.
-                if (target === 'participation-templates') {
-                    populateParticipationCompanyFilter();
+                disp('eloc-subtabs', false);
+                disp('conversions-subtabs', false);
+                const group = groups[target];
+                if (group) {
+                    disp(group.subbar, true);
+                    showSub(group.active);
+                } else {
+                    hideAllPanels();
+                    disp(panelIds[target], true);
                 }
+            });
+        });
+
+        document.querySelectorAll('.subtab').forEach((sub) => {
+            sub.addEventListener('click', () => {
+                const key = sub.getAttribute('data-subtab');
+                Object.values(groups).forEach((g) => { if (g.members.includes(key)) g.active = key; });
+                showSub(key);
             });
         });
     }

@@ -39,11 +39,27 @@
             <div class="tabs">
                 <button class="tab active" data-tab="companies">Companies</button>
                 <button class="tab" data-tab="users">Users</button>
-                <button class="tab" data-tab="templates">Notice Templates</button>
-                <button class="tab" data-tab="backward-templates">Notice Templates (Backward)</button>
-                <button class="tab" data-tab="confirm-templates">Confirmation Templates</button>
-                <button class="tab" data-tab="participation-templates">Participation Templates</button>
-                <button class="tab" data-tab="verification">Verification Settings</button>
+                <button class="tab" data-tab="eloc">ELOC</button>
+                <button class="tab" data-tab="conversions">Conversions</button>
+            </div>
+
+            <!-- ELOC sub-tabs -->
+            <div class="subtabs" id="eloc-subtabs" style="display:none;">
+                <button class="subtab active" data-subtab="templates">Notice Templates</button>
+                <button class="subtab" data-subtab="backward-templates">Notice Templates (Backward)</button>
+                <button class="subtab" data-subtab="confirm-templates">Confirmation Templates</button>
+                <button class="subtab" data-subtab="participation-templates">Participation Templates</button>
+                <button class="subtab" data-subtab="verification">Verification Settings</button>
+            </div>
+
+            <!-- Conversions sub-tabs -->
+            <div class="subtabs" id="conversions-subtabs" style="display:none;">
+                <button class="subtab active" data-subtab="conversion-notice">Conversion Notice</button>
+            </div>
+
+            <!-- Conversion Notice Panel (placeholder; feature built next) -->
+            <div id="conversion-notice-panel" style="display:none;">
+                <div style="padding:2rem; color:var(--text-secondary); font-size:0.9rem;">Conversion Notice templates — coming next.</div>
             </div>
 
             <!-- Companies Panel -->

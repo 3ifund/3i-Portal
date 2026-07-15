@@ -574,6 +574,34 @@ a:hover {
     border-bottom-color: var(--accent-blue);
 }
 
+.subtabs {
+    display: flex;
+    gap: 0;
+    margin: -0.75rem 0 1.5rem;
+    border-bottom: 1px solid var(--input-border);
+}
+
+.subtab {
+    padding: 0.5rem 1rem;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    cursor: pointer;
+    font-family: var(--font-family);
+    transition: all var(--transition-speed);
+}
+
+.subtab:hover {
+    color: var(--text-primary);
+}
+
+.subtab.active {
+    color: var(--accent-blue);
+    border-bottom-color: var(--accent-blue);
+}
+
 .tab.has-actions {
     animation: flash-red 1.5s ease-in-out infinite;
 }
