@@ -27,6 +27,11 @@ class Allow144Body(BaseModel):
     allow: bool
 
 
+class TradingObjectiveBody(BaseModel):
+    company: str
+    objective: str
+
+
 @router.get("/aggregates")
 async def get_aggregates(admin: UserInfo = Depends(require_admin)):
     logger.info("GET /internal/conversions/aggregates by user=%s", admin.user_id)
@@ -52,6 +57,14 @@ async def set_allow144(body: Allow144Body, admin: UserInfo = Depends(require_adm
     logger.info("POST /internal/conversions/rule144/allow company=%s allow=%s by user=%s",
                 body.company, body.allow, admin.user_id)
     status, data = await onprem.set_conversion_allow144({"company": body.company, "allow": body.allow})
+    return JSONResponse(status_code=status, content=data)
+
+
+@router.post("/trading-objective")
+async def set_trading_objective(body: TradingObjectiveBody, admin: UserInfo = Depends(require_admin)):
+    logger.info("POST /internal/conversions/trading-objective company=%s objective=%s by user=%s",
+                body.company, body.objective, admin.user_id)
+    status, data = await onprem.set_conversion_trading_objective({"company": body.company, "objective": body.objective})
     return JSONResponse(status_code=status, content=data)
 
 

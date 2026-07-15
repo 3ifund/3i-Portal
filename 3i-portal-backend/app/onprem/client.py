@@ -151,6 +151,18 @@ async def set_conversion_allow144(payload: dict) -> tuple[int, dict]:
     return response.status_code, body
 
 
+async def set_conversion_trading_objective(payload: dict) -> tuple[int, dict]:
+    client = _get_client()
+    logger.info("POST /api/conversions/trading-objective company=%s objective=%s", payload.get("company"), payload.get("objective"))
+    response = await client.post("/api/conversions/trading-objective", json=payload)
+    logger.info("  → %s", response.status_code)
+    try:
+        body = response.json()
+    except Exception:
+        body = {"message": response.text}
+    return response.status_code, body
+
+
 async def acquire_conversion_lock(payload: dict) -> tuple[int, dict]:
     client = _get_client()
     logger.info("POST /api/conversions/lock company=%s owner=%s", payload.get("company"), payload.get("owner"))
