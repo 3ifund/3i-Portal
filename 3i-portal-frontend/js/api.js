@@ -650,23 +650,23 @@ const API = (() => {
         }, delay);
     }
 
-    async function adminListConversionNoticeTemplates() {
-        const response = await fetch(`${BASE_URL}/admin/conversion-notice/templates`, { headers: authHeaders() });
+    async function adminListConversionTemplates(base) {
+        const response = await fetch(`${BASE_URL}/admin/${base}/templates`, { headers: authHeaders() });
         return handleResponse(response);
     }
 
-    async function adminGetConversionNoticeTemplate(templateId) {
-        const response = await fetch(`${BASE_URL}/admin/conversion-notice/templates/${encodeURIComponent(templateId)}`, { headers: authHeaders() });
+    async function adminGetConversionTemplate(base, templateId) {
+        const response = await fetch(`${BASE_URL}/admin/${base}/templates/${encodeURIComponent(templateId)}`, { headers: authHeaders() });
         return handleResponse(response);
     }
 
-    async function adminListConversionNoticeClasses() {
-        const response = await fetch(`${BASE_URL}/admin/conversion-notice/classes`, { headers: authHeaders() });
+    async function adminListConversionClasses(base) {
+        const response = await fetch(`${BASE_URL}/admin/${base}/classes`, { headers: authHeaders() });
         return handleResponse(response);
     }
 
-    async function adminMapConversionNoticeTemplate(instrumentId, templateId) {
-        const response = await fetch(`${BASE_URL}/admin/conversion-notice/mappings`, {
+    async function adminMapConversionTemplate(base, instrumentId, templateId) {
+        const response = await fetch(`${BASE_URL}/admin/${base}/mappings`, {
             method: 'PUT',
             headers: authHeaders(),
             body: JSON.stringify({ instrument_id: instrumentId, template_id: templateId }),
@@ -674,8 +674,8 @@ const API = (() => {
         return handleResponse(response);
     }
 
-    async function adminUnmapConversionNoticeTemplate(instrumentId) {
-        const response = await fetch(`${BASE_URL}/admin/conversion-notice/mappings/${instrumentId}`, {
+    async function adminUnmapConversionTemplate(base, instrumentId) {
+        const response = await fetch(`${BASE_URL}/admin/${base}/mappings/${instrumentId}`, {
             method: 'DELETE',
             headers: authHeaders(),
         });
@@ -739,10 +739,10 @@ const API = (() => {
         adminUpsertParticipationMapping,
         adminDeleteParticipationMapping,
         adminPreviewParticipationPdf,
-        adminListConversionNoticeTemplates,
-        adminGetConversionNoticeTemplate,
-        adminListConversionNoticeClasses,
-        adminMapConversionNoticeTemplate,
-        adminUnmapConversionNoticeTemplate,
+        adminListConversionTemplates,
+        adminGetConversionTemplate,
+        adminListConversionClasses,
+        adminMapConversionTemplate,
+        adminUnmapConversionTemplate,
     };
 })();

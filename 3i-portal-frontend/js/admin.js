@@ -22,6 +22,7 @@ const Admin = (() => {
             'participation-templates': 'participation-templates-panel',
             verification: 'verification-panel',
             'conversion-notice': 'conversion-notice-panel',
+            'conversion-details': 'conversion-details-panel',
         };
         const groups = {
             eloc: {
@@ -31,7 +32,7 @@ const Admin = (() => {
             },
             conversions: {
                 subbar: 'conversions-subtabs',
-                members: ['conversion-notice'],
+                members: ['conversion-notice', 'conversion-details'],
                 active: 'conversion-notice',
             },
         };
@@ -45,8 +46,8 @@ const Admin = (() => {
             if (key === 'participation-templates') {
                 populateParticipationCompanyFilter();
             }
-            if (key === 'conversion-notice') {
-                loadConversionNotice();
+            if (CN_CONFIGS[key]) {
+                loadConversions(CN_CONFIGS[key]);
             }
         }
 
@@ -77,7 +78,10 @@ const Admin = (() => {
         });
     }
 
-    let cnTemplates = [];
+    const CN_CONFIGS = {
+        'conversion-notice': { base: 'conversion-notice', templatesTbody: 'cn-templates-tbody', classesHost: 'cn-classes' },
+        'conversion-details': { base: 'conversion-details', templatesTbody: 'cd-templates-tbody', classesHost: 'cd-classes' },
+    };
 
     function initConversionNotice() {
         const close = document.getElementById('cn-preview-close');
@@ -86,37 +90,36 @@ const Admin = (() => {
         if (done) done.addEventListener('click', closeCnPreview);
     }
 
-    async function loadConversionNotice() {
-        console.log('[Admin] loadConversionNotice — START');
+    async function loadConversions(cfg) {
+        console.log('[Admin] loadConversions', cfg.base, '— START');
         try {
             const [templates, companies] = await Promise.all([
-                API.adminListConversionNoticeTemplates(),
-                API.adminListConversionNoticeClasses(),
+                API.adminListConversionTemplates(cfg.base),
+                API.adminListConversionClasses(cfg.base),
             ]);
-            cnTemplates = templates || [];
-            renderCnTemplates(cnTemplates);
-            renderCnClasses(companies || [], cnTemplates);
-            console.log('[Admin] loadConversionNotice —', cnTemplates.length, 'template(s),', (companies || []).length, 'company(ies)');
+            renderCnTemplates(cfg, templates || []);
+            renderCnClasses(cfg, companies || [], templates || []);
+            console.log('[Admin] loadConversions', cfg.base, '—', (templates || []).length, 'template(s),', (companies || []).length, 'company(ies)');
         } catch (e) {
-            console.error('[Admin] loadConversionNotice failed', e);
+            console.error('[Admin] loadConversions', cfg.base, 'failed', e);
         }
     }
 
-    function renderCnTemplates(templates) {
-        const tbody = document.getElementById('cn-templates-tbody');
+    function renderCnTemplates(cfg, templates) {
+        const tbody = document.getElementById(cfg.templatesTbody);
         if (!tbody) return;
         tbody.innerHTML = templates.length
             ? templates.map((t) => `
                 <tr>
                     <td>${escapeHtml(t.name)}</td>
-                    <td style="text-align:right;"><button class="btn btn-secondary" data-preview="${escapeHtml(t.template_id)}">Preview</button></td>
+                    <td style="text-align:right;"><button class="btn btn-secondary" data-base="${cfg.base}" data-preview="${escapeHtml(t.template_id)}">Preview</button></td>
                 </tr>`).join('')
             : '<tr><td colspan="2" style="color:var(--text-secondary);">No templates.</td></tr>';
-        tbody.querySelectorAll('[data-preview]').forEach((b) => b.addEventListener('click', () => previewCnTemplate(b.getAttribute('data-preview'))));
+        tbody.querySelectorAll('[data-preview]').forEach((b) => b.addEventListener('click', () => previewCnTemplate(b.getAttribute('data-base'), b.getAttribute('data-preview'))));
     }
 
-    function renderCnClasses(companies, templates) {
-        const host = document.getElementById('cn-classes');
+    function renderCnClasses(cfg, companies, templates) {
+        const host = document.getElementById(cfg.classesHost);
         if (!host) return;
         if (!companies.length) { host.innerHTML = '<div style="color:var(--text-secondary);">No companies have conversions.</div>'; return; }
         const opts = (selected) => ['<option value="">— none —</option>']
@@ -132,7 +135,7 @@ const Admin = (() => {
                             <tr>
                                 <td>Tranche ${tr.trancheNo}</td>
                                 <td>${escapeHtml(tr.className || '')}</td>
-                                <td><select class="cn-map-select" data-iid="${tr.instrumentId}">${opts(tr.templateId)}</select></td>
+                                <td><select class="cn-map-select" data-base="${cfg.base}" data-iid="${tr.instrumentId}">${opts(tr.templateId)}</select></td>
                             </tr>`).join('')}
                     </tbody>
                 </table>
@@ -141,39 +144,40 @@ const Admin = (() => {
     }
 
     async function onCnMapChange(sel) {
+        const base = sel.getAttribute('data-base');
         const iid = Number(sel.getAttribute('data-iid'));
         const templateId = sel.value;
         try {
             if (templateId) {
-                await API.adminMapConversionNoticeTemplate(iid, templateId);
-                console.log('[Admin] mapped instrument', iid, '->', templateId);
+                await API.adminMapConversionTemplate(base, iid, templateId);
+                console.log('[Admin] mapped', base, 'instrument', iid, '->', templateId);
             } else {
-                await API.adminUnmapConversionNoticeTemplate(iid);
-                console.log('[Admin] unmapped instrument', iid);
+                await API.adminUnmapConversionTemplate(base, iid);
+                console.log('[Admin] unmapped', base, 'instrument', iid);
             }
         } catch (e) {
             console.error('[Admin] map/unmap failed', e);
             alert('Map/unmap failed: ' + e.message);
-            loadConversionNotice();
+            if (CN_CONFIGS[base]) loadConversions(CN_CONFIGS[base]);
         }
     }
 
-    async function previewCnTemplate(templateId) {
+    async function previewCnTemplate(base, templateId) {
         try {
-            const t = await API.adminGetConversionNoticeTemplate(templateId);
+            const t = await API.adminGetConversionTemplate(base, templateId);
             document.getElementById('cn-preview-title').textContent = t.name;
-            const size = { 'X-Large': '1.6rem', Large: '1.3rem', Normal: '1.05rem', Small: '0.9rem' }[t.title_font_size] || '1.3rem';
+            const size = { 'X-Large': '1.35rem', Large: '1.15rem', Normal: '0.95rem', Small: '0.82rem' }[t.title_font_size] || '1.15rem';
             const title = (t.title_lines || []).map((l) => `<div style="font-size:${size}; font-weight:700; text-align:center;">${escapeHtml(l)}</div>`).join('');
             const fields = (t.fields || []).slice().sort((a, b) => (a.order || 0) - (b.order || 0)).map((f) => {
-                if (f.type === 'section') return `<div style="text-decoration:underline; margin:0.75rem 0 0.25rem; font-weight:600;">${escapeHtml(f.label)}</div>`;
-                if (f.type === 'instruction') return `<div style="margin:0.75rem 0 0.25rem;">${escapeHtml(f.label)}</div>`;
-                if (f.type === 'checkbox') return `<div style="margin:0.35rem 0;">[ ] ${escapeHtml(f.label)}</div>`;
-                if (f.type === 'signature') return `<div style="margin:0.6rem 0 0.2rem;">${escapeHtml(f.label)} <span style="display:inline-block; width:180px; border-bottom:1px solid #999;"></span></div>`;
-                return `<div style="margin:0.35rem 0;">${escapeHtml(f.label)}</div>`;
+                if (f.type === 'section') return `<div style="text-decoration:underline; margin:1rem 0 0.4rem; font-weight:600;">${escapeHtml(f.label)}</div>`;
+                if (f.type === 'instruction') return `<div style="margin:1rem 0 0.4rem;">${escapeHtml(f.label)}</div>`;
+                if (f.type === 'checkbox') return `<div style="margin:0.7rem 0;">[ ] ${escapeHtml(f.label)}</div>`;
+                if (f.type === 'signature') return `<div style="margin:0.9rem 0 0.35rem;">${escapeHtml(f.label)} <span style="display:inline-block; width:180px; border-bottom:1px solid #999;"></span></div>`;
+                return `<div style="margin:0.7rem 0;">${escapeHtml(f.label)}</div>`;
             }).join('');
             document.getElementById('cn-preview-body').innerHTML =
                 `<div style="margin-bottom:1rem;">${title}</div>` +
-                `<div style="margin-bottom:1rem; text-align:justify;">${escapeHtml(t.body_text || '')}</div>` +
+                (t.body_text ? `<div style="margin-bottom:1rem; text-align:justify;">${escapeHtml(t.body_text)}</div>` : '') +
                 fields;
             document.getElementById('cn-preview-modal-overlay').classList.add('visible');
         } catch (e) {

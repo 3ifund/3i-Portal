@@ -23,7 +23,10 @@ from app.admin.users_router import router as admin_users_router
 from app.purchase_notices.admin_router import router as pn_admin_router
 from app.purchase_notices.router import router as pn_router
 from app.participation_templates.admin_router import router as participation_admin_router
-from app.conversion_notice.admin_router import router as conversion_notice_admin_router
+from app.conversion_notice.admin_router import (
+    notice_router as conversion_notice_router,
+    details_router as conversion_details_router,
+)
 from app.approval.router import router as approval_router
 from app.approval.admin_router import router as approval_admin_router
 from app.users.repository import ensure_table_exists
@@ -122,7 +125,8 @@ app.include_router(admin_router, prefix="/admin", tags=["admin"])
 app.include_router(admin_users_router, prefix="/admin", tags=["admin-users"])
 app.include_router(pn_admin_router, prefix="/admin", tags=["admin-templates"])
 app.include_router(participation_admin_router, prefix="/admin", tags=["admin-participation-templates"])
-app.include_router(conversion_notice_admin_router, prefix="/admin", tags=["admin-conversion-notice"])
+app.include_router(conversion_notice_router, prefix="/admin/conversion-notice", tags=["admin-conversion-notice"])
+app.include_router(conversion_details_router, prefix="/admin/conversion-details", tags=["admin-conversion-details"])
 app.include_router(pn_router, prefix="/purchase-notices", tags=["purchase-notices"])
 app.include_router(quotes_router, prefix="/ws", tags=["quotes"])
 app.include_router(conversions_ws_router, prefix="/ws", tags=["conversions-ws"])
