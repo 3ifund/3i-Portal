@@ -23,6 +23,7 @@ from app.admin.users_router import router as admin_users_router
 from app.purchase_notices.admin_router import router as pn_admin_router
 from app.purchase_notices.router import router as pn_router
 from app.participation_templates.admin_router import router as participation_admin_router
+from app.conversion_notice.admin_router import router as conversion_notice_admin_router
 from app.approval.router import router as approval_router
 from app.approval.admin_router import router as approval_admin_router
 from app.users.repository import ensure_table_exists
@@ -69,9 +70,12 @@ async def lifespan(app: FastAPI):
 
     from app.database.mongo import is_connected
     from app.participation_templates import mongo_repository as participation_repo
+    from app.conversion_notice import mongo_repository as conversion_notice_repo
     if is_connected():
         await participation_repo.ensure_indexes()
         logger.info("Participation template indexes ensured")
+        await conversion_notice_repo.ensure_indexes()
+        logger.info("Conversion-notice template indexes + seed ensured")
     else:
         logger.warning("MongoDB not connected — skipping participation template index creation")
 
@@ -118,6 +122,7 @@ app.include_router(admin_router, prefix="/admin", tags=["admin"])
 app.include_router(admin_users_router, prefix="/admin", tags=["admin-users"])
 app.include_router(pn_admin_router, prefix="/admin", tags=["admin-templates"])
 app.include_router(participation_admin_router, prefix="/admin", tags=["admin-participation-templates"])
+app.include_router(conversion_notice_admin_router, prefix="/admin", tags=["admin-conversion-notice"])
 app.include_router(pn_router, prefix="/purchase-notices", tags=["purchase-notices"])
 app.include_router(quotes_router, prefix="/ws", tags=["quotes"])
 app.include_router(conversions_ws_router, prefix="/ws", tags=["conversions-ws"])
