@@ -650,6 +650,38 @@ const API = (() => {
         }, delay);
     }
 
+    async function adminListConversionNoticeTemplates() {
+        const response = await fetch(`${BASE_URL}/admin/conversion-notice/templates`, { headers: authHeaders() });
+        return handleResponse(response);
+    }
+
+    async function adminGetConversionNoticeTemplate(templateId) {
+        const response = await fetch(`${BASE_URL}/admin/conversion-notice/templates/${encodeURIComponent(templateId)}`, { headers: authHeaders() });
+        return handleResponse(response);
+    }
+
+    async function adminListConversionNoticeClasses() {
+        const response = await fetch(`${BASE_URL}/admin/conversion-notice/classes`, { headers: authHeaders() });
+        return handleResponse(response);
+    }
+
+    async function adminMapConversionNoticeTemplate(instrumentId, templateId) {
+        const response = await fetch(`${BASE_URL}/admin/conversion-notice/mappings`, {
+            method: 'PUT',
+            headers: authHeaders(),
+            body: JSON.stringify({ instrument_id: instrumentId, template_id: templateId }),
+        });
+        return handleResponse(response);
+    }
+
+    async function adminUnmapConversionNoticeTemplate(instrumentId) {
+        const response = await fetch(`${BASE_URL}/admin/conversion-notice/mappings/${instrumentId}`, {
+            method: 'DELETE',
+            headers: authHeaders(),
+        });
+        return handleResponse(response);
+    }
+
     return {
         login,
         refreshAccessToken,
@@ -707,5 +739,10 @@ const API = (() => {
         adminUpsertParticipationMapping,
         adminDeleteParticipationMapping,
         adminPreviewParticipationPdf,
+        adminListConversionNoticeTemplates,
+        adminGetConversionNoticeTemplate,
+        adminListConversionNoticeClasses,
+        adminMapConversionNoticeTemplate,
+        adminUnmapConversionNoticeTemplate,
     };
 })();
