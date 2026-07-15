@@ -62,8 +62,11 @@ _TEMPLATES = [
         "title_font_size": "Normal",
         "body_text": "",
         "fields": [
-            {"order": 1, "type": "data", "label": "Remaining Principal Post Conversion:"},
-            {"order": 2, "type": "data", "label": "Remaining Interest & Make Whole Post Conversion:"},
+            {"order": 1, "type": "data", "label": "Aggregate Interest Converting"},
+            {"order": 2, "type": "data", "label": "Accrued Interest"},
+            {"order": 3, "type": "data", "label": "Make-Whole"},
+            {"order": 4, "type": "data", "label": "Remaining Principal Post Conversion:"},
+            {"order": 5, "type": "data", "label": "Remaining Interest & Make Whole Post Conversion:"},
         ],
     },
 ]
