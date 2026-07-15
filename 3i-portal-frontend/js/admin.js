@@ -135,7 +135,7 @@ const Admin = (() => {
                             <tr>
                                 <td>Tranche ${tr.trancheNo}</td>
                                 <td>${escapeHtml(tr.className || '')}</td>
-                                <td><select class="cn-map-select" data-base="${cfg.base}" data-iid="${tr.instrumentId}">${opts(tr.templateId)}</select></td>
+                                <td><select class="cn-map-select" data-base="${cfg.base}" data-iid="${tr.instrumentId}">${opts(tr.templateId)}</select><span class="cn-map-status" style="margin-left:8px; font-size:0.8rem;"></span></td>
                             </tr>`).join('')}
                     </tbody>
                 </table>
@@ -147,6 +147,8 @@ const Admin = (() => {
         const base = sel.getAttribute('data-base');
         const iid = Number(sel.getAttribute('data-iid'));
         const templateId = sel.value;
+        const status = sel.parentElement.querySelector('.cn-map-status');
+        if (status) { status.textContent = 'Saving…'; status.style.color = 'var(--text-secondary)'; }
         try {
             if (templateId) {
                 await API.adminMapConversionTemplate(base, iid, templateId);
@@ -155,7 +157,13 @@ const Admin = (() => {
                 await API.adminUnmapConversionTemplate(base, iid);
                 console.log('[Admin] unmapped', base, 'instrument', iid);
             }
+            if (status) {
+                status.textContent = templateId ? 'Saved ✓' : 'Removed ✓';
+                status.style.color = '#2e7d32';
+                setTimeout(() => { if (status) status.textContent = ''; }, 2000);
+            }
         } catch (e) {
+            if (status) { status.textContent = 'Error'; status.style.color = '#c62828'; }
             console.error('[Admin] map/unmap failed', e);
             alert('Map/unmap failed: ' + e.message);
             if (CN_CONFIGS[base]) loadConversions(CN_CONFIGS[base]);

@@ -79,6 +79,9 @@ async def ensure_indexes() -> None:
             pass
     await db[TEMPLATES].create_index("template_id", unique=True, name="uniq_template_id")
     await db[TEMPLATES].create_index([("kind", 1), ("name", 1)], unique=True, name="uniq_kind_name")
+    backfilled = await db[MAPPINGS].update_many({"kind": {"$exists": False}}, {"$set": {"kind": KIND_NOTICE}})
+    if backfilled.modified_count:
+        logger.info("backfilled %s pre-kind mapping(s) to %s", backfilled.modified_count, KIND_NOTICE)
     await db[MAPPINGS].create_index([("instrument_id", 1), ("kind", 1)], unique=True, name="uniq_instrument_kind")
     await _seed_default_templates(db)
     logger.info("ensure_indexes — conversion-notice/details indexes ensured")
