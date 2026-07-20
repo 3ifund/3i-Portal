@@ -102,3 +102,30 @@ async def convert(body: ConvertBody, admin: UserInfo = Depends(require_admin)):
         {"company": body.company, "price": body.price, "amount": body.amount, "owner": admin.user_id}
     )
     return JSONResponse(status_code=status, content=data)
+
+
+@router.get("/completed/{company}")
+async def get_completed(company: str, admin: UserInfo = Depends(require_admin)):
+    logger.info("GET /internal/conversions/completed/%s by user=%s", company, admin.user_id)
+    try:
+        return await onprem.get_conversion_completed(company)
+    except Exception as exc:
+        logger.error("completed — DTS fetch FAILED: %s", exc, exc_info=True)
+        raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
+
+
+@router.get("/{conversion_id}/pdf/{notice_index}/{doc_type}")
+async def get_pdf(conversion_id: str, notice_index: int, doc_type: str, admin: UserInfo = Depends(require_admin)):
+    logger.info("GET /internal/conversions/%s/pdf/%s/%s by user=%s", conversion_id, notice_index, doc_type, admin.user_id)
+    try:
+        return await onprem.get_conversion_pdf(conversion_id, notice_index, doc_type)
+    except Exception as exc:
+        logger.error("pdf — DTS fetch FAILED: %s", exc, exc_info=True)
+        raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
+
+
+@router.delete("/{conversion_id}")
+async def delete_conversion(conversion_id: str, admin: UserInfo = Depends(require_admin)):
+    logger.info("DELETE /internal/conversions/%s by user=%s", conversion_id, admin.user_id)
+    status, data = await onprem.delete_conversion(conversion_id)
+    return JSONResponse(status_code=status, content=data)

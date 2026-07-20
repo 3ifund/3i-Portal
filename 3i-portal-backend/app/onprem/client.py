@@ -210,6 +210,34 @@ async def convert_basic(payload: dict) -> tuple[int, dict]:
     return response.status_code, body
 
 
+async def get_conversion_completed(company: str) -> dict:
+    logger.info("GET /api/conversions/completed/%s", company)
+    response = await _request_with_retry("GET", f"/api/conversions/completed/{company}")
+    logger.info("  → %s (%d bytes)", response.status_code, len(response.content))
+    response.raise_for_status()
+    return response.json()
+
+
+async def get_conversion_pdf(conversion_id: str, notice_index: int, doc_type: str) -> dict:
+    logger.info("GET /api/conversions/%s/pdf/%s/%s", conversion_id, notice_index, doc_type)
+    response = await _request_with_retry("GET", f"/api/conversions/{conversion_id}/pdf/{notice_index}/{doc_type}")
+    logger.info("  → %s (%d bytes)", response.status_code, len(response.content))
+    response.raise_for_status()
+    return response.json()
+
+
+async def delete_conversion(conversion_id: str) -> tuple[int, dict]:
+    client = _get_client()
+    logger.info("DELETE /api/conversions/%s", conversion_id)
+    response = await client.delete(f"/api/conversions/{conversion_id}")
+    logger.info("  → %s", response.status_code)
+    try:
+        body = response.json()
+    except Exception:
+        body = {"message": response.text}
+    return response.status_code, body
+
+
 async def post_prm_synthetic_trade(payload: dict) -> tuple[int, dict]:
     client = _get_client()
     logger.info(
