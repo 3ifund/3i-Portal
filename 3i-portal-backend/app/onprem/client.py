@@ -147,6 +147,39 @@ async def get_conversion_rule144() -> list[dict]:
     return response.json()
 
 
+async def get_execution_status() -> dict:
+    response = await _request_with_retry("GET", "/api/execution/status")
+    response.raise_for_status()
+    return response.json()
+
+
+async def get_execution_config() -> dict:
+    response = await _request_with_retry("GET", "/api/execution/config")
+    response.raise_for_status()
+    return response.json()
+
+
+async def update_execution_config(body: dict, reconnect: bool = True) -> dict:
+    logger.info("PUT /api/execution/config %s:%s reconnect=%s", body.get("serverAddress"), body.get("serverPort"), reconnect)
+    response = await _request_with_retry("PUT", "/api/execution/config", params={"reconnect": str(reconnect).lower()}, json=body)
+    response.raise_for_status()
+    return response.json()
+
+
+async def execution_connect() -> dict:
+    logger.info("POST /api/execution/connect")
+    response = await _request_with_retry("POST", "/api/execution/connect")
+    response.raise_for_status()
+    return response.json()
+
+
+async def execution_disconnect() -> dict:
+    logger.info("POST /api/execution/disconnect")
+    response = await _request_with_retry("POST", "/api/execution/disconnect")
+    response.raise_for_status()
+    return response.json()
+
+
 async def set_conversion_allow144(payload: dict) -> tuple[int, dict]:
     client = _get_client()
     logger.info("POST /api/conversions/rule144/allow company=%s allow=%s", payload.get("company"), payload.get("allow"))
