@@ -180,6 +180,19 @@ async def execution_disconnect() -> dict:
     return response.json()
 
 
+async def get_pt_companies() -> dict:
+    response = await _request_with_retry("GET", "/api/pt/companies")
+    response.raise_for_status()
+    return response.json()
+
+
+async def set_pt_company_over_the_wall(company_id: int, body: dict) -> dict:
+    logger.info("PUT /api/pt/companies/%s/over-the-wall -> %s", company_id, body.get("overTheWall"))
+    response = await _request_with_retry("PUT", f"/api/pt/companies/{company_id}/over-the-wall", json=body)
+    response.raise_for_status()
+    return response.json()
+
+
 async def dts_reachable() -> bool:
     """Quick liveness probe of DTS over the existing on-prem connection — backs the portal's DTS nav icon.
     Short timeout, no retry, so 'down' surfaces promptly."""

@@ -18,6 +18,8 @@ from app.conversions.router import router as conversions_router
 from app.conversions.ws_router import ws_router as conversions_ws_router
 from app.execution.router import router as execution_router
 from app.execution.ws_router import ws_router as execution_ws_router
+from app.pt.router import router as pt_router
+from app.pt.ws_router import ws_router as pt_ws_router
 from app.onprem import client as onprem
 from app.admin.router import router as admin_router
 from app.quotes.router import router as quotes_router
@@ -125,6 +127,7 @@ app.include_router(internal_elocs_router, prefix="/api/internal", tags=["interna
 app.include_router(prm_router, prefix="/api/internal/prm", tags=["prm"])
 app.include_router(conversions_router, prefix="/api/internal/conversions", tags=["conversions"])
 app.include_router(execution_router, prefix="/api/internal/execution", tags=["execution"])
+app.include_router(pt_router, prefix="/api/internal/pt", tags=["pt"])
 app.include_router(admin_router, prefix="/admin", tags=["admin"])
 app.include_router(admin_users_router, prefix="/admin", tags=["admin-users"])
 app.include_router(pn_admin_router, prefix="/admin", tags=["admin-templates"])
@@ -135,6 +138,7 @@ app.include_router(pn_router, prefix="/purchase-notices", tags=["purchase-notice
 app.include_router(quotes_router, prefix="/ws", tags=["quotes"])
 app.include_router(conversions_ws_router, prefix="/ws", tags=["conversions-ws"])
 app.include_router(execution_ws_router, prefix="/ws", tags=["execution-ws"])
+app.include_router(pt_ws_router, prefix="/ws", tags=["pt-ws"])
 app.include_router(workflows_router, prefix="/ws", tags=["workflows"])
 app.include_router(approval_router, tags=["approval"])
 app.include_router(approval_admin_router, prefix="/admin", tags=["admin-approval"])
