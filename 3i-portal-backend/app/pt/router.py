@@ -25,6 +25,15 @@ async def get_companies(admin: UserInfo = Depends(require_admin)):
         raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
 
 
+@router.get("/traders")
+async def get_traders(companyId: int | None = None, admin: UserInfo = Depends(require_admin)):
+    try:
+        return await onprem.get_pt_traders(companyId)
+    except Exception as exc:
+        logger.error("traders — DTS fetch FAILED (companyId=%s): %s", companyId, exc, exc_info=True)
+        raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
+
+
 @router.put("/companies/{company_id}/over-the-wall")
 async def set_over_the_wall(company_id: int, body: OverTheWallBody, admin: UserInfo = Depends(require_admin)):
     payload = body.model_dump()

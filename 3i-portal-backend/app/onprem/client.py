@@ -193,6 +193,13 @@ async def set_pt_company_over_the_wall(company_id: int, body: dict) -> dict:
     return response.json()
 
 
+async def get_pt_traders(company_id: int | None = None) -> dict:
+    params = {"companyId": company_id} if company_id is not None else None
+    response = await _request_with_retry("GET", "/api/pt/traders", params=params)
+    response.raise_for_status()
+    return response.json()
+
+
 async def dts_reachable() -> bool:
     """Quick liveness probe of DTS over the existing on-prem connection — backs the portal's DTS nav icon.
     Short timeout, no retry, so 'down' surfaces promptly."""
