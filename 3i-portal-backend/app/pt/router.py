@@ -16,6 +16,31 @@ class OverTheWallBody(BaseModel):
     userName: str | None = None
 
 
+class TraderActionBody(BaseModel):
+    userName: str | None = None
+
+
+_TRADER_ACTIONS = {"block", "unblock", "cancel-all"}
+
+
+@router.post("/traders/{trader_id}/{action}")
+async def trader_action(trader_id: int, action: str, body: TraderActionBody | None = None, admin: UserInfo = Depends(require_admin)):
+    if action not in _TRADER_ACTIONS:
+        raise HTTPException(status_code=404, detail=f"Unknown trader action '{action}'")
+    payload = {"userName": (body.userName if body else None) or admin.user_id}
+    logger.info("POST /internal/pt/traders/%s/%s by user=%s", trader_id, action, admin.user_id)
+    try:
+        status, data = await onprem.post_pt_trader_action(trader_id, action, payload)
+        if status >= 400:
+            raise HTTPException(status_code=status, detail=data.get("error") or data.get("message") or "DTS error")
+        return data
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("trader action %s/%s — DTS FAILED: %s", trader_id, action, exc, exc_info=True)
+        raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
+
+
 @router.get("/companies")
 async def get_companies(admin: UserInfo = Depends(require_admin)):
     try:

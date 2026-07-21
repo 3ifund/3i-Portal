@@ -230,6 +230,19 @@ async def get_pt_non_trading(company_id: int, symbol: str, period: str | None = 
     return response.json()
 
 
+async def post_pt_trader_action(trader_id: int, action: str, body: dict) -> tuple[int, dict]:
+    """Block / unblock / cancel-all for a trader — a write (may send live EMSX cancels), so single attempt, no retry."""
+    client = _get_client()
+    logger.info("POST /api/pt/traders/%s/%s (single attempt — write) by %s", trader_id, action, body.get("userName"))
+    response = await client.post(f"/api/pt/traders/{trader_id}/{action}", json=body)
+    logger.info("  → %s", response.status_code)
+    try:
+        data = response.json()
+    except Exception:
+        data = {"message": response.text}
+    return response.status_code, data
+
+
 async def dts_reachable() -> bool:
     """Quick liveness probe of DTS over the existing on-prem connection — backs the portal's DTS nav icon.
     Short timeout, no retry, so 'down' surfaces promptly."""
