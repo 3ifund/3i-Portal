@@ -326,6 +326,18 @@ async def cancel_open_order(order_id: str, body: dict) -> tuple[int, dict]:
         return response.status_code, {"message": response.text}
 
 
+async def delete_order_log(order_id: str) -> tuple[int, dict]:
+    """Per-row delete of an Order Log entry (removes the order's order_audit rows) — write, single attempt."""
+    client = _get_client()
+    logger.info("DELETE /api/pt/order-log/%s (write)", order_id)
+    response = await client.delete(f"/api/pt/order-log/{order_id}")
+    logger.info("  → %s", response.status_code)
+    try:
+        return response.status_code, response.json()
+    except Exception:
+        return response.status_code, {"message": response.text}
+
+
 async def delete_non_trading(tx_id: int) -> tuple[int, dict]:
     """Per-row delete of a non-trading transaction — write, single attempt."""
     client = _get_client()
