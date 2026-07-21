@@ -144,6 +144,37 @@ async def tm_delete_trader(trader_id: int, admin: UserInfo = Depends(require_adm
         raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
 
 
+@router.post("/open-orders/{order_id}/cancel")
+async def cancel_open_order(order_id: str, body: TraderActionBody | None = None, admin: UserInfo = Depends(require_admin)):
+    payload = {"userName": (body.userName if body else None) or admin.user_id}
+    logger.info("POST /internal/pt/open-orders/%s/cancel by user=%s", order_id, admin.user_id)
+    try:
+        status, data = await onprem.cancel_open_order(order_id, payload)
+        if status >= 400:
+            raise HTTPException(status_code=status, detail=data.get("error") or data.get("message") or "DTS error")
+        return data
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("open-order cancel %s — DTS FAILED: %s", order_id, exc, exc_info=True)
+        raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
+
+
+@router.delete("/non-trading/{tx_id}")
+async def delete_non_trading(tx_id: int, admin: UserInfo = Depends(require_admin)):
+    logger.info("DELETE /internal/pt/non-trading/%s by user=%s", tx_id, admin.user_id)
+    try:
+        status, data = await onprem.delete_non_trading(tx_id)
+        if status >= 400:
+            raise HTTPException(status_code=status, detail=data.get("error") or data.get("message") or "DTS error")
+        return data
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("non-trading delete %s — DTS FAILED: %s", tx_id, exc, exc_info=True)
+        raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
+
+
 @router.get("/allocations")
 async def get_allocations(traderId: int, admin: UserInfo = Depends(require_admin)):
     try:

@@ -314,6 +314,30 @@ async def set_pt_user_settings(user_key: str, user_name: str | None) -> dict:
     return response.json()
 
 
+async def cancel_open_order(order_id: str, body: dict) -> tuple[int, dict]:
+    """Per-row cancel of a single open order (sends a live EMSX cancel) — write, single attempt."""
+    client = _get_client()
+    logger.info("POST /api/pt/open-orders/%s/cancel (write) by %s", order_id, body.get("userName"))
+    response = await client.post(f"/api/pt/open-orders/{order_id}/cancel", json=body)
+    logger.info("  → %s", response.status_code)
+    try:
+        return response.status_code, response.json()
+    except Exception:
+        return response.status_code, {"message": response.text}
+
+
+async def delete_non_trading(tx_id: int) -> tuple[int, dict]:
+    """Per-row delete of a non-trading transaction — write, single attempt."""
+    client = _get_client()
+    logger.info("DELETE /api/pt/non-trading/%s (write)", tx_id)
+    response = await client.delete(f"/api/pt/non-trading/{tx_id}")
+    logger.info("  → %s", response.status_code)
+    try:
+        return response.status_code, response.json()
+    except Exception:
+        return response.status_code, {"message": response.text}
+
+
 async def dts_reachable() -> bool:
     """Quick liveness probe of DTS over the existing on-prem connection — backs the portal's DTS nav icon.
     Short timeout, no retry, so 'down' surfaces promptly."""
