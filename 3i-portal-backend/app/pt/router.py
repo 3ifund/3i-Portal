@@ -25,6 +25,42 @@ async def get_companies(admin: UserInfo = Depends(require_admin)):
         raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
 
 
+@router.get("/allocations")
+async def get_allocations(traderId: int, admin: UserInfo = Depends(require_admin)):
+    try:
+        return await onprem.get_pt_allocations(traderId)
+    except Exception as exc:
+        logger.error("allocations — DTS fetch FAILED (traderId=%s): %s", traderId, exc, exc_info=True)
+        raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
+
+
+@router.get("/open-orders")
+async def get_open_orders(traderId: int, companyId: int, admin: UserInfo = Depends(require_admin)):
+    try:
+        return await onprem.get_pt_open_orders(traderId, companyId)
+    except Exception as exc:
+        logger.error("open-orders — DTS fetch FAILED (traderId=%s, companyId=%s): %s", traderId, companyId, exc, exc_info=True)
+        raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
+
+
+@router.get("/order-log")
+async def get_order_log(traderId: int, symbol: str, period: str | None = None, admin: UserInfo = Depends(require_admin)):
+    try:
+        return await onprem.get_pt_order_log(traderId, symbol, period)
+    except Exception as exc:
+        logger.error("order-log — DTS fetch FAILED (traderId=%s, symbol=%s): %s", traderId, symbol, exc, exc_info=True)
+        raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
+
+
+@router.get("/non-trading")
+async def get_non_trading(companyId: int, symbol: str, period: str | None = None, admin: UserInfo = Depends(require_admin)):
+    try:
+        return await onprem.get_pt_non_trading(companyId, symbol, period)
+    except Exception as exc:
+        logger.error("non-trading — DTS fetch FAILED (companyId=%s, symbol=%s): %s", companyId, symbol, exc, exc_info=True)
+        raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
+
+
 @router.get("/traders")
 async def get_traders(companyId: int | None = None, admin: UserInfo = Depends(require_admin)):
     try:

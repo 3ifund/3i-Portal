@@ -200,6 +200,36 @@ async def get_pt_traders(company_id: int | None = None) -> dict:
     return response.json()
 
 
+async def get_pt_allocations(trader_id: int) -> dict:
+    response = await _request_with_retry("GET", "/api/pt/allocations", params={"traderId": trader_id})
+    response.raise_for_status()
+    return response.json()
+
+
+async def get_pt_open_orders(trader_id: int, company_id: int) -> dict:
+    response = await _request_with_retry("GET", "/api/pt/open-orders", params={"traderId": trader_id, "companyId": company_id})
+    response.raise_for_status()
+    return response.json()
+
+
+async def get_pt_order_log(trader_id: int, symbol: str, period: str | None = None) -> dict:
+    params = {"traderId": trader_id, "symbol": symbol}
+    if period:
+        params["period"] = period
+    response = await _request_with_retry("GET", "/api/pt/order-log", params=params)
+    response.raise_for_status()
+    return response.json()
+
+
+async def get_pt_non_trading(company_id: int, symbol: str, period: str | None = None) -> dict:
+    params = {"companyId": company_id, "symbol": symbol}
+    if period:
+        params["period"] = period
+    response = await _request_with_retry("GET", "/api/pt/non-trading", params=params)
+    response.raise_for_status()
+    return response.json()
+
+
 async def dts_reachable() -> bool:
     """Quick liveness probe of DTS over the existing on-prem connection — backs the portal's DTS nav icon.
     Short timeout, no retry, so 'down' surfaces promptly."""
