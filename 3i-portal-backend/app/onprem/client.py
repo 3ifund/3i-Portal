@@ -350,6 +350,18 @@ async def delete_non_trading(tx_id: int) -> tuple[int, dict]:
         return response.status_code, {"message": response.text}
 
 
+async def get_position_brokers(position_id: int, instrument_type: str) -> dict:
+    response = await _request_with_retry("GET", f"/api/pt/positions/{position_id}/brokers", params={"instrumentType": instrument_type})
+    response.raise_for_status()
+    return response.json()
+
+
+async def get_position_accounts(position_id: int, instrument_type: str, broker_id: int) -> dict:
+    response = await _request_with_retry("GET", f"/api/pt/positions/{position_id}/accounts", params={"instrumentType": instrument_type, "brokerId": broker_id})
+    response.raise_for_status()
+    return response.json()
+
+
 async def dts_reachable() -> bool:
     """Quick liveness probe of DTS over the existing on-prem connection — backs the portal's DTS nav icon.
     Short timeout, no retry, so 'down' surfaces promptly."""

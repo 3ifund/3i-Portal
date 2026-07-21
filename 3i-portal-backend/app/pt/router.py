@@ -190,6 +190,24 @@ async def delete_non_trading(tx_id: int, admin: UserInfo = Depends(require_admin
         raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
 
 
+@router.get("/positions/{position_id}/brokers")
+async def get_position_brokers(position_id: int, instrumentType: str, admin: UserInfo = Depends(require_admin)):
+    try:
+        return await onprem.get_position_brokers(position_id, instrumentType)
+    except Exception as exc:
+        logger.error("position brokers — DTS fetch FAILED (positionId=%s, %s): %s", position_id, instrumentType, exc, exc_info=True)
+        raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
+
+
+@router.get("/positions/{position_id}/accounts")
+async def get_position_accounts(position_id: int, instrumentType: str, brokerId: int, admin: UserInfo = Depends(require_admin)):
+    try:
+        return await onprem.get_position_accounts(position_id, instrumentType, brokerId)
+    except Exception as exc:
+        logger.error("position accounts — DTS fetch FAILED (positionId=%s, %s, brokerId=%s): %s", position_id, instrumentType, brokerId, exc, exc_info=True)
+        raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
+
+
 @router.get("/allocations")
 async def get_allocations(traderId: int, admin: UserInfo = Depends(require_admin)):
     try:
