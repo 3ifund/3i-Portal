@@ -300,6 +300,20 @@ async def delete_tm_trader(trader_id: int) -> tuple[int, dict]:
         return response.status_code, {"message": response.text}
 
 
+async def get_pt_user_settings(user_key: str) -> dict:
+    response = await _request_with_retry("GET", "/api/pt/user-settings", params={"userKey": user_key})
+    response.raise_for_status()
+    return response.json()
+
+
+async def set_pt_user_settings(user_key: str, user_name: str | None) -> dict:
+    client = _get_client()
+    logger.info("PUT /api/pt/user-settings userKey=%s (write)", user_key)
+    response = await client.put("/api/pt/user-settings", json={"userKey": user_key, "userName": user_name})
+    response.raise_for_status()
+    return response.json()
+
+
 async def dts_reachable() -> bool:
     """Quick liveness probe of DTS over the existing on-prem connection — backs the portal's DTS nav icon.
     Short timeout, no retry, so 'down' surfaces promptly."""

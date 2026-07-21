@@ -180,6 +180,30 @@ async def get_non_trading(companyId: int, symbol: str, period: str | None = None
         raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
 
 
+class UserNameBody(BaseModel):
+    userName: str | None = None
+
+
+@router.get("/user-settings")
+async def get_user_settings(admin: UserInfo = Depends(require_admin)):
+    # The display name is keyed by the authenticated portal user — never trust a client-supplied key.
+    try:
+        return await onprem.get_pt_user_settings(admin.user_id)
+    except Exception as exc:
+        logger.error("user-settings get — DTS FAILED: %s", exc, exc_info=True)
+        raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
+
+
+@router.put("/user-settings")
+async def set_user_settings(body: UserNameBody, admin: UserInfo = Depends(require_admin)):
+    logger.info("PUT /internal/pt/user-settings by user=%s -> %s", admin.user_id, body.userName)
+    try:
+        return await onprem.set_pt_user_settings(admin.user_id, body.userName)
+    except Exception as exc:
+        logger.error("user-settings put — DTS FAILED: %s", exc, exc_info=True)
+        raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
+
+
 @router.get("/traders")
 async def get_traders(companyId: int | None = None, admin: UserInfo = Depends(require_admin)):
     try:
