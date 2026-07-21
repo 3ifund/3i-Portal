@@ -180,6 +180,17 @@ async def execution_disconnect() -> dict:
     return response.json()
 
 
+async def dts_reachable() -> bool:
+    """Quick liveness probe of DTS over the existing on-prem connection — backs the portal's DTS nav icon.
+    Short timeout, no retry, so 'down' surfaces promptly."""
+    try:
+        r = await _get_client().get("/health", timeout=5.0)
+        return r.status_code < 500
+    except Exception as exc:
+        logger.warning("DTS health probe failed: %s", exc)
+        return False
+
+
 async def set_conversion_allow144(payload: dict) -> tuple[int, dict]:
     client = _get_client()
     logger.info("POST /api/conversions/rule144/allow company=%s allow=%s", payload.get("company"), payload.get("allow"))

@@ -18,6 +18,7 @@ from app.conversions.router import router as conversions_router
 from app.conversions.ws_router import ws_router as conversions_ws_router
 from app.execution.router import router as execution_router
 from app.execution.ws_router import ws_router as execution_ws_router
+from app.onprem import client as onprem
 from app.admin.router import router as admin_router
 from app.quotes.router import router as quotes_router
 from app.workflows.router import router as workflows_router, connect_dealterms_ws
@@ -144,3 +145,11 @@ app.include_router(countersign_admin_router, prefix="/admin", tags=["admin-count
 @app.get("/health")
 async def health():
     return {"status": "ok"}
+
+
+@app.get("/health/dts")
+async def health_dts():
+    # Reflects whether the portal backend can actually reach DTS (not just that the backend is up) — backs the
+    # portal's DTS nav icon. Piggybacks on the existing backend->DTS on-prem connection; no second connection.
+    ok = await onprem.dts_reachable()
+    return {"status": "ok" if ok else "unreachable", "dts": ok}
