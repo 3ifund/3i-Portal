@@ -243,6 +243,63 @@ async def post_pt_trader_action(trader_id: int, action: str, body: dict) -> tupl
     return response.status_code, data
 
 
+async def get_tm_traders() -> dict:
+    response = await _request_with_retry("GET", "/api/pt/trader-mgmt/traders")
+    response.raise_for_status()
+    return response.json()
+
+
+async def get_tm_brokers() -> dict:
+    response = await _request_with_retry("GET", "/api/pt/trader-mgmt/brokers")
+    response.raise_for_status()
+    return response.json()
+
+
+async def get_tm_broker_accounts(broker_id: int) -> dict:
+    response = await _request_with_retry("GET", f"/api/pt/trader-mgmt/brokers/{broker_id}/accounts")
+    response.raise_for_status()
+    return response.json()
+
+
+async def get_tm_trader(trader_id: int) -> dict:
+    response = await _request_with_retry("GET", f"/api/pt/trader-mgmt/traders/{trader_id}")
+    response.raise_for_status()
+    return response.json()
+
+
+async def create_tm_trader(body: dict) -> tuple[int, dict]:
+    client = _get_client()
+    logger.info("POST /api/pt/trader-mgmt/traders name=%s (write)", body.get("name"))
+    response = await client.post("/api/pt/trader-mgmt/traders", json=body)
+    logger.info("  → %s", response.status_code)
+    try:
+        return response.status_code, response.json()
+    except Exception:
+        return response.status_code, {"message": response.text}
+
+
+async def save_tm_trader(trader_id: int, body: dict) -> tuple[int, dict]:
+    client = _get_client()
+    logger.info("PUT /api/pt/trader-mgmt/traders/%s (write)", trader_id)
+    response = await client.put(f"/api/pt/trader-mgmt/traders/{trader_id}", json=body)
+    logger.info("  → %s", response.status_code)
+    try:
+        return response.status_code, response.json()
+    except Exception:
+        return response.status_code, {"message": response.text}
+
+
+async def delete_tm_trader(trader_id: int) -> tuple[int, dict]:
+    client = _get_client()
+    logger.info("DELETE /api/pt/trader-mgmt/traders/%s (write)", trader_id)
+    response = await client.delete(f"/api/pt/trader-mgmt/traders/{trader_id}")
+    logger.info("  → %s", response.status_code)
+    try:
+        return response.status_code, response.json()
+    except Exception:
+        return response.status_code, {"message": response.text}
+
+
 async def dts_reachable() -> bool:
     """Quick liveness probe of DTS over the existing on-prem connection — backs the portal's DTS nav icon.
     Short timeout, no retry, so 'down' surfaces promptly."""

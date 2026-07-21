@@ -50,6 +50,100 @@ async def get_companies(admin: UserInfo = Depends(require_admin)):
         raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
 
 
+class TraderCreateBody(BaseModel):
+    name: str
+    reduceRisk: bool = False
+
+
+class TraderSaveBody(BaseModel):
+    name: str
+    reduceRisk: bool = False
+    brokerIds: list[int] = []
+    accountIds: list[int] = []
+    defaultAccountId: int | None = None
+
+
+@router.get("/trader-mgmt/traders")
+async def tm_get_traders(admin: UserInfo = Depends(require_admin)):
+    try:
+        return await onprem.get_tm_traders()
+    except Exception as exc:
+        logger.error("trader-mgmt traders — DTS FAILED: %s", exc, exc_info=True)
+        raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
+
+
+@router.get("/trader-mgmt/brokers")
+async def tm_get_brokers(admin: UserInfo = Depends(require_admin)):
+    try:
+        return await onprem.get_tm_brokers()
+    except Exception as exc:
+        logger.error("trader-mgmt brokers — DTS FAILED: %s", exc, exc_info=True)
+        raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
+
+
+@router.get("/trader-mgmt/brokers/{broker_id}/accounts")
+async def tm_get_broker_accounts(broker_id: int, admin: UserInfo = Depends(require_admin)):
+    try:
+        return await onprem.get_tm_broker_accounts(broker_id)
+    except Exception as exc:
+        logger.error("trader-mgmt broker accounts — DTS FAILED: %s", exc, exc_info=True)
+        raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
+
+
+@router.get("/trader-mgmt/traders/{trader_id}")
+async def tm_get_trader(trader_id: int, admin: UserInfo = Depends(require_admin)):
+    try:
+        return await onprem.get_tm_trader(trader_id)
+    except Exception as exc:
+        logger.error("trader-mgmt trader %s — DTS FAILED: %s", trader_id, exc, exc_info=True)
+        raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
+
+
+@router.post("/trader-mgmt/traders")
+async def tm_create_trader(body: TraderCreateBody, admin: UserInfo = Depends(require_admin)):
+    logger.info("POST /internal/pt/trader-mgmt/traders name=%s by user=%s", body.name, admin.user_id)
+    try:
+        status, data = await onprem.create_tm_trader(body.model_dump())
+        if status >= 400:
+            raise HTTPException(status_code=status, detail=data.get("error") or data.get("message") or "DTS error")
+        return data
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("trader-mgmt create — DTS FAILED: %s", exc, exc_info=True)
+        raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
+
+
+@router.put("/trader-mgmt/traders/{trader_id}")
+async def tm_save_trader(trader_id: int, body: TraderSaveBody, admin: UserInfo = Depends(require_admin)):
+    logger.info("PUT /internal/pt/trader-mgmt/traders/%s by user=%s", trader_id, admin.user_id)
+    try:
+        status, data = await onprem.save_tm_trader(trader_id, body.model_dump())
+        if status >= 400:
+            raise HTTPException(status_code=status, detail=data.get("error") or data.get("message") or "DTS error")
+        return data
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("trader-mgmt save %s — DTS FAILED: %s", trader_id, exc, exc_info=True)
+        raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
+
+
+@router.delete("/trader-mgmt/traders/{trader_id}")
+async def tm_delete_trader(trader_id: int, admin: UserInfo = Depends(require_admin)):
+    logger.info("DELETE /internal/pt/trader-mgmt/traders/%s by user=%s", trader_id, admin.user_id)
+    try:
+        status, data = await onprem.delete_tm_trader(trader_id)
+        if status >= 400:
+            raise HTTPException(status_code=status, detail=data.get("error") or data.get("message") or "DTS error")
+        return data
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("trader-mgmt delete %s — DTS FAILED: %s", trader_id, exc, exc_info=True)
+        raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
+
+
 @router.get("/allocations")
 async def get_allocations(traderId: int, admin: UserInfo = Depends(require_admin)):
     try:
