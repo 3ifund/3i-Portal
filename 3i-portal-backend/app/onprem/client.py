@@ -385,6 +385,30 @@ async def set_conversion_allow144(payload: dict) -> tuple[int, dict]:
     return response.status_code, body
 
 
+async def set_conversion_acceleration_true_ups(payload: dict) -> tuple[int, dict]:
+    client = _get_client()
+    logger.info("POST /api/conversions/acceleration-true-ups/allow company=%s allow=%s", payload.get("company"), payload.get("allow"))
+    response = await client.post("/api/conversions/acceleration-true-ups/allow", json=payload)
+    logger.info("  → %s", response.status_code)
+    try:
+        body = response.json()
+    except Exception:
+        body = {"message": response.text}
+    return response.status_code, body
+
+
+async def set_conversion_installment_true_ups(payload: dict) -> tuple[int, dict]:
+    client = _get_client()
+    logger.info("POST /api/conversions/installment-true-ups/allow company=%s allow=%s", payload.get("company"), payload.get("allow"))
+    response = await client.post("/api/conversions/installment-true-ups/allow", json=payload)
+    logger.info("  → %s", response.status_code)
+    try:
+        body = response.json()
+    except Exception:
+        body = {"message": response.text}
+    return response.status_code, body
+
+
 async def set_conversion_trading_objective(payload: dict) -> tuple[int, dict]:
     client = _get_client()
     logger.info("POST /api/conversions/trading-objective company=%s objective=%s", payload.get("company"), payload.get("objective"))
