@@ -60,6 +60,29 @@ async def set_allow144(body: Allow144Body, admin: UserInfo = Depends(require_adm
     return JSONResponse(status_code=status, content=data)
 
 
+@router.get("/brokers-with-accounts")
+async def get_brokers_with_accounts(admin: UserInfo = Depends(require_admin)):
+    logger.info("GET /internal/conversions/brokers-with-accounts by user=%s", admin.user_id)
+    try:
+        return await onprem.get_brokers_with_accounts()
+    except Exception as exc:
+        logger.error("brokers-with-accounts — DTS fetch FAILED: %s", exc, exc_info=True)
+        raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
+
+
+class NoteBrokerAccountBody(BaseModel):
+    brokerId: int
+    accountId: int
+
+
+@router.put("/notes/{instrument_id}/broker-account")
+async def set_note_broker_account(instrument_id: int, body: NoteBrokerAccountBody, admin: UserInfo = Depends(require_admin)):
+    logger.info("PUT /internal/conversions/notes/%s/broker-account broker=%s account=%s by user=%s",
+                instrument_id, body.brokerId, body.accountId, admin.user_id)
+    status, data = await onprem.set_note_broker_account(instrument_id, {"brokerId": body.brokerId, "accountId": body.accountId})
+    return JSONResponse(status_code=status, content=data)
+
+
 @router.post("/acceleration-true-ups/allow")
 async def set_acceleration_true_ups(body: Allow144Body, admin: UserInfo = Depends(require_admin)):
     logger.info("POST /internal/conversions/acceleration-true-ups/allow company=%s allow=%s by user=%s",

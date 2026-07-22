@@ -385,6 +385,23 @@ async def set_conversion_allow144(payload: dict) -> tuple[int, dict]:
     return response.status_code, body
 
 
+async def get_brokers_with_accounts() -> list[dict]:
+    response = await _request_with_retry("GET", "/api/brokers/with-accounts")
+    response.raise_for_status()
+    return response.json()
+
+
+async def set_note_broker_account(instrument_id: int, body: dict) -> tuple[int, dict]:
+    client = _get_client()
+    logger.info("PUT /api/convertible-notes/%s/broker-account broker=%s account=%s (write)", instrument_id, body.get("brokerId"), body.get("accountId"))
+    response = await client.put(f"/api/convertible-notes/{instrument_id}/broker-account", json=body)
+    logger.info("  → %s", response.status_code)
+    try:
+        return response.status_code, response.json()
+    except Exception:
+        return response.status_code, {"message": response.text}
+
+
 async def set_conversion_acceleration_true_ups(payload: dict) -> tuple[int, dict]:
     client = _get_client()
     logger.info("POST /api/conversions/acceleration-true-ups/allow company=%s allow=%s", payload.get("company"), payload.get("allow"))
