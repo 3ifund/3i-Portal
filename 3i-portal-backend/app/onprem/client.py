@@ -588,6 +588,19 @@ async def post_prm_derivative_trade(payload: dict) -> tuple[int, dict]:
     return response.status_code, body
 
 
+async def post_prm_create_position(payload: dict) -> tuple[int, dict]:
+    client = _get_client()
+    logger.info("POST /api/prm/positions/create type=%s symbol=%s companyId=%s (single attempt — write)",
+                payload.get("type"), payload.get("symbol"), payload.get("companyId"))
+    response = await client.post("/api/prm/positions/create", json=payload)
+    logger.info("  → %s (%d bytes)", response.status_code, len(response.content))
+    try:
+        body = response.json()
+    except Exception:
+        body = {"message": response.text}
+    return response.status_code, body
+
+
 async def get_eloc_state_by_id(eloc_id: str) -> dict | None:
     logger.info("GET /api/eloc/states/%s", eloc_id)
     response = await _request_with_retry("GET", f"/api/eloc/states/{eloc_id}")

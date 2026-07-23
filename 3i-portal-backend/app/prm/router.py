@@ -59,6 +59,23 @@ class DerivativeTradeBody(BaseModel):
     price: float = 0
 
 
+class CreatePositionBody(BaseModel):
+    """Create a new zero-qty firm position ('+ Add New Position'). type ∈ common|preferred|warrant|convertible.
+    Metadata fields are only read for the matching type; NOT-NULL ones are validated by DTS."""
+    type: str
+    company_id: int
+    symbol: str
+    dividend_rate: float | None = None
+    par_value: float | None = None
+    is_convertible: bool = False
+    conversion_price: float | None = None
+    conversion_ratio: float | None = None
+    strike: float | None = None
+    expiration: str | None = None
+    maturity: str | None = None
+    coupon: float | None = None
+
+
 @router.get("/companies")
 async def list_companies(admin: UserInfo = Depends(require_admin)):
     t_start = time.monotonic()
@@ -308,3 +325,34 @@ async def execute_derivative_trade(body: DerivativeTradeBody, admin: UserInfo = 
         logger.error("POST /internal/prm/derivative-trade — DTS call FAILED: %s", exc, exc_info=True)
         raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
     return _surface("POST /internal/prm/derivative-trade", status_code, result, (time.monotonic() - t_start) * 1000)
+
+
+@router.post("/create")
+async def create_position(body: CreatePositionBody, admin: UserInfo = Depends(require_admin)):
+    t_start = time.monotonic()
+    logger.info("POST /internal/prm/create by user=%s — type=%s symbol=%s companyId=%s — START",
+                admin.user_id, body.type, body.symbol, body.company_id)
+    if not (body.symbol or "").strip():
+        raise HTTPException(status_code=400, detail="symbol is required")
+    if body.company_id <= 0:
+        raise HTTPException(status_code=400, detail="company_id is required")
+    payload = {
+        "type": body.type,
+        "companyId": body.company_id,
+        "symbol": body.symbol,
+        "dividendRate": body.dividend_rate,
+        "parValue": body.par_value,
+        "isConvertible": body.is_convertible,
+        "conversionPrice": body.conversion_price,
+        "conversionRatio": body.conversion_ratio,
+        "strike": body.strike,
+        "expiration": body.expiration,
+        "maturity": body.maturity,
+        "coupon": body.coupon,
+    }
+    try:
+        status_code, result = await onprem.post_prm_create_position(payload)
+    except Exception as exc:
+        logger.error("POST /internal/prm/create — DTS call FAILED: %s", exc, exc_info=True)
+        raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
+    return _surface("POST /internal/prm/create", status_code, result, (time.monotonic() - t_start) * 1000)
