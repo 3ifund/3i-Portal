@@ -230,6 +230,35 @@ async def get_pt_non_trading(company_id: int, symbol: str, period: str | None = 
     return response.json()
 
 
+async def get_pt_auto_allocation_metrics() -> dict:
+    response = await _request_with_retry("GET", "/api/pt/auto-allocation/metrics")
+    response.raise_for_status()
+    return response.json()
+
+
+async def get_pt_auto_allocation(company_id: int) -> dict:
+    logger.info("GET /api/pt/auto-allocation companyId=%s", company_id)
+    response = await _request_with_retry("GET", "/api/pt/auto-allocation", params={"companyId": company_id})
+    response.raise_for_status()
+    return response.json()
+
+
+async def save_pt_auto_allocation(body: dict) -> tuple[int, dict]:
+    """Save a company's auto-allocation settings — a write (company upsert + trader delete/insert), so single attempt, no retry."""
+    client = _get_client()
+    logger.info(
+        "POST /api/pt/auto-allocation (single attempt — write) companyId=%s enabled=%s metric=%s traders=%s",
+        body.get("companyId"), body.get("enabled"), body.get("allocationMetric"), len(body.get("traders") or []),
+    )
+    response = await client.post("/api/pt/auto-allocation", json=body)
+    logger.info("  → %s", response.status_code)
+    try:
+        data = response.json()
+    except Exception:
+        data = {"message": response.text}
+    return response.status_code, data
+
+
 async def post_pt_trader_action(trader_id: int, action: str, body: dict) -> tuple[int, dict]:
     """Block / unblock / cancel-all for a trader — a write (may send live EMSX cancels), so single attempt, no retry."""
     client = _get_client()

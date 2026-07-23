@@ -288,3 +288,57 @@ async def set_over_the_wall(company_id: int, body: OverTheWallBody, admin: UserI
     except Exception as exc:
         logger.error("over-the-wall — DTS FAILED: %s", exc, exc_info=True)
         raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
+
+
+class AutoAllocationTraderBody(BaseModel):
+    traderId: int
+    enabled: bool = False
+    commonStock: float = 0
+    preferred: float = 0
+    warrants: float = 0
+    convertibles: float = 0
+
+
+class AutoAllocationSaveBody(BaseModel):
+    companyId: int
+    enabled: bool = False
+    allocationMetric: str = "FIFO"
+    traders: list[AutoAllocationTraderBody] = []
+
+
+@router.get("/auto-allocation/metrics")
+async def get_auto_allocation_metrics(admin: UserInfo = Depends(require_admin)):
+    try:
+        return await onprem.get_pt_auto_allocation_metrics()
+    except Exception as exc:
+        logger.error("auto-allocation metrics — DTS fetch FAILED: %s", exc, exc_info=True)
+        raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
+
+
+@router.get("/auto-allocation")
+async def get_auto_allocation(companyId: int, admin: UserInfo = Depends(require_admin)):
+    logger.info("GET /internal/pt/auto-allocation companyId=%s by user=%s", companyId, admin.user_id)
+    try:
+        return await onprem.get_pt_auto_allocation(companyId)
+    except Exception as exc:
+        logger.error("auto-allocation — DTS fetch FAILED (companyId=%s): %s", companyId, exc, exc_info=True)
+        raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
+
+
+@router.post("/auto-allocation")
+async def save_auto_allocation(body: AutoAllocationSaveBody, admin: UserInfo = Depends(require_admin)):
+    payload = body.model_dump()
+    logger.info(
+        "POST /internal/pt/auto-allocation companyId=%s enabled=%s metric=%s traders=%s by user=%s",
+        payload["companyId"], payload["enabled"], payload["allocationMetric"], len(payload["traders"]), admin.user_id,
+    )
+    try:
+        status, data = await onprem.save_pt_auto_allocation(payload)
+        if status >= 400:
+            raise HTTPException(status_code=status, detail=data.get("error") or data.get("message") or "DTS error")
+        return data
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("auto-allocation save — DTS FAILED (companyId=%s): %s", payload["companyId"], exc, exc_info=True)
+        raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
