@@ -356,3 +356,92 @@ async def create_position(body: CreatePositionBody, admin: UserInfo = Depends(re
         logger.error("POST /internal/prm/create — DTS call FAILED: %s", exc, exc_info=True)
         raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
     return _surface("POST /internal/prm/create", status_code, result, (time.monotonic() - t_start) * 1000)
+
+
+class AllocateBody(BaseModel):
+    trader_id: int
+    position_id: int
+    amount: int
+    instrument_type: str = "Common Stock"
+    company_id: int
+    company_symbol: str = ""
+
+
+def _surface_allocation(label: str, status_code: int, result: dict, t_total: float):
+    if status_code == 200:
+        logger.info("%s — DONE in %.1fms (allocationId=%s, requestId=%s)", label, t_total, result.get("allocationId"), result.get("requestId"))
+        return result
+    msg = (result or {}).get("error") or (result or {}).get("message") or "Allocation failed"
+    if status_code == 400:
+        logger.warning("%s — REJECTED (%.1fms): %s", label, t_total, msg)
+        raise HTTPException(status_code=400, detail=msg)
+    logger.error("%s — DTS status=%s: %s", label, status_code, msg)
+    raise HTTPException(status_code=502, detail=f"DTS error ({status_code}): {msg}")
+
+
+@router.get("/allocations/trader-position")
+async def get_trader_position(
+    traderId: int = Query(...),
+    positionId: int = Query(...),
+    instrumentType: str = Query("Common Stock"),
+    admin: UserInfo = Depends(require_admin),
+):
+    logger.info("GET /internal/prm/allocations/trader-position trader=%s position=%s instrument=%s by user=%s",
+                traderId, positionId, instrumentType, admin.user_id)
+    try:
+        return await onprem.get_prm_trader_position(traderId, positionId, instrumentType)
+    except Exception as exc:
+        logger.error("trader-position — DTS fetch FAILED (trader=%s, position=%s): %s", traderId, positionId, exc, exc_info=True)
+        raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
+
+
+@router.post("/allocations/allocate")
+async def allocate_position(body: AllocateBody, admin: UserInfo = Depends(require_admin)):
+    t_start = time.monotonic()
+    logger.info("POST /internal/prm/allocations/allocate by user=%s — trader=%s position=%s amount=%s instrument=%s company=%s(%s) — START",
+                admin.user_id, body.trader_id, body.position_id, body.amount, body.instrument_type, body.company_id, body.company_symbol)
+    if body.amount == 0:
+        raise HTTPException(status_code=400, detail="amount cannot be zero")
+    if body.trader_id <= 0 or body.position_id <= 0:
+        raise HTTPException(status_code=400, detail="trader_id and position_id are required")
+    payload = {
+        "traderId": body.trader_id,
+        "positionId": body.position_id,
+        "amount": body.amount,
+        "instrumentType": body.instrument_type,
+        "companyId": body.company_id,
+        "companySymbol": body.company_symbol,
+        "userName": admin.user_id,
+    }
+    try:
+        status_code, result = await onprem.post_prm_allocate(payload)
+    except Exception as exc:
+        logger.error("POST /internal/prm/allocations/allocate — DTS call FAILED: %s", exc, exc_info=True)
+        raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
+    return _surface_allocation("POST /internal/prm/allocations/allocate", status_code, result, (time.monotonic() - t_start) * 1000)
+
+
+@router.post("/allocations/deallocate")
+async def deallocate_position(body: AllocateBody, admin: UserInfo = Depends(require_admin)):
+    t_start = time.monotonic()
+    logger.info("POST /internal/prm/allocations/deallocate by user=%s — trader=%s position=%s amount=%s instrument=%s company=%s(%s) — START",
+                admin.user_id, body.trader_id, body.position_id, body.amount, body.instrument_type, body.company_id, body.company_symbol)
+    if body.amount <= 0:
+        raise HTTPException(status_code=400, detail="amount must be > 0")
+    if body.trader_id <= 0 or body.position_id <= 0:
+        raise HTTPException(status_code=400, detail="trader_id and position_id are required")
+    payload = {
+        "traderId": body.trader_id,
+        "positionId": body.position_id,
+        "amount": body.amount,
+        "instrumentType": body.instrument_type,
+        "companyId": body.company_id,
+        "companySymbol": body.company_symbol,
+        "userName": admin.user_id,
+    }
+    try:
+        status_code, result = await onprem.post_prm_deallocate(payload)
+    except Exception as exc:
+        logger.error("POST /internal/prm/allocations/deallocate — DTS call FAILED: %s", exc, exc_info=True)
+        raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
+    return _surface_allocation("POST /internal/prm/allocations/deallocate", status_code, result, (time.monotonic() - t_start) * 1000)

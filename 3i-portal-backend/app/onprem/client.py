@@ -630,6 +630,42 @@ async def post_prm_create_position(payload: dict) -> tuple[int, dict]:
     return response.status_code, body
 
 
+async def get_prm_trader_position(trader_id: int, position_id: int, instrument_type: str) -> dict:
+    logger.info("GET /api/prm/allocations/trader-position trader=%s position=%s instrument=%s", trader_id, position_id, instrument_type)
+    response = await _request_with_retry(
+        "GET", "/api/prm/allocations/trader-position",
+        params={"traderId": trader_id, "positionId": position_id, "instrumentType": instrument_type})
+    logger.info("  → %s (%d bytes)", response.status_code, len(response.content))
+    response.raise_for_status()
+    return response.json()
+
+
+async def post_prm_allocate(payload: dict) -> tuple[int, dict]:
+    client = _get_client()
+    logger.info("POST /api/prm/allocations/allocate trader=%s position=%s amount=%s instrument=%s (single attempt — write)",
+                payload.get("traderId"), payload.get("positionId"), payload.get("amount"), payload.get("instrumentType"))
+    response = await client.post("/api/prm/allocations/allocate", json=payload)
+    logger.info("  → %s (%d bytes)", response.status_code, len(response.content))
+    try:
+        body = response.json()
+    except Exception:
+        body = {"message": response.text}
+    return response.status_code, body
+
+
+async def post_prm_deallocate(payload: dict) -> tuple[int, dict]:
+    client = _get_client()
+    logger.info("POST /api/prm/allocations/deallocate trader=%s position=%s amount=%s instrument=%s (single attempt — write)",
+                payload.get("traderId"), payload.get("positionId"), payload.get("amount"), payload.get("instrumentType"))
+    response = await client.post("/api/prm/allocations/deallocate", json=payload)
+    logger.info("  → %s (%d bytes)", response.status_code, len(response.content))
+    try:
+        body = response.json()
+    except Exception:
+        body = {"message": response.text}
+    return response.status_code, body
+
+
 async def get_eloc_state_by_id(eloc_id: str) -> dict | None:
     logger.info("GET /api/eloc/states/%s", eloc_id)
     response = await _request_with_retry("GET", f"/api/eloc/states/{eloc_id}")
