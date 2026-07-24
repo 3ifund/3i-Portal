@@ -194,6 +194,20 @@ async def set_pt_company_over_the_wall(company_id: int, body: dict) -> dict:
     return response.json()
 
 
+async def get_pt_allocation_log(company_id: int | None, from_date: str | None, to_date: str | None, limit: int = 1000) -> dict:
+    params: dict = {"limit": limit}
+    if company_id is not None:
+        params["companyId"] = company_id
+    if from_date:
+        params["from"] = from_date
+    if to_date:
+        params["to"] = to_date
+    logger.info("GET /api/pt/allocation-log params=%s", params)
+    response = await _request_with_retry("GET", "/api/pt/allocation-log", params=params)
+    response.raise_for_status()
+    return response.json()
+
+
 async def get_pt_otw_audit(company_id: int | None, from_date: str | None, to_date: str | None, limit: int = 500) -> dict:
     params: dict = {"limit": limit}
     if company_id is not None:

@@ -301,6 +301,22 @@ async def set_over_the_wall(company_id: int, body: OverTheWallBody, admin: UserI
         raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
 
 
+@router.get("/allocation-log")
+async def get_allocation_log(
+    companyId: int | None = None,
+    from_: str | None = Query(None, alias="from"),
+    to: str | None = None,
+    limit: int = 1000,
+    admin: UserInfo = Depends(require_admin),
+):
+    logger.info("GET /internal/pt/allocation-log companyId=%s from=%s to=%s by user=%s", companyId, from_, to, admin.user_id)
+    try:
+        return await onprem.get_pt_allocation_log(companyId, from_, to, limit)
+    except Exception as exc:
+        logger.error("allocation-log — DTS fetch FAILED: %s", exc, exc_info=True)
+        raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
+
+
 @router.get("/companies/otw-audit")
 async def get_otw_audit(
     companyId: int | None = None,
