@@ -666,6 +666,19 @@ async def post_prm_deallocate(payload: dict) -> tuple[int, dict]:
     return response.status_code, body
 
 
+async def post_prm_deemed_to_own(payload: dict) -> tuple[int, dict]:
+    client = _get_client()
+    logger.info("POST /api/prm/deemed-to-own source=%s symbol=%s companyId=%s shares=%s (single attempt — write)",
+                payload.get("source"), payload.get("companySymbol"), payload.get("companyId"), payload.get("shares"))
+    response = await client.post("/api/prm/deemed-to-own", json=payload)
+    logger.info("  → %s (%d bytes)", response.status_code, len(response.content))
+    try:
+        body = response.json()
+    except Exception:
+        body = {"message": response.text}
+    return response.status_code, body
+
+
 async def get_eloc_state_by_id(eloc_id: str) -> dict | None:
     logger.info("GET /api/eloc/states/%s", eloc_id)
     response = await _request_with_retry("GET", f"/api/eloc/states/{eloc_id}")

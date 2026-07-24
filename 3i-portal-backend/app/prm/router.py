@@ -445,3 +445,56 @@ async def deallocate_position(body: AllocateBody, admin: UserInfo = Depends(requ
         logger.error("POST /internal/prm/allocations/deallocate — DTS call FAILED: %s", exc, exc_info=True)
         raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
     return _surface_allocation("POST /internal/prm/allocations/deallocate", status_code, result, (time.monotonic() - t_start) * 1000)
+
+
+class DeemedToOwnBody(BaseModel):
+    source: str
+    reference_id: str | None = None
+    company_id: int
+    company_symbol: str
+    company_name: str | None = None
+    currency: str | None = None
+    shares: int
+    price: float | None = None
+    account_id: int
+    broker_id: int
+    deal_id: int = 0
+
+
+@router.post("/deemed-to-own")
+async def create_deemed_to_own(body: DeemedToOwnBody, admin: UserInfo = Depends(require_admin)):
+    t_start = time.monotonic()
+    logger.info("POST /internal/prm/deemed-to-own by user=%s — source=%s symbol=%s companyId=%s shares=%s — START",
+                admin.user_id, body.source, body.company_symbol, body.company_id, body.shares)
+    if (body.source or "").upper() not in ("ELOC", "CONVERSION", "WARRANT", "PREFERRED"):
+        raise HTTPException(status_code=400, detail="source must be one of ELOC, CONVERSION, WARRANT, PREFERRED")
+    if body.shares <= 0:
+        raise HTTPException(status_code=400, detail="shares must be > 0")
+    payload = {
+        "source": body.source.upper(),
+        "referenceId": body.reference_id,
+        "companyId": body.company_id,
+        "companySymbol": body.company_symbol,
+        "companyName": body.company_name,
+        "currency": body.currency,
+        "shares": body.shares,
+        "price": body.price,
+        "accountId": body.account_id,
+        "brokerId": body.broker_id,
+        "dealId": body.deal_id,
+    }
+    try:
+        status_code, result = await onprem.post_prm_deemed_to_own(payload)
+    except Exception as exc:
+        logger.error("POST /internal/prm/deemed-to-own — DTS call FAILED: %s", exc, exc_info=True)
+        raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
+    if status_code == 200:
+        logger.info("POST /internal/prm/deemed-to-own — DONE in %.1fms (positionId=%s, txnId=%s)",
+                    (time.monotonic() - t_start) * 1000, result.get("positionId"), result.get("transactionId"))
+        return result
+    msg = (result or {}).get("error") or (result or {}).get("message") or "Deemed-to-own failed"
+    if status_code == 400:
+        logger.warning("POST /internal/prm/deemed-to-own — REJECTED: %s", msg)
+        raise HTTPException(status_code=400, detail=msg)
+    logger.error("POST /internal/prm/deemed-to-own — DTS status=%s: %s", status_code, msg)
+    raise HTTPException(status_code=502, detail=f"DTS error ({status_code}): {msg}")
