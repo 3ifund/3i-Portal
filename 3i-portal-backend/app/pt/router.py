@@ -301,6 +301,24 @@ async def set_over_the_wall(company_id: int, body: OverTheWallBody, admin: UserI
         raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
 
 
+class NoShortBody(BaseModel):
+    noShort: bool
+    userName: str | None = None
+
+
+@router.put("/companies/{company_id}/no-short")
+async def set_no_short(company_id: int, body: NoShortBody, admin: UserInfo = Depends(require_admin)):
+    payload = body.model_dump()
+    if not payload.get("userName"):
+        payload["userName"] = admin.user_id
+    logger.info("PUT /internal/pt/companies/%s/no-short -> %s by user=%s", company_id, payload["noShort"], admin.user_id)
+    try:
+        return await onprem.set_pt_company_no_short(company_id, payload)
+    except Exception as exc:
+        logger.error("no-short — DTS FAILED: %s", exc, exc_info=True)
+        raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
+
+
 @router.get("/allocation-log")
 async def get_allocation_log(
     companyId: int | None = None,

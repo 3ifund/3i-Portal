@@ -194,6 +194,14 @@ async def set_pt_company_over_the_wall(company_id: int, body: dict) -> dict:
     return response.json()
 
 
+async def set_pt_company_no_short(company_id: int, body: dict) -> dict:
+    logger.info("PUT /api/pt/companies/%s/no-short -> %s (single attempt — write)", company_id, body.get("noShort"))
+    client = _get_client()
+    response = await client.put(f"/api/pt/companies/{company_id}/no-short", json=body)
+    response.raise_for_status()
+    return response.json()
+
+
 async def get_pt_allocation_log(company_id: int | None, from_date: str | None, to_date: str | None, limit: int = 1000) -> dict:
     params: dict = {"limit": limit}
     if company_id is not None:
