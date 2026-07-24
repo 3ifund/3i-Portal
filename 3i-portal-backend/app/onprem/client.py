@@ -187,8 +187,23 @@ async def get_pt_companies() -> dict:
 
 
 async def set_pt_company_over_the_wall(company_id: int, body: dict) -> dict:
-    logger.info("PUT /api/pt/companies/%s/over-the-wall -> %s", company_id, body.get("overTheWall"))
-    response = await _request_with_retry("PUT", f"/api/pt/companies/{company_id}/over-the-wall", json=body)
+    logger.info("PUT /api/pt/companies/%s/over-the-wall -> %s (single attempt — write)", company_id, body.get("overTheWall"))
+    client = _get_client()
+    response = await client.put(f"/api/pt/companies/{company_id}/over-the-wall", json=body)
+    response.raise_for_status()
+    return response.json()
+
+
+async def get_pt_otw_audit(company_id: int | None, from_date: str | None, to_date: str | None, limit: int = 500) -> dict:
+    params: dict = {"limit": limit}
+    if company_id is not None:
+        params["companyId"] = company_id
+    if from_date:
+        params["from"] = from_date
+    if to_date:
+        params["to"] = to_date
+    logger.info("GET /api/pt/companies/otw-audit params=%s", params)
+    response = await _request_with_retry("GET", "/api/pt/companies/otw-audit", params=params)
     response.raise_for_status()
     return response.json()
 

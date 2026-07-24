@@ -1,6 +1,6 @@
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
 from app.auth.dependencies import require_admin
@@ -14,6 +14,17 @@ router = APIRouter()
 class OverTheWallBody(BaseModel):
     overTheWall: bool
     userName: str | None = None
+    notes: str | None = None
+    receivedAt: str | None = None
+    recipients: str | None = None
+    triggerParty: str | None = None
+    sourceCompany: str | None = None
+    sourceName: str | None = None
+    reason: str | None = None
+    cleansedAt: str | None = None
+    cleansingAuthority: str | None = None
+    cleansingMethod: str | None = None
+    evidenceReference: str | None = None
 
 
 class TraderActionBody(BaseModel):
@@ -287,6 +298,22 @@ async def set_over_the_wall(company_id: int, body: OverTheWallBody, admin: UserI
         return await onprem.set_pt_company_over_the_wall(company_id, payload)
     except Exception as exc:
         logger.error("over-the-wall — DTS FAILED: %s", exc, exc_info=True)
+        raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
+
+
+@router.get("/companies/otw-audit")
+async def get_otw_audit(
+    companyId: int | None = None,
+    from_: str | None = Query(None, alias="from"),
+    to: str | None = None,
+    limit: int = 500,
+    admin: UserInfo = Depends(require_admin),
+):
+    logger.info("GET /internal/pt/companies/otw-audit companyId=%s from=%s to=%s by user=%s", companyId, from_, to, admin.user_id)
+    try:
+        return await onprem.get_pt_otw_audit(companyId, from_, to, limit)
+    except Exception as exc:
+        logger.error("otw-audit — DTS fetch FAILED: %s", exc, exc_info=True)
         raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
 
 
