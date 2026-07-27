@@ -178,3 +178,10 @@ async def delete_conversion(conversion_id: str, admin: UserInfo = Depends(requir
     logger.info("DELETE /internal/conversions/%s by user=%s", conversion_id, admin.user_id)
     status, data = await onprem.delete_conversion(conversion_id)
     return JSONResponse(status_code=status, content=data)
+
+
+@router.post("/{conversion_id}/remove")
+async def remove_conversion(conversion_id: str, admin: UserInfo = Depends(require_admin)):
+    logger.info("POST /internal/conversions/%s/remove by user=%s", conversion_id, admin.user_id)
+    status, data = await onprem.remove_conversion(conversion_id)
+    return JSONResponse(status_code=status, content=data)

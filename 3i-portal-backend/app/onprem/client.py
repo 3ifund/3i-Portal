@@ -579,6 +579,18 @@ async def delete_conversion(conversion_id: str) -> tuple[int, dict]:
     return response.status_code, body
 
 
+async def remove_conversion(conversion_id: str) -> tuple[int, dict]:
+    client = _get_client()
+    logger.info("POST /api/conversions/%s/remove", conversion_id)
+    response = await client.post(f"/api/conversions/{conversion_id}/remove")
+    logger.info("  → %s", response.status_code)
+    try:
+        body = response.json()
+    except Exception:
+        body = {"message": response.text}
+    return response.status_code, body
+
+
 async def post_prm_synthetic_trade(payload: dict) -> tuple[int, dict]:
     client = _get_client()
     logger.info(
