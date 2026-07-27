@@ -42,6 +42,16 @@ async def get_aggregates(admin: UserInfo = Depends(require_admin)):
         raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
 
 
+@router.get("/recalc-window")
+async def get_recalc_window(admin: UserInfo = Depends(require_admin)):
+    logger.info("GET /internal/conversions/recalc-window by user=%s", admin.user_id)
+    try:
+        return await onprem.get_conversion_recalc_window()
+    except Exception as exc:
+        logger.error("recalc-window — DTS fetch FAILED: %s", exc, exc_info=True)
+        raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
+
+
 @router.get("/rule144")
 async def get_rule144(admin: UserInfo = Depends(require_admin)):
     logger.info("GET /internal/conversions/rule144 by user=%s", admin.user_id)
