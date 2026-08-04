@@ -138,6 +138,28 @@ async def exclude_eloc(eloc_id: str, admin: UserInfo = Depends(require_admin)):
 
 
 
+@router.post("/elocs/{eloc_id}/send-nudge")
+async def send_eloc_nudge(eloc_id: str, admin: UserInfo = Depends(require_admin)):
+    t_start = time.monotonic()
+    logger.info("POST /internal/elocs/%s/send-nudge by user=%s — START", eloc_id, admin.user_id)
+
+    try:
+        body = await onprem.send_portal_eloc_nudge(eloc_id)
+    except Exception as exc:
+        logger.error(
+            "POST /internal/elocs/%s/send-nudge — DTS call FAILED: %s",
+            eloc_id, exc, exc_info=True,
+        )
+        raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
+
+    t_total = (time.monotonic() - t_start) * 1000
+    logger.info(
+        "POST /internal/elocs/%s/send-nudge — DONE in %.1fms (user=%s, symbol=%s, company=%s)",
+        eloc_id, t_total, admin.user_id, body.get("symbol"), body.get("companyName"),
+    )
+    return body
+
+
 @router.delete("/elocs/{eloc_id}")
 async def delete_eloc(eloc_id: str, admin: UserInfo = Depends(require_admin)):
     t_start = time.monotonic()

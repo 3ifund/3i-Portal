@@ -1013,3 +1013,16 @@ async def reject_portal_eloc(eloc_id: str) -> dict:
         logger.debug("  → body: %s", response.text[:2000])
     response.raise_for_status()
     return response.json()
+
+
+async def send_portal_eloc_nudge(eloc_id: str) -> dict:
+    """Re-send the 'countersign the Purchase Confirmation' action-item nudge email to the company.
+    A write (sends an email), so single attempt with no retry — a 5xx retry could double-send."""
+    client = _get_client()
+    logger.info("POST /api/portal/eloc/%s/send-action-item-nudge (single attempt — sends email)", eloc_id)
+    response = await client.post(f"/api/portal/eloc/{eloc_id}/send-action-item-nudge")
+    logger.info("  → %s (%d bytes)", response.status_code, len(response.content))
+    if response.status_code >= 400:
+        logger.error("  → DTS error response: %s", response.text[:2000])
+    response.raise_for_status()
+    return response.json()
