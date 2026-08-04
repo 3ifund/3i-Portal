@@ -184,9 +184,10 @@ async def delete_eloc(eloc_id: str, admin: UserInfo = Depends(require_admin)):
 
     logger.info(
         "DELETE /internal/elocs/%s — DONE in %.1fms (user=%s, deletedCount=%s, "
-        "sharesOutcome=%s, commitmentOutcome=%s)",
+        "dtoReversed=%s, sharesOutcome=%s, commitmentOutcome=%s)",
         eloc_id, t_total, admin.user_id,
         body.get("deletedCount"),
+        body.get("dtoReversed"),
         body.get("sharesOutcome"),
         body.get("commitmentOutcome"),
     )

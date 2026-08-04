@@ -789,8 +789,8 @@ async def delete_portal_eloc(eloc_id: str) -> dict | None:
         logger.warning("  DTS delete response was not JSON for %s: %s", eloc_id, response.text[:200])
         return None
     logger.info(
-        "  Portal ELOC %s deleted — deletedCount=%s, sharesReversed=%s, commitmentReversed=%s, sharesOutcome=%s, commitmentOutcome=%s",
-        eloc_id, body.get("deletedCount"), body.get("sharesReversed"),
+        "  Portal ELOC %s deleted — deletedCount=%s, dtoReversed=%s, sharesReversed=%s, commitmentReversed=%s, sharesOutcome=%s, commitmentOutcome=%s",
+        eloc_id, body.get("deletedCount"), body.get("dtoReversed"), body.get("sharesReversed"),
         body.get("commitmentReversed"), body.get("sharesOutcome"), body.get("commitmentOutcome"),
     )
     return body
