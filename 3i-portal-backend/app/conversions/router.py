@@ -43,6 +43,16 @@ async def get_aggregates(admin: UserInfo = Depends(require_admin)):
         raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
 
 
+@router.get("/convertible-tranches")
+async def get_convertible_tranches(symbol: str, admin: UserInfo = Depends(require_admin)):
+    logger.info("GET /internal/conversions/convertible-tranches symbol=%s by user=%s", symbol, admin.user_id)
+    try:
+        return await onprem.get_convertible_tranches(symbol)
+    except Exception as exc:
+        logger.error("convertible-tranches — DTS fetch FAILED: %s", exc, exc_info=True)
+        raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
+
+
 @router.get("/preview")
 async def get_preview(company: str, price: float, amount: float, admin: UserInfo = Depends(require_admin)):
     logger.info(

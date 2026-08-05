@@ -144,6 +144,17 @@ async def get_conversion_preview(company: str, price: float, amount: float, incl
     return response.json()
 
 
+async def get_convertible_tranches(symbol: str) -> list[dict]:
+    logger.info("GET /api/conversions/convertible-tranches?symbol=%s", symbol)
+    response = await _request_with_retry(
+        "GET", "/api/conversions/convertible-tranches", params={"symbol": symbol})
+    logger.info("  → %s (%d bytes)", response.status_code, len(response.content))
+    if response.status_code >= 400:
+        logger.warning("  → DTS convertible-tranches error (%s): %s", response.status_code, response.text[:500])
+    response.raise_for_status()
+    return response.json()
+
+
 async def get_conversion_recalc_window() -> dict:
     logger.info("GET /api/conversions/recalc-window")
     response = await _request_with_retry("GET", "/api/conversions/recalc-window")
