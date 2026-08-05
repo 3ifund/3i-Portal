@@ -1,5 +1,6 @@
 import logging
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
@@ -39,6 +40,29 @@ async def get_aggregates(admin: UserInfo = Depends(require_admin)):
         return await onprem.get_conversion_aggregates()
     except Exception as exc:
         logger.error("aggregates — DTS fetch FAILED: %s", exc, exc_info=True)
+        raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
+
+
+@router.get("/preview")
+async def get_preview(company: str, price: float, amount: float, admin: UserInfo = Depends(require_admin)):
+    logger.info(
+        "GET /internal/conversions/preview company=%s price=%s amount=%s by user=%s",
+        company, price, amount, admin.user_id,
+    )
+    if price <= 0 or amount <= 0:
+        # This endpoint is fired on every debounced keystroke; a zero/negative amount or price is a normal
+        # intermediate state, not an outage — short-circuit before a wasted DTS round-trip.
+        logger.info("preview — skipped (price=%s amount=%s not both > 0)", price, amount)
+        raise HTTPException(status_code=422, detail="price and amount must both be greater than 0")
+    try:
+        return await onprem.get_conversion_preview(company, price, amount, include_pdf=False)
+    except httpx.HTTPStatusError as exc:
+        # DTS rejected the input (bad/partial params) — an expected, keystroke-driven condition, not a server
+        # failure. Pass the real status/message through so the UI can show an inline hint, and log at info (no trace).
+        logger.info("preview — DTS rejected input (%s): %s", exc.response.status_code, exc.response.text[:500])
+        raise HTTPException(status_code=exc.response.status_code, detail=exc.response.text[:500])
+    except Exception as exc:
+        logger.error("preview — DTS fetch FAILED: %s", exc, exc_info=True)
         raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
 
 

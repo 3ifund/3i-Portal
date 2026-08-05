@@ -124,6 +124,26 @@ async def get_conversion_aggregates() -> list[dict]:
     return response.json()
 
 
+async def get_conversion_preview(company: str, price: float, amount: float, include_pdf: bool = False) -> dict:
+    # Single attempt, no retry: this is a read-only, idempotent, disposable preview fired on every debounced
+    # keystroke in the CONV UI. Retrying through the backoff ladder would stack stale in-flight calls and delay
+    # the UI's response by seconds when a newer keystroke has already superseded this one.
+    logger.info(
+        "GET /api/conversion-notices/preview company=%s price=%s amount=%s includePdf=%s (single attempt)",
+        company, price, amount, include_pdf,
+    )
+    client = _get_client()
+    response = await client.get(
+        "/api/conversion-notices/preview",
+        params={"company": company, "price": price, "amount": amount, "includePdf": str(include_pdf).lower()},
+    )
+    logger.info("  → %s (%d bytes)", response.status_code, len(response.content))
+    if response.status_code >= 400:
+        logger.warning("  → DTS preview error (%s): %s", response.status_code, response.text[:500])
+    response.raise_for_status()
+    return response.json()
+
+
 async def get_conversion_recalc_window() -> dict:
     logger.info("GET /api/conversions/recalc-window")
     response = await _request_with_retry("GET", "/api/conversions/recalc-window")
