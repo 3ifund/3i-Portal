@@ -622,6 +622,80 @@ async def remove_conversion(conversion_id: str) -> tuple[int, dict]:
     return response.status_code, body
 
 
+async def get_preferred_companies() -> list[dict]:
+    logger.info("GET /api/preferred-conversions/companies")
+    response = await _request_with_retry("GET", "/api/preferred-conversions/companies")
+    logger.info("  → %s (%d bytes)", response.status_code, len(response.content))
+    response.raise_for_status()
+    return response.json()
+
+
+async def get_preferred_preview(instrument_id: int, amount: float, conversion_type: str = "Variable") -> dict:
+    # Single attempt, no retry: read-only, disposable, fired on every debounced keystroke in the PREF UI.
+    logger.info(
+        "GET /api/preferred-conversions/preview instrumentId=%s amount=%s type=%s (single attempt)",
+        instrument_id, amount, conversion_type,
+    )
+    client = _get_client()
+    response = await client.get(
+        "/api/preferred-conversions/preview",
+        params={"instrumentId": instrument_id, "amount": amount, "conversionType": conversion_type},
+    )
+    logger.info("  → %s (%d bytes)", response.status_code, len(response.content))
+    if response.status_code >= 400:
+        logger.warning("  → DTS preferred preview error (%s): %s", response.status_code, response.text[:500])
+    response.raise_for_status()
+    return response.json()
+
+
+async def get_preferred_completed(company_id: int) -> list[dict]:
+    logger.info("GET /api/preferred-conversions?companyId=%s", company_id)
+    response = await _request_with_retry("GET", "/api/preferred-conversions", params={"companyId": company_id})
+    logger.info("  → %s (%d bytes)", response.status_code, len(response.content))
+    response.raise_for_status()
+    return response.json()
+
+
+async def preferred_convert(payload: dict) -> tuple[int, dict]:
+    client = _get_client()
+    logger.info(
+        "POST /api/preferred-conversions instrumentId=%s type=%s amount=%s owner=%s",
+        payload.get("instrumentId"), payload.get("conversionType"), payload.get("dollarAmount"), payload.get("owner"),
+    )
+    response = await client.post("/api/preferred-conversions", json=payload)
+    logger.info("  → %s", response.status_code)
+    try:
+        body = response.json()
+    except Exception:
+        body = {"message": response.text}
+    return response.status_code, body
+
+
+async def delete_preferred_conversion(conversion_id: str) -> tuple[int, dict]:
+    client = _get_client()
+    logger.info("DELETE /api/preferred-conversions/%s", conversion_id)
+    response = await client.delete(f"/api/preferred-conversions/{conversion_id}")
+    logger.info("  → %s", response.status_code)
+    try:
+        body = response.json()
+    except Exception:
+        body = {"message": response.text}
+    return response.status_code, body
+
+
+async def set_preferred_allow_true_up(payload: dict) -> tuple[int, dict]:
+    client = _get_client()
+    logger.info("PUT /api/company-preferred-conversions/allow-true-up company=%s allow=%s",
+                payload.get("companyId"), payload.get("allow"))
+    response = await client.put("/api/company-preferred-conversions/allow-true-up", json=payload)
+    logger.info("  → %s", response.status_code)
+    try:
+        body = response.json()
+    except Exception:
+        body = {"message": response.text}
+    return response.status_code, body
+
+
 async def post_prm_synthetic_trade(payload: dict) -> tuple[int, dict]:
     client = _get_client()
     logger.info(

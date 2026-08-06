@@ -16,6 +16,7 @@ from app.internal_elocs.router import router as internal_elocs_router
 from app.prm.router import router as prm_router
 from app.conversions.router import router as conversions_router
 from app.conversions.ws_router import ws_router as conversions_ws_router
+from app.preferred.router import router as preferred_router
 from app.execution.router import router as execution_router
 from app.execution.ws_router import ws_router as execution_ws_router
 from app.pt.router import router as pt_router
@@ -126,6 +127,7 @@ app.include_router(elocs_router, prefix="/elocs", tags=["elocs"])
 app.include_router(internal_elocs_router, prefix="/api/internal", tags=["internal-elocs"])
 app.include_router(prm_router, prefix="/api/internal/prm", tags=["prm"])
 app.include_router(conversions_router, prefix="/api/internal/conversions", tags=["conversions"])
+app.include_router(preferred_router, prefix="/api/internal/preferred", tags=["preferred"])
 app.include_router(execution_router, prefix="/api/internal/execution", tags=["execution"])
 app.include_router(pt_router, prefix="/api/internal/pt", tags=["pt"])
 app.include_router(admin_router, prefix="/admin", tags=["admin"])
