@@ -325,13 +325,17 @@ const Dashboard = (() => {
         const empty = document.getElementById('capital-empty');
         err.hidden = true;
         empty.style.display = 'none';
-        if (capitalData) { renderCapital(); return; } // load once per session; already have it
+        if (capitalData) { console.log('[Dashboard] Available Capital: using cached data'); renderCapital(); return; }
         loading.style.display = 'flex';
+        console.log('[Dashboard] Available Capital: fetching /elocs/available-capital');
         try {
             capitalData = await API.getAvailableCapital();
+            console.log('[Dashboard] Available Capital: %d period(s) for %s',
+                (capitalData.periods || []).length, capitalData.symbol);
             loading.style.display = 'none';
             renderCapital();
         } catch (e) {
+            console.error('[Dashboard] Available Capital load FAILED:', e);
             loading.style.display = 'none';
             err.hidden = false;
             err.innerHTML = `<div class="eloc-error-text"><div class="eloc-error-title">Unable to load available capital</div>`
