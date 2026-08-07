@@ -289,6 +289,7 @@ const Dashboard = (() => {
         const tabs = document.querySelectorAll('.tab');
         const activePanel = document.getElementById('active-elocs-panel');
         const actionsPanel = document.getElementById('actions-panel');
+        const capitalPanel = document.getElementById('capital-panel');
 
         tabs.forEach((tab) => {
             tab.addEventListener('click', () => {
@@ -298,7 +299,131 @@ const Dashboard = (() => {
                 const target = tab.getAttribute('data-tab');
                 activePanel.style.display = target === 'active' ? 'block' : 'none';
                 actionsPanel.style.display = target === 'actions' ? 'block' : 'none';
+                if (capitalPanel) capitalPanel.style.display = target === 'capital' ? 'block' : 'none';
+                if (target === 'capital') loadAvailableCapital();
             });
+        });
+    }
+
+    // ---- Available Capital ----
+
+    let capitalData = null;          // cached response {symbol, companyId, periods[]}
+    let capitalSelectedPeriod = null; // pricingPeriodId of the selected radio
+
+    const fmtUsd = (n) => '$' + Math.round(Number(n) || 0).toLocaleString('en-US');
+    const fmtUsdShort = (n) => {
+        const v = Number(n) || 0;
+        if (v >= 1e6) return '$' + (v / 1e6).toFixed(2) + 'M';
+        if (v >= 1e3) return '$' + (v / 1e3).toFixed(0) + 'K';
+        return '$' + Math.round(v);
+    };
+    const fmtNum = (n) => Number(n || 0).toLocaleString('en-US');
+
+    async function loadAvailableCapital() {
+        const loading = document.getElementById('capital-loading');
+        const err = document.getElementById('capital-error');
+        const empty = document.getElementById('capital-empty');
+        err.hidden = true;
+        empty.style.display = 'none';
+        if (capitalData) { renderCapital(); return; } // load once per session; already have it
+        loading.style.display = 'flex';
+        try {
+            capitalData = await API.getAvailableCapital();
+            loading.style.display = 'none';
+            renderCapital();
+        } catch (e) {
+            loading.style.display = 'none';
+            err.hidden = false;
+            err.innerHTML = `<div class="eloc-error-text"><div class="eloc-error-title">Unable to load available capital</div>`
+                + `<div class="eloc-error-detail">${(e && e.message) || e}</div></div>`;
+        }
+    }
+
+    function renderCapital() {
+        const periodsBox = document.getElementById('capital-periods');
+        const empty = document.getElementById('capital-empty');
+        const periods = (capitalData && capitalData.periods) || [];
+        if (!periods.length) {
+            periodsBox.innerHTML = '';
+            document.getElementById('capital-summary').innerHTML = '';
+            document.getElementById('capital-chart').innerHTML = '';
+            empty.style.display = 'block';
+            return;
+        }
+        empty.style.display = 'none';
+        if (capitalSelectedPeriod == null || !periods.some((p) => p.pricingPeriodId === capitalSelectedPeriod)) {
+            capitalSelectedPeriod = periods[0].pricingPeriodId;
+        }
+        // Radios (one per pricing period) — only show the row when there is more than one period.
+        periodsBox.innerHTML = periods.length > 1
+            ? periods.map((p) => {
+                const checked = p.pricingPeriodId === capitalSelectedPeriod ? 'checked' : '';
+                return `<label class="capital-radio"><input type="radio" name="capital-period" value="${p.pricingPeriodId}" ${checked}>`
+                    + `<span>${p.periodType} · ${p.pricingDirection} · ${p.priceSource} · ${Math.round((1 - p.discountMultiplier) * 100)}% disc</span></label>`;
+            }).join('')
+            : '';
+        periodsBox.querySelectorAll('input[name="capital-period"]').forEach((r) =>
+            r.addEventListener('change', () => { capitalSelectedPeriod = Number(r.value); renderCapitalChart(); }));
+        renderCapitalChart();
+    }
+
+    function renderCapitalChart() {
+        const period = (capitalData.periods || []).find((p) => p.pricingPeriodId === capitalSelectedPeriod);
+        const chart = document.getElementById('capital-chart');
+        const summary = document.getElementById('capital-summary');
+        if (!period || !period.days.length) { chart.innerHTML = ''; summary.innerHTML = ''; return; }
+        const days = period.days;
+        const raises = days.map((d) => Number(d.raised) || 0);
+        const maxRaise = Math.max(...raises, 1);
+        const avg = raises.reduce((a, b) => a + b, 0) / raises.length;
+        const median = [...raises].sort((a, b) => a - b)[Math.floor(raises.length / 2)];
+        const best = days[raises.indexOf(Math.max(...raises))];
+
+        summary.innerHTML = `<div class="capital-stat"><span class="k">Typical day (median)</span><span class="v">${fmtUsd(median)}</span></div>`
+            + `<div class="capital-stat"><span class="k">Average day</span><span class="v">${fmtUsd(avg)}</span></div>`
+            + `<div class="capital-stat"><span class="k">Best day</span><span class="v">${fmtUsd(best.raised)} <em>(${best.date})</em></span></div>`
+            + `<div class="capital-stat"><span class="k">Days</span><span class="v">${days.length}</span></div>`;
+
+        // Inline SVG bar chart — one bar per day, height ∝ raised. Hover shows the day's breakdown.
+        const H = 260, padTop = 10, padBottom = 22, plotH = H - padTop - padBottom;
+        const barGap = 2;
+        const barW = Math.max(3, Math.min(22, Math.floor(900 / days.length) - barGap));
+        const W = days.length * (barW + barGap) + 4;
+        const bars = days.map((d, i) => {
+            const h = Math.max(1, Math.round((Number(d.raised) / maxRaise) * plotH));
+            const x = 2 + i * (barW + barGap);
+            const y = padTop + (plotH - h);
+            const bind = (d.bindingConstraint || '').toLowerCase();
+            const cls = bind.includes('volume') ? 'bar-volume' : bind.includes('registered') ? 'bar-registered'
+                : bind.includes('ownership') ? 'bar-bo' : bind.includes('aggregate') ? 'bar-agg' : 'bar-other';
+            return `<rect class="capital-bar ${cls}" x="${x}" y="${y}" width="${barW}" height="${h}" data-i="${i}"></rect>`;
+        }).join('');
+        chart.innerHTML = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMinYMid meet" class="capital-svg" role="img">`
+            + `<line class="capital-axis" x1="0" y1="${padTop + plotH}" x2="${W}" y2="${padTop + plotH}"></line>`
+            + bars + `</svg>`
+            + `<div class="capital-legend"><span class="lg bar-volume"></span>Volume/Dollar cap`
+            + `<span class="lg bar-registered"></span>Registered<span class="lg bar-bo"></span>Ownership`
+            + `<span class="lg bar-agg"></span>Aggregate cap</div>`;
+
+        const tooltip = document.getElementById('capital-tooltip');
+        chart.querySelectorAll('.capital-bar').forEach((rect) => {
+            rect.addEventListener('mousemove', (ev) => {
+                const d = days[Number(rect.dataset.i)];
+                tooltip.innerHTML = `<div class="tt-date">${d.date}</div>`
+                    + `<div class="tt-row"><span>Raised</span><b>${fmtUsd(d.raised)}</b></div>`
+                    + `<div class="tt-row"><span>Shares</span><b>${fmtNum(d.cappedShares)}</b></div>`
+                    + `<div class="tt-row"><span>Price</span><b>$${Number(d.appliedPrice).toFixed(4)}</b></div>`
+                    + `<div class="tt-row"><span>VWAP</span><b>$${Number(d.vwap).toFixed(4)}</b></div>`
+                    + `<div class="tt-row"><span>Volume</span><b>${fmtNum(d.volumeFigure)}</b></div>`
+                    + `<div class="tt-row"><span>Binding</span><b>${d.bindingConstraint}</b></div>`;
+                tooltip.style.display = 'block';
+                const host = chart.getBoundingClientRect();
+                let left = ev.clientX - host.left + 14;
+                if (left + 190 > host.width) left = ev.clientX - host.left - 190;
+                tooltip.style.left = left + 'px';
+                tooltip.style.top = (ev.clientY - host.top + 12) + 'px';
+            });
+            rect.addEventListener('mouseleave', () => { tooltip.style.display = 'none'; });
         });
     }
 

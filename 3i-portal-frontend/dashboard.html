@@ -44,10 +44,11 @@
                 <h1>Your ELOCs</h1>
             </div>
 
-            <!-- Tabs: Active / Action Items -->
+            <!-- Tabs: Active / Action Items / Available Capital -->
             <div class="tabs">
                 <button class="tab active" data-tab="active" id="active-tab">Active ELOCs</button>
                 <button class="tab" data-tab="actions" id="actions-tab">Action Items</button>
+                <button class="tab" data-tab="capital" id="capital-tab">Available Capital</button>
             </div>
 
             <!-- Active ELOCs Grid -->
@@ -88,6 +89,27 @@
                 <div class="empty-state" id="actions-empty">
                     <p>No pending action items.</p>
                 </div>
+            </div>
+
+            <!-- Available Capital Panel -->
+            <div id="capital-panel" style="display:none;">
+                <div class="capital-intro">
+                    Illustrative: for each trading day in the market-data window, the capital you could have raised
+                    from a single notice — the maximum shares that day (all constraints) priced at that day's mechanics.
+                    Each day is independent (assumes no pending ELOCs); this is not a running total.
+                </div>
+                <div class="loading-container" id="capital-loading" style="display:none;">
+                    <div class="loading-spinner"></div>
+                    <span>Computing available capital...</span>
+                </div>
+                <div id="capital-periods" class="capital-periods"></div>
+                <div id="capital-summary" class="capital-summary"></div>
+                <div id="capital-chart" class="capital-chart"></div>
+                <div id="capital-tooltip" class="capital-tooltip" style="display:none;"></div>
+                <div class="empty-state" id="capital-empty" style="display:none;">
+                    <p>No pricing periods / market data available for your ELOC.</p>
+                </div>
+                <div class="eloc-error" id="capital-error" hidden></div>
             </div>
 
 

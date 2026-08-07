@@ -137,6 +137,16 @@ const API = (() => {
     }
 
     /**
+     * GET /elocs/available-capital — per-period per-day "could have raised" backtest series
+     */
+    async function getAvailableCapital() {
+        const response = await fetch(`${BASE_URL}/elocs/available-capital`, {
+            headers: authHeaders(),
+        });
+        return handleResponse(response);
+    }
+
+    /**
      * GET /elocs/action-items — pending action items for the current user
      */
     async function getActionItems() {
@@ -690,6 +700,7 @@ const API = (() => {
         getElocs,
         getEloc,
         getSharesAvailable,
+        getAvailableCapital,
         getActionItems,
         getPricingWorkflows,
         removePricingWorkflow,
