@@ -1644,8 +1644,8 @@ input[type="number"] {
     background: var(--bg-card); color: var(--text-primary); font-size: 13px; cursor: pointer;
 }
 .capital-radio input { accent-color: var(--accent-blue); cursor: pointer; }
-.capital-summary { display: flex; flex-wrap: wrap; gap: 18px; margin-bottom: 12px; }
-.capital-stat { display: flex; flex-direction: column; gap: 2px; }
+.capital-summary { display: flex; flex-wrap: wrap; justify-content: center; gap: 48px; margin-bottom: 16px; }
+.capital-stat { display: flex; flex-direction: column; gap: 2px; align-items: center; text-align: center; }
 .capital-stat .k { font-size: 11px; text-transform: uppercase; letter-spacing: .5px; color: var(--text-muted); }
 .capital-stat .v { font-size: 18px; font-weight: 700; color: var(--text-primary); font-variant-numeric: tabular-nums; }
 .capital-stat .v em { font-size: 12px; font-style: normal; font-weight: 400; color: var(--text-secondary); }
