@@ -388,26 +388,57 @@ const Dashboard = (() => {
             + `<div class="capital-stat"><span class="k">Best day</span><span class="v">${fmtUsd(best.raised)} <em>(${best.date})</em></span></div>`
             + `<div class="capital-stat"><span class="k">Days</span><span class="v">${days.length}</span></div>`;
 
-        // Inline SVG bar chart — one bar per day, height ∝ raised. Hover shows the day's breakdown.
-        const H = 260, padTop = 10, padBottom = 22, plotH = H - padTop - padBottom;
+        // Inline SVG bar chart — one bar per day (height ∝ raised), a $ y-axis and month x-axis. Hover = breakdown.
+        const niceStep = (v) => {
+            const p = Math.pow(10, Math.floor(Math.log10(v || 1)));
+            const n = (v || 1) / p;
+            return (n <= 1 ? 1 : n <= 2 ? 2 : n <= 2.5 ? 2.5 : n <= 5 ? 5 : 10) * p;
+        };
+        const step = niceStep(maxRaise / 4);
+        const niceMax = Math.ceil(maxRaise / step) * step || step;
+        const gridN = Math.round(niceMax / step);
+
+        const H = 280, padTop = 12, padBottom = 30, padLeft = 58, padRight = 12;
+        const plotH = H - padTop - padBottom;
         const barGap = 2;
-        const barW = Math.max(3, Math.min(22, Math.floor(900 / days.length) - barGap));
-        const W = days.length * (barW + barGap) + 4;
+        const barW = Math.max(3, Math.min(22, Math.floor(880 / days.length) - barGap));
+        const plotW = days.length * (barW + barGap);
+        const W = padLeft + plotW + padRight;
+        const baseY = padTop + plotH;
+
+        let yAxis = '';
+        for (let g = 0; g <= gridN; g++) {
+            const val = g * step;
+            const y = baseY - (val / niceMax) * plotH;
+            yAxis += `<line class="capital-grid" x1="${padLeft}" y1="${y}" x2="${W - padRight}" y2="${y}"></line>`;
+            yAxis += `<text class="capital-ylabel" x="${padLeft - 8}" y="${y + 3}">${fmtUsdShort(val)}</text>`;
+        }
+
+        const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        let xAxis = '';
+        let lastMonth = '';
+        days.forEach((d, i) => {
+            const ym = (d.date || '').slice(0, 7);
+            if (ym && ym !== lastMonth) {
+                lastMonth = ym;
+                const x = padLeft + i * (barW + barGap);
+                const label = monthNames[parseInt(d.date.slice(5, 7), 10) - 1] || '';
+                xAxis += `<line class="capital-tick" x1="${x}" y1="${baseY}" x2="${x}" y2="${baseY + 4}"></line>`;
+                xAxis += `<text class="capital-xlabel" x="${x + 2}" y="${baseY + 16}">${label}</text>`;
+            }
+        });
+
         const bars = days.map((d, i) => {
-            const h = Math.max(1, Math.round((Number(d.raised) / maxRaise) * plotH));
-            const x = 2 + i * (barW + barGap);
-            const y = padTop + (plotH - h);
-            const bind = (d.bindingConstraint || '').toLowerCase();
-            const cls = bind.includes('volume') ? 'bar-volume' : bind.includes('registered') ? 'bar-registered'
-                : bind.includes('ownership') ? 'bar-bo' : bind.includes('aggregate') ? 'bar-agg' : 'bar-other';
-            return `<rect class="capital-bar ${cls}" x="${x}" y="${y}" width="${barW}" height="${h}" data-i="${i}"></rect>`;
+            const h = Math.max(1, Math.round((Number(d.raised) / niceMax) * plotH));
+            const x = padLeft + i * (barW + barGap);
+            const y = baseY - h;
+            return `<rect class="capital-bar" x="${x}" y="${y}" width="${barW}" height="${h}" data-i="${i}"></rect>`;
         }).join('');
+
         chart.innerHTML = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMinYMid meet" class="capital-svg" role="img">`
-            + `<line class="capital-axis" x1="0" y1="${padTop + plotH}" x2="${W}" y2="${padTop + plotH}"></line>`
-            + bars + `</svg>`
-            + `<div class="capital-legend"><span class="lg bar-volume"></span>Volume/Dollar cap`
-            + `<span class="lg bar-registered"></span>Registered<span class="lg bar-bo"></span>Ownership`
-            + `<span class="lg bar-agg"></span>Aggregate cap</div>`;
+            + yAxis
+            + `<line class="capital-axis" x1="${padLeft}" y1="${baseY}" x2="${W - padRight}" y2="${baseY}"></line>`
+            + bars + xAxis + `</svg>`;
 
         const tooltip = document.getElementById('capital-tooltip');
         chart.querySelectorAll('.capital-bar').forEach((rect) => {

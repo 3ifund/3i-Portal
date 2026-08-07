@@ -1637,16 +1637,6 @@ input[type="number"] {
 }
 
 /* ===== Available Capital tab ===== */
-.capital-intro {
-    font-size: 13px;
-    line-height: 1.5;
-    color: var(--text-secondary);
-    background: var(--bg-card);
-    border: 1px solid var(--border-blue-dim);
-    border-radius: var(--border-radius);
-    padding: 12px 14px;
-    margin-bottom: 14px;
-}
 .capital-periods { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 14px; }
 .capital-radio {
     display: inline-flex; align-items: center; gap: 8px;
@@ -1665,19 +1655,12 @@ input[type="number"] {
 }
 .capital-svg { width: 100%; height: auto; display: block; }
 .capital-axis { stroke: var(--border-blue-dim); stroke-width: 1; }
-.capital-bar { transition: opacity .1s; cursor: pointer; }
+.capital-grid { stroke: rgba(255,255,255,.06); stroke-width: 1; }
+.capital-tick { stroke: var(--border-blue-dim); stroke-width: 1; }
+.capital-ylabel { fill: var(--text-muted); font-size: 10px; text-anchor: end; font-variant-numeric: tabular-nums; }
+.capital-xlabel { fill: var(--text-secondary); font-size: 11px; text-anchor: start; }
+.capital-bar { fill: #3fb950; transition: opacity .1s; cursor: pointer; }
 .capital-bar:hover { opacity: .75; }
-.capital-bar.bar-volume { fill: #269edf; }
-.capital-bar.bar-registered { fill: #e0b000; }
-.capital-bar.bar-bo { fill: #e5484d; }
-.capital-bar.bar-agg { fill: #8957e5; }
-.capital-bar.bar-other { fill: #5a6478; }
-.capital-legend { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 8px; font-size: 11px; color: var(--text-secondary); }
-.capital-legend .lg { display: inline-block; width: 11px; height: 11px; border-radius: 2px; margin-left: 10px; }
-.capital-legend .lg.bar-volume { background: #269edf; }
-.capital-legend .lg.bar-registered { background: #e0b000; }
-.capital-legend .lg.bar-bo { background: #e5484d; }
-.capital-legend .lg.bar-agg { background: #8957e5; }
 .capital-tooltip {
     position: absolute; z-index: 20; width: 190px; pointer-events: none;
     background: var(--bg-modal); border: 1px solid var(--border-blue); border-radius: 6px;
