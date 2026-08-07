@@ -145,6 +145,30 @@ async def get_shares_available(
         )
 
 
+# Must precede the "/{eloc_id}" route below, or FastAPI matches "available-capital" as an eloc id.
+@router.get("/available-capital")
+async def get_available_capital(
+    user: UserInfo = Depends(get_current_user),
+):
+    logger.info("GET /elocs/available-capital user=%s symbol=%s", user.user_id, user.company_symbol)
+    if not user.company_symbol:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User has no company_symbol assigned",
+        )
+    try:
+        result = await service.get_available_capital(user.company_symbol)
+        logger.info("  → available-capital returned OK (%d period(s))",
+                    len(result.get("periods", [])) if isinstance(result, dict) else -1)
+        return result
+    except Exception as exc:
+        logger.error("  → available-capital FAILED: %s", exc, exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Unable to fetch available capital: {exc}",
+        )
+
+
 @router.get("/action-items")
 async def get_action_items(
     user: UserInfo = Depends(get_current_user),

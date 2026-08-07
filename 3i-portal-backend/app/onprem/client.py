@@ -930,6 +930,14 @@ async def get_shares_available(symbol: str) -> dict:
     return response.json()
 
 
+async def get_eloc_available_capital(symbol: str) -> dict:
+    logger.info("GET /api/sharesavailable/available-capital/%s", symbol)
+    response = await _request_with_retry("GET", f"/api/sharesavailable/available-capital/{symbol}")
+    logger.info("  → %s (%d bytes)", response.status_code, len(response.content))
+    response.raise_for_status()
+    return response.json()
+
+
 async def get_purchase_notice_fields(symbol: str, pricing_period_id: int) -> dict | None:
     logger.info("GET /api/purchasenotice/fields/%s/%s", symbol, pricing_period_id)
     response = await _request_with_retry(

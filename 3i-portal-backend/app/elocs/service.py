@@ -219,6 +219,14 @@ async def get_shares_available(company_symbol: str) -> dict:
     return result
 
 
+async def get_available_capital(company_symbol: str) -> dict:
+    logger.info("get_available_capital symbol=%s", company_symbol)
+    result = await onprem.get_eloc_available_capital(company_symbol)
+    logger.info("  Returned: symbol=%s, periods=%d",
+                result.get("symbol"), len(result.get("periods", [])))
+    return result
+
+
 async def get_action_items(company_id: int) -> list[dict]:
     logger.info("get_action_items company_id=%s", company_id)
     items = []
