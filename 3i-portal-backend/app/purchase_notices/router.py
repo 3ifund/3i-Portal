@@ -339,6 +339,19 @@ async def get_portal_document(
     logger.info("GET /documents/%s/%s — user=%s", eloc_id, step, user.user_id)
     await _verify_eloc_ownership(eloc_id, user)
 
+    # ELOC (Pricing) Details is rendered on-demand by DTS from the pricing breakdown, not a stored workflow doc.
+    if step in ("PricingDetails", "ELOCDetails"):
+        pdf = await onprem.get_pricing_details_pdf(eloc_id)
+        if not pdf:
+            logger.warning("No pricing details available for eloc=%s", eloc_id)
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="No pricing details are available for this ELOC yet.",
+            )
+        import base64
+        logger.info("Pricing Details returned for eloc=%s (%d bytes)", eloc_id, len(pdf))
+        return {"pdf_base64": base64.b64encode(pdf).decode("ascii"), "filename": f"{eloc_id}-ELOC-Details.pdf"}
+
     doc = await onprem.get_portal_eloc_document(eloc_id, step)
     if not doc:
         logger.warning("Document not found for eloc=%s step=%s", eloc_id, step)

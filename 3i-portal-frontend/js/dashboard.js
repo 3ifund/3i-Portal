@@ -687,6 +687,19 @@ const Dashboard = (() => {
             `;
         });
 
+        // ELOC (Pricing) Details is available once the price is known — forward: after FinalVwapPricingCalculated;
+        // backward: once the Purchase Confirmation (VwapNotificationToCompany) is reached. Its PDF is rendered
+        // on-demand by DTS from the pricing breakdown, so we only offer it after pricing to avoid an empty view.
+        const priced = (workflow.steps || []).some((s) =>
+            (s.key === 'FinalVwapPricingCalculated' || s.key === 'VwapNotificationToCompany') && s.status === 'Completed');
+        const detailsFooter = priced
+            ? `<div class="workflow-footer" style="margin-top:0.5rem; text-align:right;">
+                   <button class="workflow-details-btn" type="button"
+                       style="padding:5px 12px; font-size:0.85em; background:var(--bg-tertiary,#f0f0f0); border:1px solid var(--border-color,#ccc); border-radius:4px; cursor:pointer; color:var(--text-primary,#222);">
+                       \u{1F4CA} View ELOC Details</button>
+               </div>`
+            : '';
+
         card.innerHTML = `
             <div class="workflow-header">
                 <div class="workflow-title">ELOC ${escapeHtml(workflow.eloc_id)}</div>
@@ -695,6 +708,7 @@ const Dashboard = (() => {
             <div class="workflow-steps">
                 ${stepsHtml}
             </div>
+            ${detailsFooter}
         `;
 
         // Click handlers for completed document badges
@@ -705,6 +719,15 @@ const Dashboard = (() => {
             });
             stepEl.style.cursor = 'pointer';
         });
+
+        // "View ELOC Details" — the on-demand Pricing Details PDF (per-day VWAP grid + how the price was derived).
+        const detailsBtn = card.querySelector('.workflow-details-btn');
+        if (detailsBtn) {
+            detailsBtn.addEventListener('click', () => {
+                console.log('[Dashboard] Opening ELOC Details for %s', workflow.eloc_id);
+                openDocumentViewer(workflow.eloc_id, 'PricingDetails', workflow.source || 'dts');
+            });
+        }
 
         // Remove button handler
         const removeBtn = card.querySelector('.workflow-remove-btn');
@@ -770,6 +793,7 @@ const Dashboard = (() => {
         SignedContractToCompany: 'Purchase Notice',
         VwapNotificationToCompany: 'Purchase Confirmation',
         ReceivedCountersignedVwapNotification: 'Countersigned Confirmation',
+        PricingDetails: 'ELOC Details',
     };
 
     async function openDocumentViewer(elocId, step, source) {

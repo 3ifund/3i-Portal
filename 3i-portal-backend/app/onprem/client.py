@@ -1162,6 +1162,19 @@ async def get_portal_eloc_document(eloc_id: str, step: str) -> dict | None:
     return response.json()
 
 
+async def get_pricing_details_pdf(eloc_id: str) -> bytes | None:
+    # The ELOC Pricing Details PDF is rendered on-demand by DTS from eloc_data.pricing_breakdown (not a stored doc).
+    # Returns the raw PDF bytes, or None when the ELOC has no captured breakdown (DTS 400/404).
+    logger.info("GET /api/portal/eloc/%s/pricing-details-pdf", eloc_id)
+    response = await _request_with_retry("GET", f"/api/portal/eloc/{eloc_id}/pricing-details-pdf")
+    if response.status_code in (400, 404):
+        logger.info("  → %s (no pricing details for %s)", response.status_code, eloc_id)
+        return None
+    logger.info("  → %s (%d bytes)", response.status_code, len(response.content))
+    response.raise_for_status()
+    return response.content
+
+
 async def accept_portal_eloc(eloc_id: str) -> dict:
     logger.info("POST /api/portal/eloc/%s/accept", eloc_id)
     response = await _request_with_retry("POST", f"/api/portal/eloc/{eloc_id}/accept")
