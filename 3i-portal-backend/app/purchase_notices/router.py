@@ -510,6 +510,9 @@ async def get_confirmation_prefill(
         "lowest_vwap": eloc_data.get("lowest_vwap"),
         "vwap_used": eloc_data.get("vwap_used"),
         "dollar_amount_calculated": eloc_data.get("dollar_amount_calculated"),
+        # Per-day VWAP grid + discount/closing-substitution detail (the same breakdown the Pricing Details PDF
+        # renders), so the countersign page can show how the price was derived. Null when priced before it was captured.
+        "pricing_breakdown": eloc_data.get("pricing_breakdown"),
         "to_name": to_name,
         "to_email": to_email,
         "to_name_source": to_name_source,
