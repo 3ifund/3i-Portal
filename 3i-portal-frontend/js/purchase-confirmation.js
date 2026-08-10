@@ -75,7 +75,11 @@
     function renderPricingDetails(b) {
         const el = document.getElementById('pc-pricing-details');
         if (!el) return;
-        if (!b || !Array.isArray(b.days) || b.days.length === 0) { el.style.display = 'none'; return; }
+        if (!b || !Array.isArray(b.days) || b.days.length === 0) {
+            el.style.display = 'none';
+            console.log('[PurchaseConfirmation] no pricing_breakdown on this ELOC — Pricing Details section hidden');
+            return;
+        }
 
         const fmtPrice = v => '$' + Number(v || 0).toLocaleString('en-US', { maximumFractionDigits: 4 });
         const fmtMoney = v => '$' + Number(v || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });

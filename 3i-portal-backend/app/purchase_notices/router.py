@@ -527,11 +527,13 @@ async def get_confirmation_prefill(
         response_size_bytes = len(_json.dumps(result, default=str).encode("utf-8"))
     except Exception:
         response_size_bytes = -1
+    _breakdown = eloc_data.get("pricing_breakdown")
     logger.info(
-        "Confirmation prefill for %s: symbol=%s, vwap=%s, signatory=%s, "
+        "Confirmation prefill for %s: symbol=%s, vwap=%s, has_pricing_breakdown=%s (%s day(s)), signatory=%s, "
         "to_name=%r[%s], to_email=%r[%s], firm.email=%r, firm_source=%s, "
         "dts_call_ms=%.1f, dts_outcome=%s, response_bytes=%d",
         eloc_id, symbol, eloc_data.get("vwap_purchase_price"),
+        bool(_breakdown), len(_breakdown.get("days", [])) if isinstance(_breakdown, dict) else 0,
         signatory.get("signatory_name") if signatory else None,
         to_name, to_name_source, to_email, to_email_source,
         firm_signature.get("email"), firm_signature_source,
