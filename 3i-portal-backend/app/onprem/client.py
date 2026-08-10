@@ -648,6 +648,51 @@ async def get_preferred_preview(instrument_id: int, amount: float, conversion_ty
     return response.json()
 
 
+async def get_preferred_company_preview(company_id: int, price: float, amount: float) -> dict:
+    # Single attempt, no retry: read-only, disposable, fired on every debounced keystroke in the PREF UI.
+    logger.info(
+        "GET /api/preferred-conversions/company-preview companyId=%s price=%s amount=%s (single attempt)",
+        company_id, price, amount,
+    )
+    client = _get_client()
+    response = await client.get(
+        "/api/preferred-conversions/company-preview",
+        params={"companyId": company_id, "price": price, "amount": amount},
+    )
+    logger.info("  → %s (%d bytes)", response.status_code, len(response.content))
+    if response.status_code >= 400:
+        logger.warning("  → DTS preferred company-preview error (%s): %s", response.status_code, response.text[:500])
+    response.raise_for_status()
+    return response.json()
+
+
+async def preferred_company_convert(payload: dict) -> tuple[int, dict]:
+    client = _get_client()
+    logger.info(
+        "POST /api/preferred-conversions/company-convert companyId=%s price=%s amount=%s owner=%s",
+        payload.get("companyId"), payload.get("price"), payload.get("amount"), payload.get("owner"),
+    )
+    response = await client.post("/api/preferred-conversions/company-convert", json=payload)
+    logger.info("  → %s", response.status_code)
+    try:
+        body = response.json()
+    except Exception:
+        body = {"message": response.text}
+    return response.status_code, body
+
+
+async def reverse_preferred_batch(batch_ref: str) -> tuple[int, dict]:
+    client = _get_client()
+    logger.info("DELETE /api/preferred-conversions/batch/%s", batch_ref)
+    response = await client.delete(f"/api/preferred-conversions/batch/{batch_ref}")
+    logger.info("  → %s", response.status_code)
+    try:
+        body = response.json()
+    except Exception:
+        body = {"message": response.text}
+    return response.status_code, body
+
+
 async def get_preferred_completed(company_id: int) -> list[dict]:
     logger.info("GET /api/preferred-conversions?companyId=%s", company_id)
     response = await _request_with_retry("GET", "/api/preferred-conversions", params={"companyId": company_id})

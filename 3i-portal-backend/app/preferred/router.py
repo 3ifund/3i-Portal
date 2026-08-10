@@ -18,6 +18,12 @@ class ConvertBody(BaseModel):
     amount: float
 
 
+class CompanyConvertBody(BaseModel):
+    companyId: int
+    price: float
+    amount: float
+
+
 class AllowTrueUpBody(BaseModel):
     companyId: int
     allow: bool
@@ -71,6 +77,39 @@ async def convert(body: ConvertBody, admin: UserInfo = Depends(require_admin)):
         "dollarAmount": body.amount,
         "owner": admin.user_id,
     })
+    return JSONResponse(status_code=status, content=data)
+
+
+@router.get("/company-preview")
+async def get_company_preview(companyId: int, price: float, amount: float,
+                             admin: UserInfo = Depends(require_admin)):
+    logger.info("GET /internal/preferred/company-preview companyId=%s price=%s amount=%s by user=%s",
+                companyId, price, amount, admin.user_id)
+    try:
+        return await onprem.get_preferred_company_preview(companyId, price, amount)
+    except Exception as exc:
+        # DTS rejects bad/partial params with 4xx — an expected, keystroke-driven condition, not an outage.
+        logger.warning("preferred company-preview — DTS returned error: %s", exc)
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.post("/company-convert")
+async def company_convert(body: CompanyConvertBody, admin: UserInfo = Depends(require_admin)):
+    logger.info("POST /internal/preferred/company-convert companyId=%s price=%s amount=%s owner=%s",
+                body.companyId, body.price, body.amount, admin.user_id)
+    status, data = await onprem.preferred_company_convert({
+        "companyId": body.companyId,
+        "price": body.price,
+        "amount": body.amount,
+        "owner": admin.user_id,
+    })
+    return JSONResponse(status_code=status, content=data)
+
+
+@router.delete("/batch/{batch_ref}")
+async def reverse_batch(batch_ref: str, admin: UserInfo = Depends(require_admin)):
+    logger.info("DELETE /internal/preferred/batch/%s by user=%s", batch_ref, admin.user_id)
+    status, data = await onprem.reverse_preferred_batch(batch_ref)
     return JSONResponse(status_code=status, content=data)
 
 
