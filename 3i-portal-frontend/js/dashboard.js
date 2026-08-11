@@ -473,7 +473,7 @@ const Dashboard = (() => {
         const src = escapeHtml(b.price_source_label || 'VWAP');
         const rows = b.days.map((d) => {
             const low = d.is_lowest;
-            return `<tr${low ? ' style="background:#fff2cc;font-weight:600;"' : ''}>`
+            return `<tr${low ? ' style="background:#fff2cc;font-weight:600;color:#5a4a00;"' : ''}>`
                 + `<td style="padding:2px 6px;">${dt(d.date)}${d.is_half_day ? ' (½)' : ''}</td>`
                 + `<td style="padding:2px 6px;text-align:right;">${price(d.price)}</td>`
                 + `<td style="padding:2px 6px;text-align:right;color:#8a6d00;">${low ? 'lowest' : ''}</td></tr>`;
@@ -488,7 +488,7 @@ const Dashboard = (() => {
             + `<tbody>${rows}</tbody></table>`
             + sub
             + `<div style="margin-top:4px;font-size:0.85em;">Base ${price(b.base_price)} × ${escapeHtml(String(b.discount_multiplier))} = <b>${price(b.final_price)}</b></div>`
-            + `<div style="margin-top:5px;padding:5px 8px;background:#e2f0d9;border:1px solid #70ad47;border-radius:4px;text-align:center;font-weight:600;font-size:0.85em;">Purchase Price ${price(b.final_price)} × ${shares(b.share_amount)} shares = ${money(b.total_value)}</div>`
+            + `<div style="margin-top:5px;padding:5px 8px;background:#e2f0d9;border:1px solid #70ad47;border-radius:4px;text-align:center;font-weight:600;font-size:0.85em;color:#14532d;">Purchase Price ${price(b.final_price)} × ${shares(b.share_amount)} shares = ${money(b.total_value)}</div>`
             + `</div>`;
     }
 
