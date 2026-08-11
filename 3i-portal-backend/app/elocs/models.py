@@ -35,12 +35,12 @@ WORKFLOW_STEPS_ORDERED = list(WorkflowStepEnum)
 WORKFLOW_STEP_LABELS = {
     WorkflowStepEnum.SignedContractToCompany: "Signed Contract to Company",
     WorkflowStepEnum.SavedContractToSharePoint: "Saved Contract to SharePoint",
-    WorkflowStepEnum.FinalVwapPricingCalculated: "Final VWAP Pricing Calculated",
-    WorkflowStepEnum.VwapNotificationToCompany: "VWAP Notification to Company",
-    WorkflowStepEnum.VwapCountersignedToCompany: "VWAP Countersigned to Company",
-    WorkflowStepEnum.ReceivedCountersignedVwapNotification: "Received Countersigned VWAP Notification",
-    WorkflowStepEnum.SavedVwapToSharePoint: "Saved VWAP to SharePoint",
-    WorkflowStepEnum.VwapNotificationToPrimeBroker: "VWAP Notification to Prime Broker",
+    WorkflowStepEnum.FinalVwapPricingCalculated: "Final Pricing Calculated",
+    WorkflowStepEnum.VwapNotificationToCompany: "Notification to Company",
+    WorkflowStepEnum.VwapCountersignedToCompany: "Countersigned to Company",
+    WorkflowStepEnum.ReceivedCountersignedVwapNotification: "Received Countersigned Notification",
+    WorkflowStepEnum.SavedVwapToSharePoint: "Saved to SharePoint",
+    WorkflowStepEnum.VwapNotificationToPrimeBroker: "Notification to Prime Broker",
 }
 
 CLIENT_VISIBLE_STEPS = {

@@ -716,17 +716,6 @@ const Dashboard = (() => {
             `;
         });
 
-        // ELOC (Pricing) Details is offered only once the workflow is COMPLETE — before then the card must not show a
-        // clickable document control (the countersigned Purchase Confirmation and the ELOC Details PDF both become
-        // viewable/downloadable together at completion).
-        const detailsFooter = workflow.workflow_complete
-            ? `<div class="workflow-footer" style="margin-top:0.5rem; text-align:right;">
-                   <button class="workflow-details-btn" type="button"
-                       style="padding:5px 12px; font-size:0.85em; background:var(--bg-tertiary,#f0f0f0); border:1px solid var(--border-color,#ccc); border-radius:4px; cursor:pointer; color:var(--text-primary,#222);">
-                       \u{1F4CA} View ELOC Details</button>
-               </div>`
-            : '';
-
         card.innerHTML = `
             <div class="workflow-header">
                 <div class="workflow-title">ELOC ${escapeHtml(workflow.eloc_id)}</div>
@@ -735,26 +724,20 @@ const Dashboard = (() => {
             <div class="workflow-steps">
                 ${stepsHtml}
             </div>
-            ${detailsFooter}
         `;
 
         // Click handlers for completed document badges
         card.querySelectorAll('.workflow-step.clickable').forEach((stepEl) => {
             stepEl.addEventListener('click', () => {
                 const stepKey = stepEl.dataset.step;
-                openDocumentViewer(workflow.eloc_id, stepKey, workflow.source || 'dts');
+                const docs = stepKey === 'ReceivedCountersignedVwapNotification'
+                    ? [{ step: 'ReceivedCountersignedVwapNotification', label: STEP_LABELS.ReceivedCountersignedVwapNotification },
+                       { step: 'PricingDetails', label: STEP_LABELS.PricingDetails }]
+                    : stepKey;
+                openDocumentViewer(workflow.eloc_id, docs, workflow.source || 'dts');
             });
             stepEl.style.cursor = 'pointer';
         });
-
-        // "View ELOC Details" — the on-demand Pricing Details PDF (per-day VWAP grid + how the price was derived).
-        const detailsBtn = card.querySelector('.workflow-details-btn');
-        if (detailsBtn) {
-            detailsBtn.addEventListener('click', () => {
-                console.log('[Dashboard] Opening ELOC Details for %s', workflow.eloc_id);
-                openDocumentViewer(workflow.eloc_id, 'PricingDetails', workflow.source || 'dts');
-            });
-        }
 
         // Remove button handler
         const removeBtn = card.querySelector('.workflow-remove-btn');
@@ -823,27 +806,62 @@ const Dashboard = (() => {
         PricingDetails: 'ELOC Details',
     };
 
-    async function openDocumentViewer(elocId, step, source) {
-        console.log('[Dashboard] Opening document viewer: eloc=%s step=%s source=%s', elocId, step, source);
+    let _viewerDocs = [];
+    let _viewerElocId = null;
+
+    async function openDocumentViewer(elocId, docs, source) {
+        const list = (typeof docs === 'string')
+            ? [{ step: docs, label: STEP_LABELS[docs] || 'Document' }]
+            : docs;
+        console.log('[Dashboard] Opening document viewer: eloc=%s docs=%o source=%s', elocId, list.map((d) => d.step), source);
+        _viewerDocs = list;
+        _viewerElocId = elocId;
 
         const overlay = document.getElementById('document-modal-overlay');
+        const tabsEl = document.getElementById('document-modal-tabs');
+        overlay.classList.add('visible');
+
+        if (tabsEl) {
+            if (list.length > 1) {
+                tabsEl.style.display = 'flex';
+                tabsEl.innerHTML = list.map((d, i) =>
+                    `<button class="document-modal-tab" data-idx="${i}" type="button">${escapeHtml(d.label)}</button>`).join('');
+                tabsEl.querySelectorAll('.document-modal-tab').forEach((btn) =>
+                    btn.addEventListener('click', () => loadViewerDoc(Number(btn.dataset.idx))));
+            } else {
+                tabsEl.style.display = 'none';
+                tabsEl.innerHTML = '';
+            }
+        }
+
+        await loadViewerDoc(0);
+    }
+
+    async function loadViewerDoc(idx) {
+        const d = _viewerDocs[idx];
+        if (!d) return;
+
         const title = document.getElementById('document-modal-title');
         const loading = document.getElementById('document-modal-loading');
         const iframe = document.getElementById('document-modal-iframe');
         const statusEl = document.getElementById('document-modal-status');
         const downloadEl = document.getElementById('document-modal-download');
+        const tabsEl = document.getElementById('document-modal-tabs');
 
-        title.textContent = STEP_LABELS[step] || 'Document';
+        if (tabsEl) tabsEl.querySelectorAll('.document-modal-tab').forEach((b) =>
+            b.classList.toggle('active', Number(b.dataset.idx) === idx));
+
+        title.textContent = d.label || 'Document';
         loading.style.display = 'flex';
         iframe.style.display = 'none';
+        if (iframe.dataset.blobUrl) { URL.revokeObjectURL(iframe.dataset.blobUrl); delete iframe.dataset.blobUrl; }
         iframe.src = '';
         statusEl.className = 'modal-status';
         statusEl.textContent = '';
         if (downloadEl) { downloadEl.style.display = 'none'; downloadEl.removeAttribute('href'); }
-        overlay.classList.add('visible');
 
         try {
-            const doc = await API.getPortalElocDocument(elocId, step);
+            const doc = await API.getPortalElocDocument(_viewerElocId, d.step);
             loading.style.display = 'none';
 
             if (doc && doc.pdf_base64) {
@@ -856,11 +874,10 @@ const Dashboard = (() => {
                 const blobUrl = URL.createObjectURL(blob);
                 iframe.src = blobUrl;
                 iframe.style.display = 'block';
-                // Clean up blob URL when modal closes
                 iframe.dataset.blobUrl = blobUrl;
                 if (downloadEl) {
                     downloadEl.href = blobUrl;
-                    downloadEl.download = `${STEP_LABELS[step] || 'Document'} - ${elocId}.pdf`;
+                    downloadEl.download = `${d.label || 'Document'} - ${_viewerElocId}.pdf`;
                     downloadEl.style.display = 'inline-block';
                 }
             } else {
@@ -882,6 +899,9 @@ const Dashboard = (() => {
 
         const downloadEl = document.getElementById('document-modal-download');
         if (downloadEl) { downloadEl.style.display = 'none'; downloadEl.removeAttribute('href'); }
+
+        const tabsEl = document.getElementById('document-modal-tabs');
+        if (tabsEl) { tabsEl.style.display = 'none'; tabsEl.innerHTML = ''; }
 
         // Revoke blob URL to free memory
         if (iframe.dataset.blobUrl) {

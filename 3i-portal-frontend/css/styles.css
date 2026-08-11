@@ -621,6 +621,31 @@ a:hover {
    Action Item Cards
    ============================================ */
 
+.document-modal-tabs {
+    display: flex;
+    gap: 6px;
+    padding: 8px 16px 0;
+    border-bottom: 1px solid var(--border);
+}
+.document-modal-tab {
+    padding: 6px 14px;
+    font-size: 0.85rem;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-bottom: none;
+    border-radius: 6px 6px 0 0;
+    color: var(--text-secondary);
+    cursor: pointer;
+}
+.document-modal-tab.active {
+    background: var(--card-bg);
+    color: var(--text-primary);
+    font-weight: 600;
+}
+.document-modal-tab:hover {
+    color: var(--text-primary);
+}
+
 .action-item-card {
     background: var(--card-bg);
     border: 1px solid var(--border);
