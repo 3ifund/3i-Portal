@@ -506,7 +506,7 @@ const Dashboard = (() => {
                         </div>
                         <div class="action-item-pricing">
                             <span>Shares: ${Number(item.shares || 0).toLocaleString()}</span>
-                            <span>VWAP Price: ${priceDisplay}</span>
+                            <span>Purchase Price: ${priceDisplay}</span>
                         </div>
                         <button class="btn btn-primary action-item-btn"
                             data-eloc-id="${escapeHtml(item.eloc_id)}"
