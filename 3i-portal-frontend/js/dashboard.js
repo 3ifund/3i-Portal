@@ -687,12 +687,10 @@ const Dashboard = (() => {
             `;
         });
 
-        // ELOC (Pricing) Details is available once the price is known — forward: after FinalVwapPricingCalculated;
-        // backward: once the Purchase Confirmation (VwapNotificationToCompany) is reached. Its PDF is rendered
-        // on-demand by DTS from the pricing breakdown, so we only offer it after pricing to avoid an empty view.
-        const priced = (workflow.steps || []).some((s) =>
-            (s.key === 'FinalVwapPricingCalculated' || s.key === 'VwapNotificationToCompany') && s.status === 'Completed');
-        const detailsFooter = priced
+        // ELOC (Pricing) Details is offered only once the workflow is COMPLETE — before then the card must not show a
+        // clickable document control (the countersigned Purchase Confirmation and the ELOC Details PDF both become
+        // viewable/downloadable together at completion).
+        const detailsFooter = workflow.workflow_complete
             ? `<div class="workflow-footer" style="margin-top:0.5rem; text-align:right;">
                    <button class="workflow-details-btn" type="button"
                        style="padding:5px 12px; font-size:0.85em; background:var(--bg-tertiary,#f0f0f0); border:1px solid var(--border-color,#ccc); border-radius:4px; cursor:pointer; color:var(--text-primary,#222);">
@@ -804,6 +802,7 @@ const Dashboard = (() => {
         const loading = document.getElementById('document-modal-loading');
         const iframe = document.getElementById('document-modal-iframe');
         const statusEl = document.getElementById('document-modal-status');
+        const downloadEl = document.getElementById('document-modal-download');
 
         title.textContent = STEP_LABELS[step] || 'Document';
         loading.style.display = 'flex';
@@ -811,6 +810,7 @@ const Dashboard = (() => {
         iframe.src = '';
         statusEl.className = 'modal-status';
         statusEl.textContent = '';
+        if (downloadEl) { downloadEl.style.display = 'none'; downloadEl.removeAttribute('href'); }
         overlay.classList.add('visible');
 
         try {
@@ -829,6 +829,11 @@ const Dashboard = (() => {
                 iframe.style.display = 'block';
                 // Clean up blob URL when modal closes
                 iframe.dataset.blobUrl = blobUrl;
+                if (downloadEl) {
+                    downloadEl.href = blobUrl;
+                    downloadEl.download = `${STEP_LABELS[step] || 'Document'} - ${elocId}.pdf`;
+                    downloadEl.style.display = 'inline-block';
+                }
             } else {
                 statusEl.className = 'modal-status error';
                 statusEl.textContent = 'No document data returned.';
@@ -845,6 +850,9 @@ const Dashboard = (() => {
         const overlay = document.getElementById('document-modal-overlay');
         const iframe = document.getElementById('document-modal-iframe');
         overlay.classList.remove('visible');
+
+        const downloadEl = document.getElementById('document-modal-download');
+        if (downloadEl) { downloadEl.style.display = 'none'; downloadEl.removeAttribute('href'); }
 
         // Revoke blob URL to free memory
         if (iframe.dataset.blobUrl) {
