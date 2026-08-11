@@ -69,63 +69,6 @@
 
     // ---- Render ----
 
-    // Inline pricing details on the countersign page — the per-day VWAP grid (lowest day highlighted) and how the
-    // purchase price was derived (discount, or the substituted closing price). Same breakdown the Pricing Details PDF
-    // renders, sourced from eloc_data.pricing_breakdown. Hidden when the ELOC was priced before it was captured.
-    function renderPricingDetails(b) {
-        const el = document.getElementById('pc-pricing-details');
-        if (!el) return;
-        if (!b || !Array.isArray(b.days) || b.days.length === 0) {
-            el.style.display = 'none';
-            console.log('[PurchaseConfirmation] no pricing_breakdown on this ELOC — Pricing Details section hidden');
-            return;
-        }
-
-        const fmtPrice = v => '$' + Number(v || 0).toLocaleString('en-US', { maximumFractionDigits: 4 });
-        const fmtMoney = v => '$' + Number(v || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-        const fmtShares = v => Number(v || 0).toLocaleString('en-US', { maximumFractionDigits: 0 });
-        const fmtDate = d => String(d || '').slice(0, 10);
-        const src = b.price_source_label || 'VWAP';
-        const row = (label, value, opts) => `<div style="display:flex; justify-content:space-between; padding:3px 0;${(opts && opts.top) ? ' border-top:1px solid var(--border-color,#ccc); margin-top:4px; padding-top:6px;' : ''}"><span>${label}</span><span>${value}</span></div>`;
-
-        const grid = b.days.map(d => {
-            const low = d.is_lowest;
-            const style = low ? ' style="background:#fff2cc; font-weight:600;"' : '';
-            const half = d.is_half_day ? ' (half day)' : '';
-            return `<tr${style}><td style="padding:4px 8px;">${fmtDate(d.date)}${half}</td>`
-                + `<td style="padding:4px 8px; text-align:right;">${fmtPrice(d.price)}</td>`
-                + `<td style="padding:4px 8px; text-align:right; color:#8a6d00;">${low ? 'lowest' : ''}</td></tr>`;
-        }).join('');
-
-        let calc = row(`Lowest ${src} (${fmtDate(b.lowest_date)})`, fmtPrice(b.lowest_price));
-        if (b.closing_price_substituted) {
-            calc += `<div style="color:var(--text-secondary); margin:4px 0; font-style:italic;">A closing price of ${fmtPrice(b.substituted_closing_price)} on ${fmtDate(b.substituted_closing_date)} was lower than the lowest ${src} and was substituted as the base price.</div>`;
-            calc += row(`Substituted closing price (${fmtDate(b.substituted_closing_date)})`, fmtPrice(b.substituted_closing_price));
-            calc += row('Base price', '<b>' + fmtPrice(b.base_price) + '</b>');
-            calc += b.discount_applied
-                ? row(`Discount (${b.discount_multiplier})`, fmtPrice(b.final_price))
-                : row('Discount', 'not applied (closing price substituted)');
-        } else {
-            calc += row('Base price', '<b>' + fmtPrice(b.base_price) + '</b>');
-            calc += row(`Discount (${b.discount_multiplier})`, `${fmtPrice(b.base_price)} × ${b.discount_multiplier}`);
-        }
-        calc += row('<b>Purchase price</b>', '<b>' + fmtPrice(b.final_price) + '</b>', { top: true });
-
-        el.innerHTML =
-            '<h3 class="pn-block-title" style="margin-bottom:0.5rem;">Pricing Details</h3>'
-            + `<p style="color:var(--text-secondary); margin:0 0 0.5rem; font-size:0.9em;">${src} pricing over ${b.trading_days} trading day(s) ending ${fmtDate(b.end_date)}.</p>`
-            + '<table style="width:100%; border-collapse:collapse; font-size:0.9em; margin-bottom:0.75rem;">'
-            + '<thead><tr style="background:var(--bg-tertiary,#f0f0f0);">'
-            + '<th style="padding:5px 8px; text-align:left;">Trading Day</th>'
-            + `<th style="padding:5px 8px; text-align:right;">${src}</th>`
-            + '<th style="padding:5px 8px;"></th></tr></thead>'
-            + `<tbody>${grid}</tbody></table>`
-            + `<div style="font-size:0.9em;">${calc}</div>`
-            + '<div style="margin-top:0.75rem; padding:6px 10px; background:#e2f0d9; border:1px solid #70ad47; border-radius:4px; text-align:center; font-weight:600;">'
-            + `Purchase Price = ${fmtPrice(b.final_price)} × ${fmtShares(b.share_amount)} shares = ${fmtMoney(b.total_value)}</div>`;
-        el.style.display = 'block';
-        console.log('[PurchaseConfirmation] pricing details rendered:', b.days.length, 'day(s), final', b.final_price, 'substituted=', b.closing_price_substituted);
-    }
 
     function renderConfirmation(data) {
         // Hide loading, show document
@@ -176,9 +119,6 @@
         } else {
             document.getElementById('pc-total-price').textContent = 'Pending';
         }
-
-        // Pricing Details: the per-day VWAP grid + how the price was derived (discount / closing substitution).
-        renderPricingDetails(data.pricing_breakdown);
 
         // Dated
         document.getElementById('pc-dated').textContent = new Date().toLocaleDateString('en-US', {
