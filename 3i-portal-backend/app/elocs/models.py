@@ -191,4 +191,5 @@ class PricingWorkflowState(BaseModel):
     step_status: str
     updated_at: str | None = None
     can_remove: bool = False
+    workflow_complete: bool = False
     steps: list[dict] = []
