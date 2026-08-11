@@ -464,6 +464,34 @@ const Dashboard = (() => {
 
     // ---- Action Items ----
 
+    function buildActionItemGrid(b) {
+        if (!b || !Array.isArray(b.days) || b.days.length === 0) return '';
+        const price = (v) => '$' + Number(v || 0).toLocaleString('en-US', { maximumFractionDigits: 4 });
+        const money = (v) => '$' + Number(v || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        const shares = (v) => Number(v || 0).toLocaleString('en-US', { maximumFractionDigits: 0 });
+        const dt = (d) => String(d || '').slice(0, 10);
+        const src = escapeHtml(b.price_source_label || 'VWAP');
+        const rows = b.days.map((d) => {
+            const low = d.is_lowest;
+            return `<tr${low ? ' style="background:#fff2cc;font-weight:600;"' : ''}>`
+                + `<td style="padding:2px 6px;">${dt(d.date)}${d.is_half_day ? ' (½)' : ''}</td>`
+                + `<td style="padding:2px 6px;text-align:right;">${price(d.price)}</td>`
+                + `<td style="padding:2px 6px;text-align:right;color:#8a6d00;">${low ? 'lowest' : ''}</td></tr>`;
+        }).join('');
+        const sub = b.closing_price_substituted
+            ? `<div style="font-size:0.85em;color:var(--text-secondary);margin:3px 0;font-style:italic;">Closing price ${price(b.substituted_closing_price)} (${dt(b.substituted_closing_date)}) was lower than the lowest ${src} and was substituted as the base price.</div>`
+            : '';
+        return `<div class="action-item-grid" style="margin-top:0.6rem;border-top:1px solid var(--border-color,#ccc);padding-top:0.5rem;">`
+            + `<div style="font-weight:600;font-size:0.85em;margin-bottom:4px;">Pricing Details — ${src} over ${b.trading_days} trading day(s)</div>`
+            + `<table style="width:100%;border-collapse:collapse;font-size:0.85em;font-variant-numeric:tabular-nums;">`
+            + `<thead><tr style="color:var(--text-secondary);"><th style="text-align:left;padding:2px 6px;">Trading Day</th><th style="text-align:right;padding:2px 6px;">${src}</th><th></th></tr></thead>`
+            + `<tbody>${rows}</tbody></table>`
+            + sub
+            + `<div style="margin-top:4px;font-size:0.85em;">Base ${price(b.base_price)} × ${escapeHtml(String(b.discount_multiplier))} = <b>${price(b.final_price)}</b></div>`
+            + `<div style="margin-top:5px;padding:5px 8px;background:#e2f0d9;border:1px solid #70ad47;border-radius:4px;text-align:center;font-weight:600;font-size:0.85em;">Purchase Price ${price(b.final_price)} × ${shares(b.share_amount)} shares = ${money(b.total_value)}</div>`
+            + `</div>`;
+    }
+
     /**
      * Check for pending action items on login and after workflow updates.
      * If items exist, flash the Action Items tab red and render the queue.
@@ -508,6 +536,7 @@ const Dashboard = (() => {
                             <span>Shares: ${Number(item.shares || 0).toLocaleString()}</span>
                             <span>Purchase Price: ${priceDisplay}</span>
                         </div>
+                        ${buildActionItemGrid(item.pricing_breakdown)}
                         <button class="btn btn-primary action-item-btn"
                             data-eloc-id="${escapeHtml(item.eloc_id)}"
                             data-type="${escapeHtml(item.type)}">

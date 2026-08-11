@@ -263,6 +263,7 @@ async def get_action_items(company_id: int) -> list[dict]:
                 "symbol": symbol,
                 "shares": shares,
                 "vwap_price": vwap_price,
+                "pricing_breakdown": eloc_data.get("pricing_breakdown") if eloc_data else None,
                 "created_at": created_at.isoformat() if created_at else None,
             })
 
