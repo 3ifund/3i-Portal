@@ -8,6 +8,14 @@
 
     let prefillData = null;
 
+    function fmtDate(value) {
+        if (!value) return '';
+        const s = String(value);
+        if (s.indexOf('T') !== -1) return s.split('T')[0];
+        if (s.indexOf(' ') !== -1) return s.split(' ')[0];
+        return s;
+    }
+
     // ---- Init ----
 
     async function init() {
@@ -99,10 +107,10 @@
 
         // VWAP pricing fields
         document.getElementById('pc-shares').textContent = Number(data.shares || 0).toLocaleString();
-        document.getElementById('pc-exercise-date').textContent = data.exercise_date || '';
-        document.getElementById('pc-period-start').textContent = data.valuation_period_start || '';
-        document.getElementById('pc-period-end').textContent = data.valuation_period_end || '';
-        document.getElementById('pc-settlement-date').textContent = data.settlement_date || '';
+        document.getElementById('pc-exercise-date').textContent = fmtDate(data.exercise_date);
+        document.getElementById('pc-period-start').textContent = fmtDate(data.valuation_period_start);
+        document.getElementById('pc-period-end').textContent = fmtDate(data.valuation_period_end);
+        document.getElementById('pc-settlement-date').textContent = fmtDate(data.settlement_date);
 
         const vwapPrice = data.vwap_purchase_price || data.vwap_used;
         if (vwapPrice) {
@@ -223,7 +231,7 @@
         const totalPrice = prefillData.dollar_amount_calculated || (vwapPrice ? vwapPrice * prefillData.shares : null);
         document.getElementById('pc-confirm-total').textContent = totalPrice ? '$' + Number(totalPrice).toFixed(2) : 'Pending';
 
-        document.getElementById('pc-confirm-settlement').textContent = prefillData.settlement_date || '';
+        document.getElementById('pc-confirm-settlement').textContent = fmtDate(prefillData.settlement_date);
 
         const checkbox = document.getElementById('pc-confirm-checkbox');
         const checkboxLabel = document.getElementById('pc-confirm-checkbox-label');
