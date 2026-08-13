@@ -16,6 +16,10 @@
         return s;
     }
 
+    function fmtMoney(value) {
+        return '$' + Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
     // ---- Init ----
 
     async function init() {
@@ -121,9 +125,9 @@
 
         const totalPrice = data.dollar_amount_calculated;
         if (totalPrice) {
-            document.getElementById('pc-total-price').textContent = '$' + Number(totalPrice).toFixed(2);
+            document.getElementById('pc-total-price').textContent = fmtMoney(totalPrice);
         } else if (vwapPrice && data.shares) {
-            document.getElementById('pc-total-price').textContent = '$' + (Number(vwapPrice) * Number(data.shares)).toFixed(2);
+            document.getElementById('pc-total-price').textContent = fmtMoney(Number(vwapPrice) * Number(data.shares));
         } else {
             document.getElementById('pc-total-price').textContent = 'Pending';
         }
@@ -229,7 +233,7 @@
         document.getElementById('pc-confirm-price').textContent = vwapPrice ? '$' + Number(vwapPrice).toFixed(6) : 'Pending';
 
         const totalPrice = prefillData.dollar_amount_calculated || (vwapPrice ? vwapPrice * prefillData.shares : null);
-        document.getElementById('pc-confirm-total').textContent = totalPrice ? '$' + Number(totalPrice).toFixed(2) : 'Pending';
+        document.getElementById('pc-confirm-total').textContent = totalPrice ? fmtMoney(totalPrice) : 'Pending';
 
         document.getElementById('pc-confirm-settlement').textContent = fmtDate(prefillData.settlement_date);
 

@@ -466,7 +466,7 @@ const Dashboard = (() => {
 
     function buildActionItemGrid(b) {
         if (!b || !Array.isArray(b.days) || b.days.length === 0) return '';
-        const price = (v) => '$' + Number(v || 0).toLocaleString('en-US', { maximumFractionDigits: 4 });
+        const price = (v) => '$' + Number(v || 0).toLocaleString('en-US', { maximumFractionDigits: 6 });
         const money = (v) => '$' + Number(v || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         const shares = (v) => Number(v || 0).toLocaleString('en-US', { maximumFractionDigits: 0 });
         const dt = (d) => String(d || '').slice(0, 10);
