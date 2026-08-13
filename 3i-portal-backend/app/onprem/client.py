@@ -1236,3 +1236,13 @@ async def remove_action_item(item_id: int) -> tuple[int, dict]:
     logger.info("  → %s (%d bytes)", response.status_code, len(response.content))
     body = response.json() if response.content else {}
     return response.status_code, body
+
+
+async def retry_action_item(item_id: int) -> tuple[int, dict]:
+    """Retry an action item's workflow step (e.g. re-fire a conversion's email) — a write, single attempt."""
+    client = _get_client()
+    logger.info("POST /api/action-items/%s/retry (single attempt)", item_id)
+    response = await client.post(f"/api/action-items/{item_id}/retry")
+    logger.info("  → %s (%d bytes)", response.status_code, len(response.content))
+    body = response.json() if response.content else {}
+    return response.status_code, body

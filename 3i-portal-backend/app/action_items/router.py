@@ -40,3 +40,16 @@ async def remove_action_item(item_id: int, admin: UserInfo = Depends(require_adm
     if status >= 400:
         raise HTTPException(status_code=status, detail=body)
     return body
+
+
+@router.post("/{item_id}/retry")
+async def retry_action_item(item_id: int, admin: UserInfo = Depends(require_admin)):
+    logger.info("POST /internal/action-items/%s/retry by user=%s", item_id, admin.user_id)
+    try:
+        status, body = await onprem.retry_action_item(item_id)
+    except Exception as exc:
+        logger.error("action-items retry — DTS FAILED: %s", exc, exc_info=True)
+        raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
+    if status >= 400:
+        raise HTTPException(status_code=status, detail=body)
+    return body
