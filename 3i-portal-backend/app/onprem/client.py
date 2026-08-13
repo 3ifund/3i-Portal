@@ -1210,3 +1210,29 @@ async def send_portal_eloc_nudge(eloc_id: str) -> dict:
         logger.error("  → DTS error response: %s", response.text[:2000])
     response.raise_for_status()
     return response.json()
+
+
+# ── Action items (operator error alerts) ──
+
+async def get_action_items() -> list[dict]:
+    logger.info("GET /api/action-items")
+    response = await _request_with_retry("GET", "/api/action-items")
+    logger.info("  → %s (%d bytes)", response.status_code, len(response.content))
+    response.raise_for_status()
+    return response.json()
+
+
+async def get_action_items_count() -> dict:
+    response = await _request_with_retry("GET", "/api/action-items/count")
+    response.raise_for_status()
+    return response.json()
+
+
+async def remove_action_item(item_id: int) -> tuple[int, dict]:
+    """Remove (soft-resolve) an action item — a write, single attempt (no retry)."""
+    client = _get_client()
+    logger.info("DELETE /api/action-items/%s (single attempt)", item_id)
+    response = await client.delete(f"/api/action-items/{item_id}")
+    logger.info("  → %s (%d bytes)", response.status_code, len(response.content))
+    body = response.json() if response.content else {}
+    return response.status_code, body
