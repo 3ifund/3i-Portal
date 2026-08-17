@@ -23,6 +23,7 @@ const Admin = (() => {
             verification: 'verification-panel',
             'conversion-notice': 'conversion-notice-panel',
             'conversion-details': 'conversion-details-panel',
+            'preferred-notice': 'preferred-notice-panel',
         };
         const groups = {
             eloc: {
@@ -32,7 +33,7 @@ const Admin = (() => {
             },
             conversions: {
                 subbar: 'conversions-subtabs',
-                members: ['conversion-notice', 'conversion-details'],
+                members: ['conversion-notice', 'conversion-details', 'preferred-notice'],
                 active: 'conversion-notice',
             },
         };
@@ -81,6 +82,7 @@ const Admin = (() => {
     const CN_CONFIGS = {
         'conversion-notice': { base: 'conversion-notice', templatesTbody: 'cn-templates-tbody', classesHost: 'cn-classes' },
         'conversion-details': { base: 'conversion-details', templatesTbody: 'cd-templates-tbody', classesHost: 'cd-classes' },
+        'preferred-notice': { base: 'preferred-conversion-notice', templatesTbody: 'pn-templates-tbody', classesHost: 'pn-classes', unit: 'Series' },
     };
 
     function initConversionNotice() {
@@ -125,16 +127,16 @@ const Admin = (() => {
         const opts = (selected) => ['<option value="">— none —</option>']
             .concat(templates.map((t) => `<option value="${escapeHtml(t.template_id)}"${t.template_id === selected ? ' selected' : ''}>${escapeHtml(t.name)}</option>`))
             .join('');
+        const bySeries = cfg.unit === 'Series';
         host.innerHTML = companies.map((co) => `
             <div style="margin-bottom:1.5rem;">
                 <div style="font-weight:600; margin-bottom:0.4rem;">${escapeHtml(co.symbol)}${co.companyName ? ' — ' + escapeHtml(co.companyName) : ''}</div>
                 <table class="admin-table">
-                    <thead><tr><th>Tranche</th><th>Class</th><th>Mapped Template</th></tr></thead>
+                    <thead><tr>${bySeries ? '<th>Series</th>' : '<th>Tranche</th><th>Class</th>'}<th>Mapped Template</th></tr></thead>
                     <tbody>
                         ${(co.tranches || []).map((tr) => `
                             <tr>
-                                <td>Tranche ${tr.trancheNo}</td>
-                                <td>${escapeHtml(tr.className || '')}</td>
+                                ${bySeries ? `<td>${escapeHtml(tr.className || ('Instrument ' + tr.instrumentId))}</td>` : `<td>Tranche ${tr.trancheNo}</td><td>${escapeHtml(tr.className || '')}</td>`}
                                 <td><select class="cn-map-select" data-base="${cfg.base}" data-iid="${tr.instrumentId}">${opts(tr.templateId)}</select><span class="cn-map-status" style="margin-left:8px; font-size:0.8rem;"></span></td>
                             </tr>`).join('')}
                     </tbody>

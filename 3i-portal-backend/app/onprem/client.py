@@ -171,6 +171,14 @@ async def get_conversion_notice_classes() -> list[dict]:
     return response.json()
 
 
+async def get_preferred_notice_classes() -> list[dict]:
+    logger.info("GET /api/preferred-conversions/notice-classes")
+    response = await _request_with_retry("GET", "/api/preferred-conversions/notice-classes")
+    logger.info("  → %s (%d bytes)", response.status_code, len(response.content))
+    response.raise_for_status()
+    return response.json()
+
+
 async def get_conversion_lock(company: str) -> dict:
     logger.info("GET /api/conversions/lock/%s", company)
     response = await _request_with_retry("GET", f"/api/conversions/lock/{company}")

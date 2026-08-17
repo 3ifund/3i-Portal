@@ -10,6 +10,7 @@ MAPPINGS = "conversion_notice_mappings"
 
 KIND_NOTICE = "conversion_notice"
 KIND_DETAILS = "conversion_details"
+KIND_PREFERRED = "preferred_conversion_notice"
 
 # Fixed, seeded templates. Each carries a `kind` so the same collections/UI serve both the Conversion
 # Notice tab and the Conversion Details tab. Not editable in the UI — the tabs only list/preview/map them.
@@ -68,6 +69,48 @@ _TEMPLATES = [
             {"order": 3, "type": "data", "label": "Make-Whole"},
             {"order": 4, "type": "data", "label": "Remaining Principal Post Conversion:"},
             {"order": 5, "type": "data", "label": "Remaining Interest & Make Whole Post Conversion:"},
+        ],
+    },
+    {
+        # Preferred Notice of Conversion (Annex A). {{Series}} / {{SeriesUpper}} / {{Company}} tokens are substituted
+        # per-conversion by DTS (PreferredConversionNoticeService) so one template serves every series.
+        "template_id": "vbio-pref-conv-notice-1",
+        "kind": KIND_PREFERRED,
+        "name": "VBIO-PREF-CONV-Notice-1",
+        "title_lines": ["ANNEX A", "NOTICE OF CONVERSION"],
+        "title_font_size": "Large",
+        "body_text": (
+            "(TO BE EXECUTED BY THE REGISTERED HOLDER IN ORDER TO CONVERT SHARES OF {{SeriesUpper}} NON-VOTING "
+            "CONVERTIBLE PREFERRED STOCK)\n\n"
+            "Reference is made to the Certificate of Designation of the Certificate of Incorporation of {{Company}}, "
+            "a Delaware corporation (the \"Corporation\") establishing the terms, preferences and rights of the "
+            "{{Series}} Non-Voting Convertible Preferred Stock, $0.0001 par value (the \"{{Series}} Preferred Stock\") "
+            "of the Corporation (the \"Certificate of Designation\"). In accordance with and pursuant to the Certificate "
+            "of Designation, the undersigned hereby elects to convert the number of shares of {{Series}} Preferred Stock "
+            "indicated below into shares of common stock, $0.0001 value per share (the \"Common Stock\"), of the "
+            "Corporation, as of the date specified below."
+        ),
+        "fields": [
+            {"order": 0, "type": "data", "label": "Date of Conversion:"},
+            {"order": 1, "type": "data", "label": "Aggregate number of shares of {{Series}} Preferred Stock to be converted:"},
+            {"order": 2, "type": "data", "label": "Aggregate Stated Value of such shares of {{Series}} Preferred Stock to be converted:"},
+            {"order": 3, "type": "data", "label": "Aggregate accrued and unpaid Dividends with respect to such shares of {{Series}} Preferred Stock to be converted:"},
+            {"order": 4, "type": "data", "label": "AGGREGATE CONVERSION AMOUNT TO BE CONVERTED:"},
+            {"order": 5, "type": "section", "label": "Please confirm the following information:"},
+            {"order": 6, "type": "data", "label": "Conversion Price:"},
+            {"order": 7, "type": "data", "label": "Number of shares of Common Stock to be issued:"},
+            {"order": 8, "type": "instruction", "label": "Please issue the Common Stock into which the applicable shares of {{Series}} Preferred Stock are being converted to Holder, or for its benefit, as follows:"},
+            {"order": 9, "type": "checkbox", "label": "Check here if requesting delivery as a certificate to the following name and to the following address:"},
+            {"order": 10, "type": "data", "label": "Issue to:"},
+            {"order": 11, "type": "checkbox", "label": "Check here if requesting delivery by Deposit/Withdrawal at Custodian as follows:"},
+            {"order": 12, "type": "data", "label": "DTC Participant:"},
+            {"order": 13, "type": "data", "label": "DTC Number:"},
+            {"order": 14, "type": "data", "label": "Account Number:"},
+            {"order": 15, "type": "signature", "label": "By:"},
+            {"order": 16, "type": "signature", "label": "By:"},
+            {"order": 17, "type": "data", "label": "Name:"},
+            {"order": 18, "type": "data", "label": "Title:"},
+            {"order": 19, "type": "data", "label": "{{Series}} Non-Voting Convertible Preferred Stock Remaining Post Conversion:"},
         ],
     },
 ]

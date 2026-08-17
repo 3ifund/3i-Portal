@@ -12,7 +12,10 @@ from app.onprem import client as onprem
 logger = logging.getLogger("portal.admin.conversion_notice")
 
 
-def build_router(kind: str) -> APIRouter:
+def build_router(kind: str, classes_fn=None) -> APIRouter:
+    # classes_fn returns the companies+instruments to map (default: convertible-note tranches). Preferred passes a
+    # source that returns companies + SERIES (the series is the instrument; no tranche level).
+    classes_fn = classes_fn or onprem.get_conversion_notice_classes
     router = APIRouter()
 
     @router.get("/templates")
@@ -33,7 +36,7 @@ def build_router(kind: str) -> APIRouter:
     @router.get("/classes")
     async def list_classes(admin: UserInfo = Depends(require_admin)):
         logger.info("GET %s/classes by user=%s", kind, admin.user_id)
-        companies = await onprem.get_conversion_notice_classes()
+        companies = await classes_fn()
         mappings = {m["instrument_id"]: m["template_id"] for m in await repo.list_mappings(kind)}
         names = {t["template_id"]: t["name"] for t in await repo.list_templates(kind)}
         for company in companies:
@@ -65,3 +68,4 @@ def build_router(kind: str) -> APIRouter:
 
 notice_router = build_router(repo.KIND_NOTICE)
 details_router = build_router(repo.KIND_DETAILS)
+preferred_router = build_router(repo.KIND_PREFERRED, onprem.get_preferred_notice_classes)
