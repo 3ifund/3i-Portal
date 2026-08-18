@@ -590,6 +590,26 @@ async def convert_basic(payload: dict) -> tuple[int, dict]:
     return response.status_code, body
 
 
+async def get_pre_delivery(instrument_id: int) -> dict:
+    logger.info("GET /api/pre-delivery-share/%s", instrument_id)
+    response = await _request_with_retry("GET", f"/api/pre-delivery-share/{instrument_id}")
+    logger.info("  → %s", response.status_code)
+    response.raise_for_status()
+    return response.json()
+
+
+async def set_pre_delivery(instrument_id: int, payload: dict) -> tuple[int, dict]:
+    client = _get_client()
+    logger.info("PUT /api/pre-delivery-share/%s shares=%s", instrument_id, payload.get("shares"))
+    response = await client.put(f"/api/pre-delivery-share/{instrument_id}", json=payload)
+    logger.info("  → %s", response.status_code)
+    try:
+        body = response.json()
+    except Exception:
+        body = {"message": response.text}
+    return response.status_code, body
+
+
 async def get_conversion_completed(company: str) -> dict:
     logger.info("GET /api/conversions/completed/%s", company)
     response = await _request_with_retry("GET", f"/api/conversions/completed/{company}")

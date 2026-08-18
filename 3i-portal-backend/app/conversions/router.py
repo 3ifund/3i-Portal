@@ -21,6 +21,7 @@ class ConvertBody(BaseModel):
     company: str
     price: float
     amount: float
+    pre_delivery_shares: int = 0
 
 
 class Allow144Body(BaseModel):
@@ -182,9 +183,20 @@ async def convert(body: ConvertBody, admin: UserInfo = Depends(require_admin)):
         body.company, body.price, body.amount, admin.user_id,
     )
     status, data = await onprem.convert_basic(
-        {"company": body.company, "price": body.price, "amount": body.amount, "owner": admin.user_id}
+        {"company": body.company, "price": body.price, "amount": body.amount, "owner": admin.user_id,
+         "preDeliveryShares": body.pre_delivery_shares}
     )
     return JSONResponse(status_code=status, content=data)
+
+
+@router.get("/pre-delivery/{instrument_id}")
+async def get_pre_delivery(instrument_id: int, admin: UserInfo = Depends(require_admin)):
+    logger.info("GET /internal/conversions/pre-delivery/%s by user=%s", instrument_id, admin.user_id)
+    try:
+        return await onprem.get_pre_delivery(instrument_id)
+    except Exception as exc:
+        logger.error("pre-delivery — DTS fetch FAILED: %s", exc, exc_info=True)
+        raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
 
 
 @router.get("/completed/{company}")

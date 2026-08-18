@@ -16,12 +16,14 @@ class ConvertBody(BaseModel):
     instrumentId: int
     conversionType: str = "Variable"
     amount: float
+    preDeliveryShares: int = 0
 
 
 class CompanyConvertBody(BaseModel):
     companyId: int
     price: float
     amount: float
+    preDeliveryShares: int = 0
 
 
 class AllowTrueUpBody(BaseModel):
@@ -76,6 +78,7 @@ async def convert(body: ConvertBody, admin: UserInfo = Depends(require_admin)):
         "conversionType": body.conversionType,
         "dollarAmount": body.amount,
         "owner": admin.user_id,
+        "preDeliveryShares": body.preDeliveryShares,
     })
     return JSONResponse(status_code=status, content=data)
 
@@ -102,6 +105,7 @@ async def company_convert(body: CompanyConvertBody, admin: UserInfo = Depends(re
         "price": body.price,
         "amount": body.amount,
         "owner": admin.user_id,
+        "preDeliveryShares": body.preDeliveryShares,
     })
     return JSONResponse(status_code=status, content=data)
 
