@@ -26,6 +26,11 @@ class CompanyConvertBody(BaseModel):
     preDeliveryShares: int = 0
 
 
+class BrokerAccountBody(BaseModel):
+    brokerId: int
+    accountId: int
+
+
 class AllowTrueUpBody(BaseModel):
     companyId: int
     allow: bool
@@ -80,6 +85,14 @@ async def convert(body: ConvertBody, admin: UserInfo = Depends(require_admin)):
         "owner": admin.user_id,
         "preDeliveryShares": body.preDeliveryShares,
     })
+    return JSONResponse(status_code=status, content=data)
+
+
+@router.put("/series/{instrument_id}/broker-account")
+async def set_series_broker_account(instrument_id: int, body: BrokerAccountBody, admin: UserInfo = Depends(require_admin)):
+    logger.info("PUT /internal/preferred/series/%s/broker-account broker=%s account=%s by user=%s",
+                instrument_id, body.brokerId, body.accountId, admin.user_id)
+    status, data = await onprem.set_preferred_broker_account(instrument_id, {"brokerId": body.brokerId, "accountId": body.accountId})
     return JSONResponse(status_code=status, content=data)
 
 
