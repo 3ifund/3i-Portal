@@ -113,6 +113,49 @@ _TEMPLATES = [
             {"order": 19, "type": "data", "label": "{{Series}} Non-Voting Convertible Preferred Stock Remaining Post Conversion:"},
         ],
     },
+    {
+        # BGL (Blue Gold Limited) convertible note Conversion Notice. The note's issuance date renders under the
+        # title (populated by DTS from the note) — no top-of-page issuance-date header.
+        "template_id": "bgl-conv-template-1",
+        "kind": KIND_NOTICE,
+        "name": "BGL-CONV-Template-1",
+        "title_lines": ["BLUE GOLD LIMITED", "CONVERSION NOTICE"],
+        "title_font_size": "Large",
+        "body_text": (
+            "Reference is made to the Convertible Note (the \"Note\") issued to the undersigned by Blue Gold Limited, "
+            "a Cayman Islands exempted company (the \"Company\"). In accordance with and pursuant to the Note, the "
+            "undersigned hereby elects to convert the Conversion Amount (as defined in the Note) of the Note indicated "
+            "below into Ordinary Shares, $0.0001 par value per share (the \"Ordinary Shares\"), of the Company, as of "
+            "the date specified below. Capitalized terms not defined herein shall have the meaning as set forth in the Note."
+        ),
+        "fields": [
+            {"order": 0, "type": "data", "label": "Date of Conversion:"},
+            {"order": 1, "type": "data", "label": "Aggregate Principal to be converted:"},
+            {"order": 2, "type": "data", "label": "Aggregate accrued and unpaid Interest (including Default Interest, if applicable), Make-Whole Amount and accrued and unpaid Late Charges with respect to such portion of the Aggregate Principal and such Aggregate Interest and Aggregate Make-Whole Amount to be converted:"},
+            {"order": 3, "type": "data", "label": "Aggregate Conversion Amount to be Converted:"},
+            {"order": 4, "type": "section", "label": "Please confirm the following information:"},
+            {"order": 5, "type": "data", "label": "Conversion Price:"},
+            {"order": 6, "type": "data", "label": "Number of Ordinary Shares to be issued:"},
+            {"order": 7, "type": "data", "label": "Less: Number of Pre-Delivery Shares held by Holder to be applied against Ordinary Shares otherwise required to be issued:"},
+            {"order": 8, "type": "data", "label": "Number of Ordinary Shares to be issued (after reduction for such Pre-Delivery Shares):"},
+            {"order": 9, "type": "instruction", "label": "Please issue the Ordinary Shares into which the Note is being converted to Holder, or for its benefit, as follows:"},
+            {"order": 10, "type": "checkbox", "label": "Check here if requesting delivery as a certificate to the following name and to the following address:"},
+            {"order": 11, "type": "data", "label": "Issue to:"},
+            {"order": 12, "type": "checkbox", "label": "Check here if requesting delivery by Deposit/Withdrawal at Custodian as follows:"},
+            {"order": 13, "type": "data", "label": "DTC Participant:"},
+            {"order": 14, "type": "data", "label": "DTC Number:"},
+            {"order": 15, "type": "data", "label": "Account Number:"},
+            {"order": 16, "type": "data", "label": "Date:"},
+            {"order": 17, "type": "signature", "label": "By:"},
+            {"order": 18, "type": "signature", "label": "By:"},
+            {"order": 19, "type": "data", "label": "Name:"},
+            {"order": 20, "type": "data", "label": "Title:"},
+            {"order": 21, "type": "data", "label": "Tax ID:"},
+            {"order": 22, "type": "data", "label": "E-Mail Address:"},
+            {"order": 23, "type": "data", "label": "Remaining Principal Post Conversion:"},
+            {"order": 24, "type": "data", "label": "Remaining Interest & Make Whole Post Conversion:"},
+        ],
+    },
 ]
 
 
