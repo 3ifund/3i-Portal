@@ -515,10 +515,10 @@ async def set_note_broker_account(instrument_id: int, body: dict) -> tuple[int, 
         return response.status_code, {"message": response.text}
 
 
-async def set_preferred_broker_account(instrument_id: int, body: dict) -> tuple[int, dict]:
+async def set_preferred_broker_account(instrument_id: int, tranche_no: int, body: dict) -> tuple[int, dict]:
     client = _get_client()
-    logger.info("PUT /api/preferred-series/%s/broker-account broker=%s account=%s (write)", instrument_id, body.get("brokerId"), body.get("accountId"))
-    response = await client.put(f"/api/preferred-series/{instrument_id}/broker-account", json=body)
+    logger.info("PUT /api/preferred-series/%s/%s/broker-account broker=%s account=%s (write)", instrument_id, tranche_no, body.get("brokerId"), body.get("accountId"))
+    response = await client.put(f"/api/preferred-series/{instrument_id}/{tranche_no}/broker-account", json=body)
     logger.info("  → %s", response.status_code)
     try:
         return response.status_code, response.json()
