@@ -96,6 +96,18 @@ async def set_series_broker_account(instrument_id: int, tranche_no: int, body: B
     return JSONResponse(status_code=status, content=data)
 
 
+class ConversionEnabledBody(BaseModel):
+    enabled: bool
+
+
+@router.put("/series/{instrument_id}/{tranche_no}/conversion-enabled")
+async def set_series_conversion_enabled(instrument_id: int, tranche_no: int, body: ConversionEnabledBody, admin: UserInfo = Depends(require_admin)):
+    logger.info("PUT /internal/preferred/series/%s/%s/conversion-enabled enabled=%s by user=%s",
+                instrument_id, tranche_no, body.enabled, admin.user_id)
+    status, data = await onprem.set_preferred_conversion_enabled(instrument_id, tranche_no, {"enabled": body.enabled})
+    return JSONResponse(status_code=status, content=data)
+
+
 @router.get("/company-preview")
 async def get_company_preview(companyId: int, price: float, amount: float,
                              admin: UserInfo = Depends(require_admin)):

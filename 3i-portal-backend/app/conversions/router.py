@@ -128,6 +128,17 @@ async def set_note_broker_account(instrument_id: int, body: NoteBrokerAccountBod
     return JSONResponse(status_code=status, content=data)
 
 
+class ConversionEnabledBody(BaseModel):
+    enabled: bool
+
+
+@router.put("/notes/{instrument_id}/conversion-enabled")
+async def set_note_conversion_enabled(instrument_id: int, body: ConversionEnabledBody, admin: UserInfo = Depends(require_admin)):
+    logger.info("PUT /internal/conversions/notes/%s/conversion-enabled enabled=%s by user=%s", instrument_id, body.enabled, admin.user_id)
+    status, data = await onprem.set_note_conversion_enabled(instrument_id, {"enabled": body.enabled})
+    return JSONResponse(status_code=status, content=data)
+
+
 @router.post("/acceleration-true-ups/allow")
 async def set_acceleration_true_ups(body: Allow144Body, admin: UserInfo = Depends(require_admin)):
     logger.info("POST /internal/conversions/acceleration-true-ups/allow company=%s allow=%s by user=%s",
