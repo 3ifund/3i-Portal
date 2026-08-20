@@ -22,6 +22,7 @@ class ConvertBody(BaseModel):
     price: float
     amount: float
     pre_delivery_shares: int = 0
+    discount: float | None = None
 
 
 class Allow144Body(BaseModel):
@@ -55,7 +56,7 @@ async def get_convertible_tranches(symbol: str, admin: UserInfo = Depends(requir
 
 
 @router.get("/preview")
-async def get_preview(company: str, price: float, amount: float, admin: UserInfo = Depends(require_admin)):
+async def get_preview(company: str, price: float, amount: float, discount: float | None = None, admin: UserInfo = Depends(require_admin)):
     logger.info(
         "GET /internal/conversions/preview company=%s price=%s amount=%s by user=%s",
         company, price, amount, admin.user_id,
@@ -66,7 +67,7 @@ async def get_preview(company: str, price: float, amount: float, admin: UserInfo
         logger.info("preview — skipped (price=%s amount=%s not both > 0)", price, amount)
         raise HTTPException(status_code=422, detail="price and amount must both be greater than 0")
     try:
-        return await onprem.get_conversion_preview(company, price, amount, include_pdf=False)
+        return await onprem.get_conversion_preview(company, price, amount, include_pdf=False, discount=discount)
     except httpx.HTTPStatusError as exc:
         # DTS rejected the input (bad/partial params) — an expected, keystroke-driven condition, not a server
         # failure. Pass the real status/message through so the UI can show an inline hint, and log at info (no trace).
@@ -195,7 +196,7 @@ async def convert(body: ConvertBody, admin: UserInfo = Depends(require_admin)):
     )
     status, data = await onprem.convert_basic(
         {"company": body.company, "price": body.price, "amount": body.amount, "owner": admin.user_id,
-         "preDeliveryShares": body.pre_delivery_shares}
+         "preDeliveryShares": body.pre_delivery_shares, "discount": body.discount}
     )
     return JSONResponse(status_code=status, content=data)
 
