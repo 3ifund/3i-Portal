@@ -156,6 +156,14 @@ async def set_installment_true_ups(body: Allow144Body, admin: UserInfo = Depends
     return JSONResponse(status_code=status, content=data)
 
 
+@router.post("/variable-true-ups/allow")
+async def set_variable_true_ups(body: Allow144Body, admin: UserInfo = Depends(require_admin)):
+    logger.info("POST /internal/conversions/variable-true-ups/allow company=%s allow=%s by user=%s",
+                body.company, body.allow, admin.user_id)
+    status, data = await onprem.set_conversion_variable_true_ups({"company": body.company, "allow": body.allow})
+    return JSONResponse(status_code=status, content=data)
+
+
 @router.post("/trading-objective")
 async def set_trading_objective(body: TradingObjectiveBody, admin: UserInfo = Depends(require_admin)):
     logger.info("POST /internal/conversions/trading-objective company=%s objective=%s by user=%s",
