@@ -35,6 +35,11 @@ class TradingObjectiveBody(BaseModel):
     objective: str
 
 
+class EventOfDefaultBody(BaseModel):
+    company: str
+    use: bool
+
+
 @router.get("/aggregates")
 async def get_aggregates(admin: UserInfo = Depends(require_admin)):
     logger.info("GET /internal/conversions/aggregates by user=%s", admin.user_id)
@@ -137,6 +142,14 @@ class ConversionEnabledBody(BaseModel):
 async def set_note_conversion_enabled(instrument_id: int, body: ConversionEnabledBody, admin: UserInfo = Depends(require_admin)):
     logger.info("PUT /internal/conversions/notes/%s/conversion-enabled enabled=%s by user=%s", instrument_id, body.enabled, admin.user_id)
     status, data = await onprem.set_note_conversion_enabled(instrument_id, {"enabled": body.enabled})
+    return JSONResponse(status_code=status, content=data)
+
+
+@router.post("/event-of-default/use")
+async def set_use_event_of_default(body: EventOfDefaultBody, admin: UserInfo = Depends(require_admin)):
+    logger.info("POST /internal/conversions/event-of-default/use company=%s use=%s by user=%s",
+                body.company, body.use, admin.user_id)
+    status, data = await onprem.set_conversion_use_event_of_default({"company": body.company, "use": body.use})
     return JSONResponse(status_code=status, content=data)
 
 

@@ -563,6 +563,18 @@ async def set_conversion_acceleration_true_ups(payload: dict) -> tuple[int, dict
     return response.status_code, body
 
 
+async def set_conversion_use_event_of_default(payload: dict) -> tuple[int, dict]:
+    client = _get_client()
+    logger.info("POST /api/conversions/event-of-default/use company=%s use=%s", payload.get("company"), payload.get("use"))
+    response = await client.post("/api/conversions/event-of-default/use", json=payload)
+    logger.info("  → %s", response.status_code)
+    try:
+        body = response.json()
+    except Exception:
+        body = {"message": response.text}
+    return response.status_code, body
+
+
 async def set_conversion_installment_true_ups(payload: dict) -> tuple[int, dict]:
     client = _get_client()
     logger.info("POST /api/conversions/installment-true-ups/allow company=%s allow=%s", payload.get("company"), payload.get("allow"))
