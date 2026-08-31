@@ -24,6 +24,7 @@ const Admin = (() => {
             'conversion-notice': 'conversion-notice-panel',
             'conversion-details': 'conversion-details-panel',
             'preferred-notice': 'preferred-notice-panel',
+            'eod-default': 'eod-default-panel',
         };
         const groups = {
             eloc: {
@@ -33,7 +34,7 @@ const Admin = (() => {
             },
             conversions: {
                 subbar: 'conversions-subtabs',
-                members: ['conversion-notice', 'conversion-details', 'preferred-notice'],
+                members: ['conversion-notice', 'conversion-details', 'preferred-notice', 'eod-default'],
                 active: 'conversion-notice',
             },
         };
@@ -83,6 +84,7 @@ const Admin = (() => {
         'conversion-notice': { base: 'conversion-notice', templatesTbody: 'cn-templates-tbody', classesHost: 'cn-classes' },
         'conversion-details': { base: 'conversion-details', templatesTbody: 'cd-templates-tbody', classesHost: 'cd-classes' },
         'preferred-notice': { base: 'preferred-conversion-notice', templatesTbody: 'pn-templates-tbody', classesHost: 'pn-classes', unit: 'Series' },
+        'eod-default': { base: 'eod-default', templatesTbody: 'ed-templates-tbody', classesHost: 'ed-classes' },
     };
 
     function initConversionNotice() {

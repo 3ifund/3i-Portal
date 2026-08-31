@@ -69,3 +69,4 @@ def build_router(kind: str, classes_fn=None) -> APIRouter:
 notice_router = build_router(repo.KIND_NOTICE)
 details_router = build_router(repo.KIND_DETAILS)
 preferred_router = build_router(repo.KIND_PREFERRED, onprem.get_preferred_notice_classes)
+eod_router = build_router(repo.KIND_EOD)

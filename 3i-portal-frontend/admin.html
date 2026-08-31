@@ -57,6 +57,7 @@
                 <button class="subtab active" data-subtab="conversion-notice">Conversion Notice</button>
                 <button class="subtab" data-subtab="conversion-details">Conversion Details</button>
                 <button class="subtab" data-subtab="preferred-notice">Preferred</button>
+                <button class="subtab" data-subtab="eod-default">EoD Default</button>
             </div>
 
             <!-- Conversion Notice Panel -->
@@ -96,6 +97,19 @@
                 </div>
                 <h3 style="font-size:0.95rem; font-weight:600; margin:0 0 0.5rem;">Companies &amp; Series</h3>
                 <div id="pn-classes"></div>
+            </div>
+
+            <!-- EoD Default Panel -->
+            <div id="eod-default-panel" style="display:none;">
+                <div style="margin-bottom:1.75rem;">
+                    <h3 style="font-size:0.95rem; font-weight:600; margin:0 0 0.5rem;">EoD Templates</h3>
+                    <table class="admin-table">
+                        <thead><tr><th>Template Name</th><th style="text-align:right;">Preview</th></tr></thead>
+                        <tbody id="ed-templates-tbody"></tbody>
+                    </table>
+                </div>
+                <h3 style="font-size:0.95rem; font-weight:600; margin:0 0 0.5rem;">Map Note Tranches to EoD Templates</h3>
+                <div id="ed-classes"></div>
             </div>
 
             <!-- Conversion Notice Preview Modal -->

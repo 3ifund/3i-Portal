@@ -34,6 +34,7 @@ from app.conversion_notice.admin_router import (
     notice_router as conversion_notice_router,
     details_router as conversion_details_router,
     preferred_router as preferred_notice_router,
+    eod_router as eod_default_router,
 )
 from app.approval.router import router as approval_router
 from app.approval.admin_router import router as approval_admin_router
@@ -140,6 +141,7 @@ app.include_router(participation_admin_router, prefix="/admin", tags=["admin-par
 app.include_router(conversion_notice_router, prefix="/admin/conversion-notice", tags=["admin-conversion-notice"])
 app.include_router(conversion_details_router, prefix="/admin/conversion-details", tags=["admin-conversion-details"])
 app.include_router(preferred_notice_router, prefix="/admin/preferred-conversion-notice", tags=["admin-preferred-conversion-notice"])
+app.include_router(eod_default_router, prefix="/admin/eod-default", tags=["admin-eod-default"])
 app.include_router(pn_router, prefix="/purchase-notices", tags=["purchase-notices"])
 app.include_router(quotes_router, prefix="/ws", tags=["quotes"])
 app.include_router(conversions_ws_router, prefix="/ws", tags=["conversions-ws"])

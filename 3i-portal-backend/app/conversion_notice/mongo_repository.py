@@ -11,6 +11,7 @@ MAPPINGS = "conversion_notice_mappings"
 KIND_NOTICE = "conversion_notice"
 KIND_DETAILS = "conversion_details"
 KIND_PREFERRED = "preferred_conversion_notice"
+KIND_EOD = "eod_default"
 
 # Fixed, seeded templates. Each carries a `kind` so the same collections/UI serve both the Conversion
 # Notice tab and the Conversion Details tab. Not editable in the UI — the tabs only list/preview/map them.
@@ -155,6 +156,23 @@ _TEMPLATES = [
             {"order": 23, "type": "data", "label": "Remaining Principal Post Conversion:"},
             {"order": 24, "type": "data", "label": "Remaining Interest & Make Whole Post Conversion:"},
         ],
+    },
+    {
+        # Event of Default Redemption Notice (BGL). A narrative notice that precedes the Conversion Notice(s) when a
+        # note is in default; {{Company}} / {{IssuanceDate}} are substituted per-note by DTS. No form fields.
+        "template_id": "bgl-default-template-1",
+        "kind": KIND_EOD,
+        "name": "BGL-DEFAULT-Template-1",
+        "title_lines": ["{{Company}}"],
+        "title_font_size": "Large",
+        "body_text": (
+            "This notice is provided by 3i, LP (the \"Holder\") pursuant to the Senior Convertible Note (the \"Note\") "
+            "issued by {{Company}} to 3i, LP with an Issuance Date of {{IssuanceDate}}. Notice is hereby given that one "
+            "or more Events of Default have occurred under the Note and the Holder is hereby providing an Event of "
+            "Default Redemption Notice electing to convert a portion of this Note as detailed in the subsequent "
+            "Conversion Notice(s). 3i, LP reserves all rights."
+        ),
+        "fields": [],
     },
 ]
 
