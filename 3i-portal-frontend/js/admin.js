@@ -1981,74 +1981,98 @@ const Admin = (() => {
     // templates) — the admin UI only displays them read-only and maps them to a company's
     // pricing periods. No per-field controls (label/visible/order/options editing) here.
 
-    function formatAllocationLabel(value) {
-        return (value === 'Unknown') ? 'Unknown (participation workflow)' : 'Known (legacy workflow)';
+    // Default document title when no per-template title is supplied — matches
+    // ParticipationPdfRenderer.DefaultTitle() in DTS exactly (nothing currently overrides it).
+    function defaultDocumentTitle(docType) {
+        return docType === 'PurchaseConfirmation' ? 'PURCHASE CONFIRMATION' : 'PURCHASE NOTICE';
     }
 
     async function openParticipationTemplateViewModal(templateId) {
         const company = getParticipationSelectedCompany();
         const docType = getParticipationDocType();
 
-        const titleEl = document.getElementById('participation-template-view-title');
+        const modalTitleEl = document.getElementById('participation-template-view-title');
         const contextEl = document.getElementById('participation-template-view-context');
-        const allocationEl = document.getElementById('participation-template-view-allocation');
-        const bodyEl = document.getElementById('participation-template-view-body');
-        const entityEl = document.getElementById('participation-template-view-entity');
-        const fieldsEl = document.getElementById('participation-template-view-fields');
+        const docTitleEl = document.getElementById('ptv-doc-title');
+        const bodyEl = document.getElementById('ptv-body-text');
+        const fieldsBody = document.getElementById('ptv-fields-tbody');
+        const companyHeadingEl = document.getElementById('ptv-company-heading');
+        const agreedEntityEl = document.getElementById('ptv-agreed-entity');
         const statusEl = document.getElementById('participation-template-view-status');
 
         statusEl.textContent = '';
-        fieldsEl.innerHTML = '';
+        fieldsBody.innerHTML = '';
 
         const tmpl = participationTemplatesCache.find((t) => t.template_id === templateId)
             || await API.adminGetParticipationTemplate(templateId);
 
-        titleEl.textContent = tmpl.name || 'Template';
+        // Modal header + context line are UI chrome, not part of the document — which template/
+        // company/doc type is being viewed. Nothing about allocation type or field render/source
+        // metadata belongs there, and none of it appears inside .ptv-doc below.
+        modalTitleEl.textContent = tmpl.name || 'Template';
         contextEl.textContent = `${docType}${company ? ` · ${company.name} (${company.symbol})` : ''}`;
-        allocationEl.textContent = formatAllocationLabel(tmpl.allocation_type);
-        bodyEl.textContent = tmpl.body_text || '(no body text)';
-        entityEl.textContent = tmpl.agreed_accepted_entity || '(none)';
+
+        // Everything below this line is built to match ParticipationPdfRenderer.Render exactly —
+        // no text is added that the renderer doesn't itself produce.
+        docTitleEl.textContent = defaultDocumentTitle(docType);
+        // Date: / To: / Reference: header lines are each rendered only when a real value is
+        // supplied at submission time (AddHeaderRow skips blanks) — none exist in a template
+        // preview, so none are shown here either, matching what actually renders.
+        bodyEl.textContent = tmpl.body_text || '';
 
         const catalog = await loadParticipationCatalog(docType);
         const byKey = {};
         catalog.forEach((d) => { byKey[d.key] = d; });
 
-        (tmpl.fields || []).slice().sort((a, b) => (a.order || 0) - (b.order || 0)).forEach((f) => {
-            const descriptor = byKey[f.key] || {};
-            const badges = [descriptor.renderType, descriptor.source].filter(Boolean).join(' · ');
-            const selected = f.options_config && f.options_config.selected;
-            const li = document.createElement('li');
-            li.style.marginBottom = '0.35rem';
-            const labelSpan = document.createElement('span');
-            labelSpan.textContent = f.label || descriptor.defaultLabel || f.key;
-            if (!f.visible) labelSpan.style.opacity = '0.5';
-            li.appendChild(labelSpan);
-            if (selected) {
-                const sel = document.createElement('span');
-                sel.style.cssText = 'color:var(--text-secondary); font-size:0.8rem;';
-                sel.textContent = ` — checked: ${selected}`;
-                li.appendChild(sel);
-            }
-            if (!f.visible) {
-                const hidden = document.createElement('span');
-                hidden.style.cssText = 'color:var(--text-secondary); font-size:0.8rem;';
-                hidden.textContent = ' (hidden)';
-                li.appendChild(hidden);
-            }
-            if (badges) {
-                const badge = document.createElement('span');
-                badge.style.cssText = 'display:block; color:var(--text-secondary); font-size:0.75rem;';
-                badge.textContent = badges;
-                li.appendChild(badge);
-            }
-            if (f.note) {
-                const note = document.createElement('span');
-                note.style.cssText = 'display:block; color:var(--text-secondary); font-size:0.75rem; font-style:italic;';
-                note.textContent = f.note;
-                li.appendChild(note);
-            }
-            fieldsEl.appendChild(li);
-        });
+        (tmpl.fields || [])
+            .filter((f) => f.visible !== false)   // hidden fields never render on the document
+            .slice()
+            .sort((a, b) => (a.order || 0) - (b.order || 0))
+            .forEach((f) => {
+                const tr = document.createElement('tr');
+                const labelTd = document.createElement('td');
+                labelTd.className = 'ptv-field-label';
+                labelTd.textContent = f.label || f.key;
+                tr.appendChild(labelTd);
+
+                const valueTd = document.createElement('td');
+                valueTd.className = 'ptv-field-value';
+                // Checkbox=true only when the template itself has a fixed checked option
+                // (CheckedOption) — that's the only case BuildAsync ever populates a value for
+                // in this admin view. Otherwise: a Client-sourced field is one the company fills
+                // in on the entry form, shown here as an actual (empty, read-only) box rather than
+                // just the word "Client" — everything else renders blank, the same as the PDF
+                // renders a blank underlined line for a field with no value yet.
+                const descriptor = byKey[f.key] || {};
+                const selected = f.options_config && f.options_config.selected;
+                if (selected) {
+                    const check = document.createElement('span');
+                    check.className = 'ptv-checkmark';
+                    check.textContent = '✔';
+                    valueTd.appendChild(check);
+                    valueTd.appendChild(document.createTextNode(' ' + selected));
+                } else if (descriptor.source === 'Client') {
+                    const box = document.createElement('input');
+                    box.type = 'text';
+                    box.className = 'ptv-edit-box';
+                    box.readOnly = true;
+                    valueTd.appendChild(box);
+                }
+                if (f.note) {
+                    const note = document.createElement('span');
+                    note.className = 'ptv-field-note';
+                    note.textContent = '  ' + f.note;
+                    valueTd.appendChild(note);
+                }
+                tr.appendChild(valueTd);
+                fieldsBody.appendChild(tr);
+            });
+
+        // Signature table: company (left) / "AGREED AND ACCEPTED:" + entity (right), each with
+        // just a blank "By:" line — Name/Title/Address/E-mail only render when a real signatory
+        // is supplied (AddSigLine skips blanks too), which there is none of in a template preview.
+        companyHeadingEl.textContent = (company ? company.name : '').toUpperCase();
+        agreedEntityEl.textContent = (tmpl.agreed_accepted_entity || '').toUpperCase();
 
         document.getElementById('participation-template-view-preview').dataset.templateId = templateId;
         document.getElementById('participation-template-view-modal-overlay').classList.add('visible');
