@@ -1593,6 +1593,16 @@ input[type="number"] {
     margin-bottom: 1rem;
 }
 
+.ptv-header {
+    margin-bottom: 1rem;
+}
+
+.ptv-header-value {
+    flex: 1;
+    border-bottom: 1px solid var(--text-secondary);
+    padding-bottom: 0.1rem;
+}
+
 .ptv-body {
     white-space: pre-wrap;
     line-height: 1.6;
@@ -1603,7 +1613,7 @@ input[type="number"] {
 .ptv-fields-table {
     width: 100%;
     border-collapse: collapse;
-    margin-bottom: 1.5rem;
+    margin-bottom: 2.5rem;
 }
 
 .ptv-field-label {
@@ -1647,6 +1657,7 @@ input[type="number"] {
 .ptv-sig-table {
     width: 100%;
     border-collapse: collapse;
+    margin-top: 1rem;
 }
 
 .ptv-sig-cell {
@@ -1659,6 +1670,10 @@ input[type="number"] {
 .ptv-sig-heading {
     font-weight: 700;
     margin-bottom: 0.4rem;
+}
+
+.ptv-sig-heading-spaced {
+    margin-top: 2rem;
 }
 
 .ptv-sig-entity {

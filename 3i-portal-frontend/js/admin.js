@@ -1981,22 +1981,28 @@ const Admin = (() => {
     // templates) — the admin UI only displays them read-only and maps them to a company's
     // pricing periods. No per-field controls (label/visible/order/options editing) here.
 
-    // Default document title when no per-template title is supplied — matches
-    // ParticipationPdfRenderer.DefaultTitle() in DTS exactly (nothing currently overrides it).
+    // Document title — matches the executed CAPS reference PDFs exactly ("FORM OF VWAP PURCHASE
+    // NOTICE" / "FORM OF VWAP PURCHASE CONFIRMATION"), not the shorter default DTS's
+    // ParticipationPdfRenderer currently falls back to when no title is supplied — see note to
+    // the user: that's a real gap in the renderer, separate from this admin view.
     function defaultDocumentTitle(docType) {
-        return docType === 'PurchaseConfirmation' ? 'PURCHASE CONFIRMATION' : 'PURCHASE NOTICE';
+        return docType === 'PurchaseConfirmation' ? 'FORM OF VWAP PURCHASE CONFIRMATION' : 'FORM OF VWAP PURCHASE NOTICE';
     }
 
     async function openParticipationTemplateViewModal(templateId) {
         const company = getParticipationSelectedCompany();
         const docType = getParticipationDocType();
+        const isConfirmation = docType === 'PurchaseConfirmation';
 
         const modalTitleEl = document.getElementById('participation-template-view-title');
         const contextEl = document.getElementById('participation-template-view-context');
         const docTitleEl = document.getElementById('ptv-doc-title');
+        const headerEl = document.getElementById('ptv-header');
+        const toNameEl = document.getElementById('ptv-to-name');
+        const toEmailEl = document.getElementById('ptv-to-email');
         const bodyEl = document.getElementById('ptv-body-text');
         const fieldsBody = document.getElementById('ptv-fields-tbody');
-        const companyHeadingEl = document.getElementById('ptv-company-heading');
+        const senderHeadingEl = document.getElementById('ptv-sender-heading');
         const agreedEntityEl = document.getElementById('ptv-agreed-entity');
         const statusEl = document.getElementById('participation-template-view-status');
 
@@ -2012,12 +2018,21 @@ const Admin = (() => {
         modalTitleEl.textContent = tmpl.name || 'Template';
         contextEl.textContent = `${docType}${company ? ` · ${company.name} (${company.symbol})` : ''}`;
 
-        // Everything below this line is built to match ParticipationPdfRenderer.Render exactly —
-        // no text is added that the renderer doesn't itself produce.
+        // Everything below this line is built to match the executed reference PDFs exactly.
         docTitleEl.textContent = defaultDocumentTitle(docType);
-        // Date: / To: / Reference: header lines are each rendered only when a real value is
-        // supplied at submission time (AddHeaderRow skips blanks) — none exist in a template
-        // preview, so none are shown here either, matching what actually renders.
+
+        // "To:"/"E-mail:" header — on a Purchase Notice this is always the investor entity
+        // (agreed_accepted_entity) at the fixed ELOC intake address. A Purchase Confirmation's
+        // "To:" is addressed to a specific company signatory, which isn't modeled by a template
+        // field yet, so that header is left off rather than showing an invented name.
+        if (!isConfirmation) {
+            toNameEl.textContent = tmpl.agreed_accepted_entity || '';
+            toEmailEl.textContent = 'eloc@3ifund.com';
+            headerEl.style.display = '';
+        } else {
+            headerEl.style.display = 'none';
+        }
+
         bodyEl.textContent = tmpl.body_text || '';
 
         const catalog = await loadParticipationCatalog(docType);
@@ -2068,11 +2083,15 @@ const Admin = (() => {
                 fieldsBody.appendChild(tr);
             });
 
-        // Signature table: company (left) / "AGREED AND ACCEPTED:" + entity (right), each with
-        // just a blank "By:" line — Name/Title/Address/E-mail only render when a real signatory
-        // is supplied (AddSigLine skips blanks too), which there is none of in a template preview.
-        companyHeadingEl.textContent = (company ? company.name : '').toUpperCase();
-        agreedEntityEl.textContent = (tmpl.agreed_accepted_entity || '').toUpperCase();
+        // Closing block: RIGHT column is the document's SENDER (full By:/Name:/Title:/Address:/
+        // Email: block) — the Company on a Purchase Notice, the Investor on a Purchase
+        // Confirmation ("...the Investor hereby issues this VWAP Purchase Confirmation..."). LEFT
+        // column is "AGREED AND ACCEPTED:" + the OTHER party (short block, no Address/Email).
+        // Verified against both executed CAPS reference PDFs.
+        const companyName = (company ? company.name : '').toUpperCase();
+        const investorName = (tmpl.agreed_accepted_entity || '').toUpperCase();
+        senderHeadingEl.textContent = isConfirmation ? investorName : companyName;
+        agreedEntityEl.textContent = isConfirmation ? companyName : investorName;
 
         document.getElementById('participation-template-view-preview').dataset.templateId = templateId;
         document.getElementById('participation-template-view-modal-overlay').classList.add('visible');

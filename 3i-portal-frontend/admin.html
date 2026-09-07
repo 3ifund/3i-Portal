@@ -529,11 +529,14 @@
 
     <!-- Password Change Modal -->
     <!-- Participation Template View Modal (read-only — templates are authored outside this UI).
-         Markup mirrors ParticipationPdfRenderer.Render exactly (DealTermsServer): title, fields
-         table, side-by-side signature table. No text is added here that renderer doesn't produce —
-         Date/To/Reference header lines and per-signatory Name/Title/Address/E-mail lines only ever
-         appear when a real value is supplied at submission time, so this static template view (no
-         submission yet) never shows them either, matching what the Portal user will actually see. -->
+         Markup matches the executed CAPS reference PDFs exactly (title, To:/E-mail: header, fields
+         table, closing block). Closing block layout, verified against both executed PDFs:
+           LEFT  column: "Dated:" then, lower, "AGREED AND ACCEPTED:" + the OTHER party's entity
+                         name, with a short By:/Name:/Title: block (no Address/E-mail)
+           RIGHT column: the DOCUMENT'S SENDER's heading, with the full By:/Name:/Title:/Address:/
+                         Email: block
+         Sender is the Company on a Purchase Notice, the Investor (agreed_accepted_entity) on a
+         Purchase Confirmation — populated in JS per document type. -->
     <div class="modal-overlay" id="participation-template-view-modal-overlay">
         <div class="modal" style="max-width:760px;">
             <div class="modal-header">
@@ -547,6 +550,11 @@
                 <div class="ptv-doc" id="participation-template-view-doc">
                     <div class="ptv-title" id="ptv-doc-title"></div>
 
+                    <div class="ptv-header" id="ptv-header" style="display:none;">
+                        <div class="ptv-sig-line"><span class="ptv-sig-label">To:</span><span class="ptv-header-value" id="ptv-to-name"></span></div>
+                        <div class="ptv-sig-line"><span class="ptv-sig-label">E-mail:</span><span class="ptv-header-value" id="ptv-to-email"></span></div>
+                    </div>
+
                     <div class="ptv-body" id="ptv-body-text"></div>
 
                     <table class="ptv-fields-table">
@@ -556,13 +564,20 @@
                     <table class="ptv-sig-table">
                         <tr>
                             <td class="ptv-sig-cell">
-                                <div class="ptv-sig-heading" id="ptv-company-heading"></div>
-                                <div class="ptv-sig-line"><span class="ptv-sig-label">By:</span><span class="ptv-sig-blank"></span></div>
-                            </td>
-                            <td class="ptv-sig-cell">
-                                <div class="ptv-sig-heading">AGREED AND ACCEPTED:</div>
+                                <div class="ptv-sig-line"><span class="ptv-sig-label">Dated:</span><span class="ptv-sig-blank"></span></div>
+                                <div class="ptv-sig-heading ptv-sig-heading-spaced">AGREED AND ACCEPTED:</div>
                                 <div class="ptv-sig-entity" id="ptv-agreed-entity"></div>
                                 <div class="ptv-sig-line"><span class="ptv-sig-label">By:</span><span class="ptv-sig-blank"></span></div>
+                                <div class="ptv-sig-line"><span class="ptv-sig-label">Name:</span><span class="ptv-sig-blank"></span></div>
+                                <div class="ptv-sig-line"><span class="ptv-sig-label">Title:</span><span class="ptv-sig-blank"></span></div>
+                            </td>
+                            <td class="ptv-sig-cell">
+                                <div class="ptv-sig-heading" id="ptv-sender-heading"></div>
+                                <div class="ptv-sig-line"><span class="ptv-sig-label">By:</span><span class="ptv-sig-blank"></span></div>
+                                <div class="ptv-sig-line"><span class="ptv-sig-label">Name:</span><span class="ptv-sig-blank"></span></div>
+                                <div class="ptv-sig-line"><span class="ptv-sig-label">Title:</span><span class="ptv-sig-blank"></span></div>
+                                <div class="ptv-sig-line"><span class="ptv-sig-label">Address:</span><span class="ptv-sig-blank"></span></div>
+                                <div class="ptv-sig-line"><span class="ptv-sig-label">Email:</span><span class="ptv-sig-blank"></span></div>
                             </td>
                         </tr>
                     </table>
