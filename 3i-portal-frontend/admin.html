@@ -287,9 +287,12 @@
                         <select id="participation-company-filter" class="form-input" style="width:auto; min-width:200px;">
                             <option value="">-- Select Company --</option>
                         </select>
-                        <button class="btn btn-primary" id="add-participation-template-btn">+ Add Template</button>
                     </div>
                 </div>
+                <p style="font-size:0.82rem; color:var(--text-secondary); margin:-0.5rem 0 1rem;">
+                    Templates are authored outside this UI (per company/class) — this list is read-only.
+                    Click a template to view its content, or map one to a pricing period below.
+                </p>
                 <div class="loading-container" id="participation-templates-loading" style="display:none;">
                     <div class="loading-spinner"></div>
                     <span>Loading templates...</span>
@@ -525,58 +528,38 @@
     </div>
 
     <!-- Password Change Modal -->
-    <!-- Participation Template Edit Modal -->
-    <div class="modal-overlay" id="participation-template-modal-overlay">
-        <div class="modal" style="max-width:988px;">
+    <!-- Participation Template View Modal (read-only — templates are authored outside this UI) -->
+    <div class="modal-overlay" id="participation-template-view-modal-overlay">
+        <div class="modal" style="max-width:700px;">
             <div class="modal-header">
-                <h2 class="modal-title" id="participation-template-modal-title">Add Participation Template</h2>
-                <button class="modal-close" id="participation-template-modal-close">&times;</button>
+                <h2 class="modal-title" id="participation-template-view-title">Template</h2>
+                <button class="modal-close" id="participation-template-view-close">&times;</button>
             </div>
             <div class="modal-body">
                 <div class="form-group">
-                    <span style="font-size:0.85rem; color:var(--text-secondary);">
-                        <span id="participation-template-context"></span>
-                    </span>
-                </div>
-                <div class="form-group">
-                    <label class="form-label" for="participation-template-name">Template Name</label>
-                    <input type="text" id="participation-template-name" class="form-input" placeholder="e.g., Intraday PN — Standard">
+                    <span style="font-size:0.85rem; color:var(--text-secondary);" id="participation-template-view-context"></span>
                 </div>
                 <div class="form-group">
                     <label class="form-label">Share Allocation</label>
-                    <div style="display:flex; gap:1.25rem; align-items:center;">
-                        <label style="display:flex; align-items:center; gap:0.4rem; font-weight:400;">
-                            <input type="radio" name="participation-allocation-type" value="Known" checked> Known (legacy workflow)
-                        </label>
-                        <label style="display:flex; align-items:center; gap:0.4rem; font-weight:400;">
-                            <input type="radio" name="participation-allocation-type" value="Unknown"> Unknown (participation workflow)
-                        </label>
-                    </div>
+                    <p class="ppn-locked-value" id="participation-template-view-allocation"></p>
                 </div>
                 <div class="form-group">
-                    <label class="form-label" for="participation-template-body-text">Body Text</label>
-                    <textarea id="participation-template-body-text" class="form-input" rows="8" placeholder="Enter the narrative body text for this document..."></textarea>
+                    <label class="form-label">Body Text</label>
+                    <p class="ppn-locked-value" id="participation-template-view-body" style="white-space:pre-wrap;"></p>
                 </div>
                 <div class="form-group">
-                    <label class="form-label" for="participation-template-entity">Agreed &amp; Accepted Entity Name</label>
-                    <input type="text" id="participation-template-entity" class="form-input" placeholder="e.g., TUMIM STONE CAPITAL, LLC">
+                    <label class="form-label">Agreed &amp; Accepted Entity</label>
+                    <p class="ppn-locked-value" id="participation-template-view-entity"></p>
                 </div>
                 <div class="form-group">
                     <label class="form-label">Fields</label>
-                    <div style="display:flex; gap:0.5rem; align-items:center; margin-bottom:0.75rem;">
-                        <select id="participation-field-select" class="form-input" style="flex:0 1 50%; max-width:50%;">
-                            <option value="">-- Select a field to add --</option>
-                        </select>
-                        <button type="button" class="btn btn-secondary" id="participation-add-field-btn">Add Field</button>
-                    </div>
-                    <div id="participation-fields-container"></div>
+                    <ol id="participation-template-view-fields" style="padding-left:1.25rem; margin:0;"></ol>
                 </div>
-                <div class="modal-status" id="participation-template-modal-status"></div>
+                <div class="modal-status" id="participation-template-view-status"></div>
             </div>
             <div class="modal-footer">
-                <button class="btn btn-secondary" id="participation-template-modal-preview">Preview PDF</button>
-                <button class="btn btn-secondary" id="participation-template-modal-cancel">Cancel</button>
-                <button class="btn btn-primary" id="participation-template-modal-submit">Save</button>
+                <button class="btn btn-secondary" id="participation-template-view-preview">Preview PDF</button>
+                <button class="btn btn-secondary" id="participation-template-view-close-btn">Close</button>
             </div>
         </div>
     </div>

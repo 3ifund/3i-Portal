@@ -1829,7 +1829,6 @@ const Admin = (() => {
 
     // ---- Participation Templates Tab ----
 
-    let participationEditingTemplateId = null;
     const participationCatalogCache = {};   // documentType -> [descriptors]
     let participationTemplatesCache = [];    // current company+docType templates
 
@@ -1909,14 +1908,14 @@ const Admin = (() => {
                         <td>${(t.fields || []).length}</td>
                         <td style="font-size:0.85rem; color:var(--text-secondary);">${escapeHtml(preview)}</td>
                         <td>
-                            <button class="btn-action edit-participation-template-btn" data-template-id="${escapeHtml(t.template_id)}">Edit</button>
+                            <button class="btn-action view-participation-template-btn" data-template-id="${escapeHtml(t.template_id)}">View</button>
                             <button class="btn-action delete-participation-template-btn" data-template-id="${escapeHtml(t.template_id)}">Delete</button>
                         </td>
                     `;
                     tbody.appendChild(tr);
                 });
-                tbody.querySelectorAll('.edit-participation-template-btn').forEach((btn) => {
-                    btn.addEventListener('click', () => openParticipationTemplateModal(btn.dataset.templateId));
+                tbody.querySelectorAll('.view-participation-template-btn').forEach((btn) => {
+                    btn.addEventListener('click', () => openParticipationTemplateViewModal(btn.dataset.templateId));
                 });
                 tbody.querySelectorAll('.delete-participation-template-btn').forEach((btn) => {
                     btn.addEventListener('click', () => handleParticipationTemplateDelete(btn.dataset.templateId));
@@ -1978,180 +1977,85 @@ const Admin = (() => {
         }
     }
 
-    function renderParticipationFieldRow(descriptor, fieldData) {
-        const container = document.getElementById('participation-fields-container');
-        const key = descriptor.key;
-        if (container.querySelector(`[data-field-key="${key}"]`)) return; // no duplicate fields
-        const row = document.createElement('div');
-        row.className = 'participation-field-row';
-        row.setAttribute('data-field-key', key);
-        row.style.cssText = 'display:flex; align-items:center; gap:0.5rem; padding:0.4rem 0; border-bottom:1px solid var(--border, #2a2a2a);';
-        const badges = [descriptor.renderType, descriptor.source].filter(Boolean).join(' · ');
-        // Show the checkbox/option choices (e.g. Types of Purchase → 1-Day, 2-Day, …)
-        const opts = (descriptor.options && descriptor.options.length)
-            ? ` · options: ${descriptor.options.join(', ')}` : '';
-        const cond = descriptor.conditionalOn ? ` · if ${descriptor.conditionalOn}` : '';
-        const visible = fieldData ? fieldData.visible !== false : true;
-        const labelVal = (fieldData && fieldData.label) || descriptor.defaultLabel || key;
-        // Any client-input field with a fixed option set (Purchase Type, Types of Purchase) lets the
-        // admin pick ONE option, which renders as the single checked box on the document. Option
-        // labels are fixed enum values (no quotes), safe to inline.
-        const isSingleSelect = descriptor.source === 'Client'
-            && Array.isArray(descriptor.options) && descriptor.options.length > 0;
-        const optionSelectHtml = isSingleSelect
-            ? `<select class="form-input participation-field-option" title="Checked option" style="flex:0 1 160px;">`
-              + `<option value="">— choose one —</option>`
-              + descriptor.options.map((o) => `<option value="${escapeHtml(o)}">${escapeHtml(o)}</option>`).join('')
-              + `</select>`
-            : '';
-        row.innerHTML = `
-            <span style="min-width:170px; font-size:0.85rem;" title="${escapeHtml(key)}">${escapeHtml(key)}</span>
-            <input type="text" class="form-input participation-field-label" style="flex:1;" placeholder="label">
-            <input type="text" class="form-input participation-field-note" style="flex:1;" placeholder="note beside value (optional)">
-            ${optionSelectHtml}
-            <label style="font-size:0.8rem; display:flex; align-items:center; gap:0.25rem; white-space:nowrap;">
-                <input type="checkbox" class="participation-field-visible" ${visible ? 'checked' : ''}> visible
-            </label>
-            <span style="font-size:0.72rem; color:var(--text-secondary); min-width:150px;">${escapeHtml(badges + opts + cond)}</span>
-            <button type="button" class="btn-action participation-field-remove">Remove</button>
-        `;
-        // Set label + note (and the checked option) as DOM properties so values
-        // containing quotes can't break out of the markup — escapeHtml does not
-        // escape quote characters.
-        row.querySelector('.participation-field-label').value = labelVal;
-        row.querySelector('.participation-field-note').value = (fieldData && fieldData.note) || '';
-        const optionSelect = row.querySelector('.participation-field-option');
-        if (optionSelect && fieldData && fieldData.options_config && fieldData.options_config.selected) {
-            optionSelect.value = fieldData.options_config.selected;
-        }
-        row.querySelector('.participation-field-remove').addEventListener('click', () => row.remove());
-        container.appendChild(row);
+    // Templates are authored outside this UI (per company/class, e.g. the CAPS Intraday
+    // templates) — the admin UI only displays them read-only and maps them to a company's
+    // pricing periods. No per-field controls (label/visible/order/options editing) here.
+
+    function formatAllocationLabel(value) {
+        return (value === 'Unknown') ? 'Unknown (participation workflow)' : 'Known (legacy workflow)';
     }
 
-    function setParticipationAllocationType(value) {
-        // Absent ⇒ legacy/Known.
-        const v = (value === 'Unknown') ? 'Unknown' : 'Known';
-        const radio = document.querySelector(`input[name="participation-allocation-type"][value="${v}"]`);
-        if (radio) radio.checked = true;
-    }
-
-    function getParticipationAllocationType() {
-        return document.querySelector('input[name="participation-allocation-type"]:checked')?.value || 'Known';
-    }
-
-    function collectParticipationFields() {
-        const rows = document.querySelectorAll('#participation-fields-container .participation-field-row');
-        const fields = [];
-        rows.forEach((row, idx) => {
-            const field = {
-                key: row.getAttribute('data-field-key'),
-                label: row.querySelector('.participation-field-label').value.trim(),
-                note: row.querySelector('.participation-field-note').value.trim(),
-                visible: row.querySelector('.participation-field-visible').checked,
-                order: idx,
-            };
-            // CheckboxGroup fields carry the single checked option in options_config.
-            const optionSelect = row.querySelector('.participation-field-option');
-            if (optionSelect) field.options_config = { selected: optionSelect.value || null };
-            fields.push(field);
-        });
-        return fields;
-    }
-
-    async function openParticipationTemplateModal(templateId) {
-        participationEditingTemplateId = templateId || null;
+    async function openParticipationTemplateViewModal(templateId) {
         const company = getParticipationSelectedCompany();
         const docType = getParticipationDocType();
-        if (!company) { alert('Select a company first.'); return; }
 
-        const titleEl = document.getElementById('participation-template-modal-title');
-        const nameEl = document.getElementById('participation-template-name');
-        const bodyEl = document.getElementById('participation-template-body-text');
-        const entityEl = document.getElementById('participation-template-entity');
-        const statusEl = document.getElementById('participation-template-modal-status');
-        const contextEl = document.getElementById('participation-template-context');
-        const fieldsContainer = document.getElementById('participation-fields-container');
+        const titleEl = document.getElementById('participation-template-view-title');
+        const contextEl = document.getElementById('participation-template-view-context');
+        const allocationEl = document.getElementById('participation-template-view-allocation');
+        const bodyEl = document.getElementById('participation-template-view-body');
+        const entityEl = document.getElementById('participation-template-view-entity');
+        const fieldsEl = document.getElementById('participation-template-view-fields');
+        const statusEl = document.getElementById('participation-template-view-status');
 
         statusEl.textContent = '';
-        fieldsContainer.innerHTML = '';
-        contextEl.textContent = `${docType} · ${company.name} (${company.symbol})`;
+        fieldsEl.innerHTML = '';
+
+        const tmpl = participationTemplatesCache.find((t) => t.template_id === templateId)
+            || await API.adminGetParticipationTemplate(templateId);
+
+        titleEl.textContent = tmpl.name || 'Template';
+        contextEl.textContent = `${docType}${company ? ` · ${company.name} (${company.symbol})` : ''}`;
+        allocationEl.textContent = formatAllocationLabel(tmpl.allocation_type);
+        bodyEl.textContent = tmpl.body_text || '(no body text)';
+        entityEl.textContent = tmpl.agreed_accepted_entity || '(none)';
 
         const catalog = await loadParticipationCatalog(docType);
-        const fieldSelect = document.getElementById('participation-field-select');
-        fieldSelect.innerHTML = '<option value="">-- Select a field to add --</option>';
-        catalog.forEach((d) => {
-            const opt = document.createElement('option');
-            opt.value = d.key;
-            opt.textContent = d.defaultLabel;
-            fieldSelect.appendChild(opt);
+        const byKey = {};
+        catalog.forEach((d) => { byKey[d.key] = d; });
+
+        (tmpl.fields || []).slice().sort((a, b) => (a.order || 0) - (b.order || 0)).forEach((f) => {
+            const descriptor = byKey[f.key] || {};
+            const badges = [descriptor.renderType, descriptor.source].filter(Boolean).join(' · ');
+            const selected = f.options_config && f.options_config.selected;
+            const li = document.createElement('li');
+            li.style.marginBottom = '0.35rem';
+            const labelSpan = document.createElement('span');
+            labelSpan.textContent = f.label || descriptor.defaultLabel || f.key;
+            if (!f.visible) labelSpan.style.opacity = '0.5';
+            li.appendChild(labelSpan);
+            if (selected) {
+                const sel = document.createElement('span');
+                sel.style.cssText = 'color:var(--text-secondary); font-size:0.8rem;';
+                sel.textContent = ` — checked: ${selected}`;
+                li.appendChild(sel);
+            }
+            if (!f.visible) {
+                const hidden = document.createElement('span');
+                hidden.style.cssText = 'color:var(--text-secondary); font-size:0.8rem;';
+                hidden.textContent = ' (hidden)';
+                li.appendChild(hidden);
+            }
+            if (badges) {
+                const badge = document.createElement('span');
+                badge.style.cssText = 'display:block; color:var(--text-secondary); font-size:0.75rem;';
+                badge.textContent = badges;
+                li.appendChild(badge);
+            }
+            if (f.note) {
+                const note = document.createElement('span');
+                note.style.cssText = 'display:block; color:var(--text-secondary); font-size:0.75rem; font-style:italic;';
+                note.textContent = f.note;
+                li.appendChild(note);
+            }
+            fieldsEl.appendChild(li);
         });
 
-        if (participationEditingTemplateId) {
-            titleEl.textContent = 'Edit Participation Template';
-            const tmpl = participationTemplatesCache.find((t) => t.template_id === participationEditingTemplateId)
-                || await API.adminGetParticipationTemplate(participationEditingTemplateId);
-            nameEl.value = tmpl.name || '';
-            bodyEl.value = tmpl.body_text || '';
-            entityEl.value = tmpl.agreed_accepted_entity || '';
-            setParticipationAllocationType(tmpl.allocation_type);
-            const byKey = {};
-            catalog.forEach((d) => { byKey[d.key] = d; });
-            (tmpl.fields || []).slice().sort((a, b) => (a.order || 0) - (b.order || 0)).forEach((f) => {
-                const descriptor = byKey[f.key] || { key: f.key, defaultLabel: f.key, renderType: '', source: '' };
-                renderParticipationFieldRow(descriptor, f);
-            });
-        } else {
-            titleEl.textContent = 'Add Participation Template';
-            nameEl.value = '';
-            bodyEl.value = '';
-            entityEl.value = '';
-            setParticipationAllocationType('Known');
-        }
-
-        document.getElementById('participation-template-modal-overlay').classList.add('visible');
+        document.getElementById('participation-template-view-preview').dataset.templateId = templateId;
+        document.getElementById('participation-template-view-modal-overlay').classList.add('visible');
     }
 
-    function closeParticipationTemplateModal() {
-        document.getElementById('participation-template-modal-overlay').classList.remove('visible');
-    }
-
-    async function handleParticipationTemplateSave() {
-        const company = getParticipationSelectedCompany();
-        const docType = getParticipationDocType();
-        const statusEl = document.getElementById('participation-template-modal-status');
-        const submitBtn = document.getElementById('participation-template-modal-submit');
-        const name = document.getElementById('participation-template-name').value.trim();
-        if (!company) { statusEl.textContent = 'No company selected.'; return; }
-        if (!name) { statusEl.textContent = 'Template name is required.'; return; }
-
-        const payload = {
-            name,
-            company_id: company.company_id,
-            document_type: docType,
-            allocation_type: getParticipationAllocationType(),
-            body_text: document.getElementById('participation-template-body-text').value,
-            agreed_accepted_entity: document.getElementById('participation-template-entity').value.trim(),
-            fields: collectParticipationFields(),
-        };
-
-        submitBtn.disabled = true;
-        statusEl.textContent = 'Saving...';
-        try {
-            if (participationEditingTemplateId) {
-                await API.adminUpdateParticipationTemplate(participationEditingTemplateId, payload);
-            } else {
-                await API.adminCreateParticipationTemplate(payload);
-            }
-            statusEl.textContent = 'Saved.';
-            setTimeout(() => {
-                closeParticipationTemplateModal();
-                loadParticipationTemplates();
-            }, 500);
-        } catch (err) {
-            statusEl.textContent = err.message || 'Failed to save template.';
-        } finally {
-            submitBtn.disabled = false;
-        }
+    function closeParticipationTemplateViewModal() {
+        document.getElementById('participation-template-view-modal-overlay').classList.remove('visible');
     }
 
     async function handleParticipationTemplateDelete(templateId) {
@@ -2164,17 +2068,21 @@ const Admin = (() => {
         }
     }
 
-    async function handleParticipationTemplatePreview() {
-        const statusEl = document.getElementById('participation-template-modal-status');
+    async function handleParticipationTemplateViewPreview() {
+        const statusEl = document.getElementById('participation-template-view-status');
         const docType = getParticipationDocType();
+        const templateId = document.getElementById('participation-template-view-preview').dataset.templateId;
+        const tmpl = participationTemplatesCache.find((t) => t.template_id === templateId)
+            || await API.adminGetParticipationTemplate(templateId);
+
         const payload = {
             documentType: docType,
             title: '',
-            bodyText: document.getElementById('participation-template-body-text').value,
-            agreedAcceptedEntity: document.getElementById('participation-template-entity').value.trim(),
+            bodyText: tmpl.body_text || '',
+            agreedAcceptedEntity: tmpl.agreed_accepted_entity || '',
             // Fill each field with a placeholder value so the layout is visible in the preview.
             // A CheckboxGroup field renders its single checked option (checkbox=true) instead.
-            fields: collectParticipationFields().map((f) => {
+            fields: (tmpl.fields || []).map((f) => {
                 const sel = f.options_config && f.options_config.selected;
                 return sel ? { ...f, value: sel, checkbox: true } : { ...f, value: `«${f.key}»` };
             }),
@@ -2273,29 +2181,12 @@ const Admin = (() => {
         if (doctypeFilter) doctypeFilter.addEventListener('change', loadParticipationTemplates);
         if (companyFilter) companyFilter.addEventListener('change', loadParticipationTemplates);
 
-        const addBtn = document.getElementById('add-participation-template-btn');
-        if (addBtn) addBtn.addEventListener('click', () => openParticipationTemplateModal(null));
-
-        const addFieldBtn = document.getElementById('participation-add-field-btn');
-        if (addFieldBtn) addFieldBtn.addEventListener('click', () => {
-            const select = document.getElementById('participation-field-select');
-            const key = select.value;
-            if (!key) return;
-            const docType = getParticipationDocType();
-            const catalog = participationCatalogCache[docType] || [];
-            const descriptor = catalog.find((d) => d.key === key);
-            if (descriptor) renderParticipationFieldRow(descriptor, null);
-            select.value = '';
-        });
-
-        ['participation-template-modal-close', 'participation-template-modal-cancel'].forEach((id) => {
+        ['participation-template-view-close', 'participation-template-view-close-btn'].forEach((id) => {
             const el = document.getElementById(id);
-            if (el) el.addEventListener('click', closeParticipationTemplateModal);
+            if (el) el.addEventListener('click', closeParticipationTemplateViewModal);
         });
-        const tmplSubmit = document.getElementById('participation-template-modal-submit');
-        if (tmplSubmit) tmplSubmit.addEventListener('click', handleParticipationTemplateSave);
-        const tmplPreview = document.getElementById('participation-template-modal-preview');
-        if (tmplPreview) tmplPreview.addEventListener('click', handleParticipationTemplatePreview);
+        const tmplViewPreview = document.getElementById('participation-template-view-preview');
+        if (tmplViewPreview) tmplViewPreview.addEventListener('click', handleParticipationTemplateViewPreview);
 
         const addMappingBtn = document.getElementById('add-participation-mapping-btn');
         if (addMappingBtn) addMappingBtn.addEventListener('click', openParticipationMappingModal);
