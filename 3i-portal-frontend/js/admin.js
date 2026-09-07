@@ -2140,6 +2140,7 @@ const Admin = (() => {
     async function handleParticipationTemplateViewPreview() {
         const statusEl = document.getElementById('participation-template-view-status');
         const docType = getParticipationDocType();
+        const company = getParticipationSelectedCompany();
         const templateId = document.getElementById('participation-template-view-preview').dataset.templateId;
         const tmpl = participationTemplatesCache.find((t) => t.template_id === templateId)
             || await API.adminGetParticipationTemplate(templateId);
@@ -2149,11 +2150,13 @@ const Admin = (() => {
             title: '',
             bodyText: tmpl.body_text || '',
             agreedAcceptedEntity: tmpl.agreed_accepted_entity || '',
-            // Fill each field with a placeholder value so the layout is visible in the preview.
-            // A CheckboxGroup field renders its single checked option (checkbox=true) instead.
+            companyName: company ? company.name : '',
+            // A field with a fixed checked option (options_config.selected) renders that checkbox;
+            // every other field is left with no value — blank, like an unfilled line on the real
+            // document — not a placeholder token.
             fields: (tmpl.fields || []).map((f) => {
                 const sel = f.options_config && f.options_config.selected;
-                return sel ? { ...f, value: sel, checkbox: true } : { ...f, value: `«${f.key}»` };
+                return sel ? { ...f, value: sel, checkbox: true } : { ...f, value: null };
             }),
         };
         statusEl.textContent = 'Rendering preview…';
