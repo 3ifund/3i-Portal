@@ -1626,13 +1626,24 @@ input[type="number"] {
 .ptv-field-value {
     width: 42%;
     padding: 0.4rem 0;
-    border-bottom: 1px solid var(--text-secondary);
     vertical-align: top;
     font-size: 0.88rem;
 }
 
-.ptv-checkmark {
-    font-weight: 700;
+.ptv-field-value-line {
+    border-bottom: 1px solid var(--text-secondary);
+}
+
+.ptv-checkbox-row {
+    display: flex;
+    align-items: baseline;
+    gap: 0.3rem;
+    margin-bottom: 0.2rem;
+}
+
+.ptv-checkbox {
+    font-size: 1rem;
+    flex-shrink: 0;
 }
 
 .ptv-field-note {

@@ -1989,6 +1989,17 @@ const Admin = (() => {
         return docType === 'PurchaseConfirmation' ? 'FORM OF VWAP PURCHASE CONFIRMATION' : 'FORM OF VWAP PURCHASE NOTICE';
     }
 
+    // The catalog's OptionSet values are raw enum names (e.g. "PreMarket", "Intraday"); the
+    // executed PDFs print a fuller caption next to each checkbox. Falls back to the raw value
+    // for any option without an override.
+    const PTV_OPTION_LABELS = {
+        PurchaseType: { PreMarket: 'Pre-Market VWAP Purchase', Intraday: 'Intraday VWAP Purchase' },
+    };
+    function ptvOptionLabel(fieldKey, rawOption) {
+        const map = PTV_OPTION_LABELS[fieldKey];
+        return (map && map[rawOption]) || rawOption;
+    }
+
     async function openParticipationTemplateViewModal(templateId) {
         const company = getParticipationSelectedCompany();
         const docType = getParticipationDocType();
@@ -2061,26 +2072,38 @@ const Admin = (() => {
 
                 const valueTd = document.createElement('td');
                 valueTd.className = 'ptv-field-value';
-                // Checkbox=true only when the template itself has a fixed checked option
-                // (CheckedOption) — that's the only case BuildAsync ever populates a value for
-                // in this admin view. Otherwise: a Client-sourced field is one the company fills
-                // in on the entry form, shown here as an actual (empty, read-only) box rather than
-                // just the word "Client" — everything else renders blank, the same as the PDF
-                // renders a blank underlined line for a field with no value yet.
                 const descriptor = byKey[f.key] || {};
                 const selected = f.options_config && f.options_config.selected;
-                if (selected) {
-                    const check = document.createElement('span');
-                    check.className = 'ptv-checkmark';
-                    check.textContent = '✔';
-                    valueTd.appendChild(check);
-                    valueTd.appendChild(document.createTextNode(' ' + selected));
+                if (descriptor.options && descriptor.options.length) {
+                    // A fixed option set (e.g. Type of VWAP Purchase) always shows every option as
+                    // its own checkbox line, exactly as printed on the PDF — the checked one comes
+                    // from the template's configured options_config.selected; every other option
+                    // renders unchecked (blank until the company picks one, for a Client field with
+                    // no fixed selection configured).
+                    descriptor.options.forEach((rawOption) => {
+                        const label = ptvOptionLabel(f.key, rawOption);
+                        const row = document.createElement('div');
+                        row.className = 'ptv-checkbox-row';
+                        const box = document.createElement('span');
+                        box.className = 'ptv-checkbox';
+                        box.textContent = label === selected ? '☒' : '☐';
+                        row.appendChild(box);
+                        row.appendChild(document.createTextNode(' ' + label));
+                        valueTd.appendChild(row);
+                    });
                 } else if (descriptor.source === 'Client') {
+                    // A Client-sourced field is one the company fills in on the entry form, shown
+                    // here as an actual (empty, read-only) box rather than just the word "Client".
                     const box = document.createElement('input');
                     box.type = 'text';
                     box.className = 'ptv-edit-box';
                     box.readOnly = true;
                     valueTd.appendChild(box);
+                } else {
+                    // Computed, no options: renders blank, same as the PDF's blank underlined
+                    // line for a field with no value yet. Checkbox rows (above) and the edit box
+                    // (its own dashed underline) draw their own line instead of this one.
+                    valueTd.classList.add('ptv-field-value-line');
                 }
                 tr.appendChild(valueTd);
                 fieldsBody.appendChild(tr);
