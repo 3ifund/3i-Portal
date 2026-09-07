@@ -962,10 +962,13 @@ a:hover {
 .modal {
     width: 100%;
     max-width: 480px;
+    max-height: 90vh;
     background-color: var(--bg-modal);
     border: 1px solid var(--border-blue);
     border-radius: 8px;
     padding: 2rem;
+    display: flex;
+    flex-direction: column;
 }
 
 .modal-header {
@@ -1004,6 +1007,14 @@ a:hover {
     display: flex;
     flex-direction: column;
     gap: 1.25rem;
+    overflow-y: auto;
+    flex: 1 1 auto;
+    min-height: 0;
+}
+
+.modal-header,
+.modal-footer {
+    flex-shrink: 0;
 }
 
 .modal-info-row {
