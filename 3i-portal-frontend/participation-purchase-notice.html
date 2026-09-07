@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>Intraday VWAP Purchase Notice — 3i Fund Portal</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="page-container">
+
+        <!-- Navigation Bar -->
+        <nav class="navbar">
+            <div class="navbar-brand">
+                <img src="assets/logo.png" alt="3i Fund" class="navbar-logo">
+            </div>
+            <span class="navbar-title"></span>
+            <div class="navbar-user">
+                <span class="navbar-company" id="company-name">&mdash;</span>
+                <button class="navbar-logout" id="logout-btn">Sign Out</button>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <div class="main-content">
+
+            <div class="ppn-preview-banner">
+                PREVIEW — this entry form is not yet wired to submission. Values shown are placeholders
+                for review of layout, editable/locked fields, defaults, and validation only.
+            </div>
+
+            <!-- Loading State -->
+            <div class="pn-loading" id="ppn-loading">
+                <div class="spinner"></div>
+                <p>Loading purchase notice...</p>
+            </div>
+
+            <!-- Error State -->
+            <div class="pn-error" id="ppn-error" style="display:none;">
+                <p id="ppn-error-message">Unable to load purchase notice.</p>
+                <button class="btn btn-secondary" onclick="window.location.href='dashboard.html'">Return to Dashboard</button>
+            </div>
+
+            <!-- Intraday VWAP Purchase Notice Document -->
+            <div class="pn-document" id="ppn-document" style="display:none;">
+
+                <!-- To / CC Block -->
+                <div class="pn-section pn-header-block">
+                    <div class="pn-field-row">
+                        <span class="pn-label">To:</span>
+                        <span class="pn-value" id="ppn-to-name"></span>
+                    </div>
+                    <div class="pn-field-row">
+                        <span class="pn-label">E-mail:</span>
+                        <span class="pn-value" id="ppn-to-email"></span>
+                    </div>
+                </div>
+
+                <!-- Title -->
+                <h2 class="pn-title">Intraday VWAP Purchase Notice</h2>
+
+                <!-- Body Text -->
+                <div class="pn-section pn-body-text" id="ppn-body-text"></div>
+
+                <!-- Dynamic Fields Table -->
+                <div class="pn-section">
+                    <table class="pn-fields-table ppn-fields-table">
+                        <tbody id="ppn-fields-tbody">
+                            <!-- Rows built by JS from the field list below -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Company Signature Block -->
+                <div class="pn-section pn-signature-block">
+                    <h3 class="pn-block-title" id="ppn-company-name-upper"></h3>
+                    <div class="pn-field-row" style="align-items:flex-start;">
+                        <span class="pn-label" style="margin-top:0.25rem;">By:</span>
+                        <img id="ppn-signatory-signature" class="pn-signature-img" style="display:none;" alt="Signature">
+                        <span class="pn-signature-line" id="ppn-signature-line-co"></span>
+                    </div>
+                    <div class="pn-field-row">
+                        <span class="pn-label">Name:</span>
+                        <span class="pn-value" id="ppn-signatory-name" style="display:none;"></span>
+                        <span class="pn-signature-line" id="ppn-signatory-name-line"></span>
+                    </div>
+                    <div class="pn-field-row">
+                        <span class="pn-label">Title:</span>
+                        <span class="pn-value" id="ppn-signatory-title" style="display:none;"></span>
+                        <span class="pn-signature-line" id="ppn-signatory-title-line"></span>
+                    </div>
+                    <div class="pn-field-row">
+                        <span class="pn-label">Address:</span>
+                        <span class="pn-value" id="ppn-signatory-address" style="display:none;"></span>
+                        <span class="pn-signature-line" id="ppn-signatory-address-line"></span>
+                    </div>
+                </div>
+
+                <!-- Agreed and Accepted Block -->
+                <div class="pn-section pn-accepted-block">
+                    <h3 class="pn-block-title">Agreed and Accepted by:</h3>
+                    <p class="pn-entity-name" id="ppn-agreed-entity"></p>
+                    <div class="pn-field-row">
+                        <span class="pn-label">By:</span>
+                        <span class="pn-signature-line"></span>
+                    </div>
+                    <div class="pn-field-row">
+                        <span class="pn-label">Name:</span>
+                        <span class="pn-signature-line"></span>
+                    </div>
+                    <div class="pn-field-row">
+                        <span class="pn-label">Title:</span>
+                        <span class="pn-signature-line"></span>
+                    </div>
+                </div>
+
+                <!-- Dated Line -->
+                <div class="pn-section pn-dated-line">
+                    <span class="pn-label">Dated:</span>
+                    <span class="pn-value" id="ppn-dated"></span>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="pn-actions">
+                    <button class="btn btn-secondary" id="ppn-back-btn">Back to Dashboard</button>
+                    <button class="btn btn-primary" id="ppn-send-btn" disabled title="Submission is not wired up yet">Send Purchase Notice</button>
+                </div>
+            </div>
+
+        </div><!-- /main-content -->
+
+    </div><!-- /page-container -->
+
+    <script>var _v = Date.now();</script>
+    <script>document.write('<script src="js/config.js?v=' + _v + '"><\/script>');</script>
+    <script>document.write('<script src="js/api.js?v=' + _v + '"><\/script>');</script>
+    <script>document.write('<script src="js/version-watcher.js?v=' + _v + '"><\/script>');</script>
+    <script>document.write('<script src="js/auth.js?v=' + _v + '"><\/script>');</script>
+    <script>document.write('<script src="js/password-modal.js?v=' + _v + '"><\/script>');</script>
+    <script>document.write('<script src="js/participation-purchase-notice.js?v=' + _v + '"><\/script>');</script>
+</body>
+</html>

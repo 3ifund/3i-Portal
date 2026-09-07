@@ -1481,6 +1481,98 @@ input[type="number"] {
     border-top: 1px solid var(--border-blue-dim);
 }
 
+/* ============================================
+   Participation (Intraday) Purchase Notice
+   ============================================ */
+
+.ppn-preview-banner {
+    background: rgba(38, 158, 223, 0.12);
+    border: 1px solid var(--border-blue-dim);
+    color: var(--text-secondary);
+    border-radius: var(--border-radius);
+    padding: 0.75rem 1rem;
+    margin-bottom: 1.25rem;
+    font-size: 0.85rem;
+    text-align: center;
+}
+
+.ppn-fields-table .pn-field-label {
+    vertical-align: top;
+    padding-top: 0.9rem;
+}
+
+.ppn-field-note {
+    padding: 0 0.75rem 0.75rem !important;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    font-style: italic;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.ppn-locked-value {
+    color: var(--text-primary);
+}
+
+.ppn-checkbox-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.ppn-checkbox-option {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.ppn-checkbox-group.ppn-locked {
+    opacity: 0.85;
+}
+
+.ppn-checkbox-option input[type="checkbox"]:disabled {
+    cursor: not-allowed;
+}
+
+.ppn-input-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+}
+
+.ppn-input-row {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.ppn-input {
+    max-width: 220px;
+}
+
+.ppn-input-narrow {
+    max-width: 120px;
+}
+
+.ppn-input-prefix,
+.ppn-input-suffix {
+    color: var(--text-secondary);
+    font-weight: 600;
+}
+
+.ppn-input-invalid {
+    border-color: var(--badge-red) !important;
+}
+
+.ppn-hint {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+}
+
+.ppn-input-invalid ~ .ppn-hint,
+.ppn-input-row:has(.ppn-input-invalid) + .ppn-hint {
+    color: var(--badge-red);
+}
+
 /* Print styles for purchase notice */
 @media print {
     .navbar,
