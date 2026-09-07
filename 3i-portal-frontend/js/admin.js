@@ -1994,6 +1994,11 @@ const Admin = (() => {
     // for any option without an override.
     const PTV_OPTION_LABELS = {
         PurchaseType: { PreMarket: 'Pre-Market VWAP Purchase', Intraday: 'Intraday VWAP Purchase' },
+        ValuationEndTrigger: {
+            RanToClose: '03:59:59 p.m., New York City time',
+            BelowMinPrice: 'Minimum Price Threshold trigger',
+            VolumeThresholdReached: 'VWAP Purchase Volume Threshold reached',
+        },
     };
     function ptvOptionLabel(fieldKey, rawOption) {
         const map = PTV_OPTION_LABELS[fieldKey];
@@ -2032,17 +2037,14 @@ const Admin = (() => {
         // Everything below this line is built to match the executed reference PDFs exactly.
         docTitleEl.textContent = defaultDocumentTitle(docType);
 
-        // "To:"/"E-mail:" header — on a Purchase Notice this is always the investor entity
-        // (agreed_accepted_entity) at the fixed ELOC intake address. A Purchase Confirmation's
-        // "To:" is addressed to a specific company signatory, which isn't modeled by a template
-        // field yet, so that header is left off rather than showing an invented name.
-        if (!isConfirmation) {
-            toNameEl.textContent = tmpl.agreed_accepted_entity || '';
-            toEmailEl.textContent = 'eloc@3ifund.com';
-            headerEl.style.display = '';
-        } else {
-            headerEl.style.display = 'none';
-        }
+        // "To:"/"E-mail:" header — present on both executed reference PDFs. On a Purchase Notice
+        // this is always the investor entity (agreed_accepted_entity) at the fixed ELOC intake
+        // address. A Purchase Confirmation's "To:" addresses a specific company signatory, which
+        // isn't modeled by a template field yet — shown blank (an unfilled line) rather than
+        // invented, same as any other not-yet-wired field.
+        toNameEl.textContent = isConfirmation ? '' : (tmpl.agreed_accepted_entity || '');
+        toEmailEl.textContent = isConfirmation ? '' : 'eloc@3ifund.com';
+        headerEl.style.display = '';
 
         bodyEl.textContent = tmpl.body_text || '';
 
@@ -2050,11 +2052,28 @@ const Admin = (() => {
         const byKey = {};
         catalog.forEach((d) => { byKey[d.key] = d; });
 
+        let currentSection = null;
         (tmpl.fields || [])
             .filter((f) => f.visible !== false)   // hidden fields never render on the document
             .slice()
             .sort((a, b) => (a.order || 0) - (b.order || 0))
             .forEach((f) => {
+                const descriptor = byKey[f.key] || {};
+
+                // A section heading (e.g. Purchase Confirmation's "VWAP Purchase Valuation
+                // Period") is only set on the catalog's first field of that section — print it
+                // once, when it changes.
+                if (descriptor.section && descriptor.section !== currentSection) {
+                    currentSection = descriptor.section;
+                    const sectionTr = document.createElement('tr');
+                    const sectionTd = document.createElement('td');
+                    sectionTd.colSpan = 2;
+                    sectionTd.className = 'ptv-section-heading';
+                    sectionTd.textContent = currentSection;
+                    sectionTr.appendChild(sectionTd);
+                    fieldsBody.appendChild(sectionTr);
+                }
+
                 const tr = document.createElement('tr');
                 const labelTd = document.createElement('td');
                 labelTd.className = 'ptv-field-label';
@@ -2072,7 +2091,6 @@ const Admin = (() => {
 
                 const valueTd = document.createElement('td');
                 valueTd.className = 'ptv-field-value';
-                const descriptor = byKey[f.key] || {};
                 const selected = f.options_config && f.options_config.selected;
                 if (descriptor.options && descriptor.options.length) {
                     // A fixed option set (e.g. Type of VWAP Purchase) always shows every option as
