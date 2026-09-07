@@ -1084,6 +1084,17 @@ async def get_eloc_available_capital(symbol: str) -> dict:
     return response.json()
 
 
+async def get_intraday_eloc_prefill(symbol: str) -> dict | None:
+    logger.info("GET /api/intraday-eloc/%s/prefill", symbol)
+    response = await _request_with_retry("GET", f"/api/intraday-eloc/{symbol}/prefill")
+    if response.status_code == 404:
+        logger.warning("  → 404 not found")
+        return None
+    logger.info("  → %s (%d bytes)", response.status_code, len(response.content))
+    response.raise_for_status()
+    return response.json()
+
+
 async def get_purchase_notice_fields(symbol: str, pricing_period_id: int) -> dict | None:
     logger.info("GET /api/purchasenotice/fields/%s/%s", symbol, pricing_period_id)
     response = await _request_with_retry(

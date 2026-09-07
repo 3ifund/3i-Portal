@@ -100,6 +100,27 @@ async def update_my_signatory(
 
 
 
+@router.get("/intraday-prefill/{symbol}")
+async def get_intraday_prefill(
+    symbol: str,
+    user: UserInfo = Depends(get_current_user),
+):
+    """Prefill for the Intraday VWAP Purchase Notice entry form: max share amount, default purchase
+    percentage, default minimum price threshold, previous close, commitment remaining — from the
+    company's IIntradayEloc business object in DTS (real deal data, not a mock)."""
+    logger.info("GET /intraday-prefill/%s — user=%s, company=%s", symbol, user.user_id, user.company_name)
+    fields = await onprem.get_intraday_eloc_prefill(symbol)
+    if not fields:
+        logger.warning("Intraday prefill %s: DTS returned no data", symbol)
+        raise HTTPException(status_code=404, detail=f"No Intraday ELOC configured for {symbol}")
+    logger.info("Intraday prefill %s: maxShareAmount=%s, defaultPurchasePercentage=%s, "
+                "minimumPriceThresholdDefault=%s, previousClose=%s, commitmentRemaining=%s",
+                symbol, fields.get("maxShareAmount"), fields.get("defaultPurchasePercentage"),
+                fields.get("minimumPriceThresholdDefault"), fields.get("previousClose"),
+                fields.get("commitmentRemaining"))
+    return fields
+
+
 @router.get("/prefill/{symbol}/{pricing_period_id}")
 async def get_prefill(
     symbol: str,

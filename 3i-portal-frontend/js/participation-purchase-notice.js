@@ -18,11 +18,15 @@
  *   Minimum Price Threshold ($)        editable — 0..previous close (default derived)
  *   Dollar amount of Common Stock...   locked   — Commitment Remaining
  *
- * PREVIEW BUILD: prefill values come from getMockPrefillContext() below, not a live
- * backend call — there is no customer-facing participation submission endpoint yet
- * (see PARTICIPATION_ELOC_HANDOFF.md). Swap loadPrefill() to a real API call when the
- * DTS/Portal integration is built; the render/validation/derivation logic does not
- * need to change.
+ * Editable-field defaults/caps and locked-field computed values (max share amount, default
+ * purchase percentage, default minimum price threshold, previous close, commitment remaining)
+ * come from GET /purchase-notices/intraday-prefill/{symbol} — real deal data, read from the
+ * company's IIntradayEloc business object in DTS (DealTermsServer/Services/Eloc/Intraday).
+ *
+ * The document-text fields (recipient name/email, agreed-and-accepted entity, body text) are
+ * static for now — there is no customer-facing participation-template-fetch endpoint yet (see
+ * PARTICIPATION_ELOC_HANDOFF.md); the submission flow itself also isn't wired. Those pieces are
+ * isolated in getStaticTemplateContext() below, ready to swap for a real template-fetch call.
  */
 
 const ParticipationPurchaseNotice = (() => {
@@ -88,7 +92,7 @@ const ParticipationPurchaseNotice = (() => {
     // ---- Initialization ----
 
     function init() {
-        console.log('[ParticipationPurchaseNotice] Initializing (preview build — mock prefill)...');
+        console.log('[ParticipationPurchaseNotice] Initializing...');
 
         const url = new URLSearchParams(window.location.search);
         const symbol = (url.get('symbol') || 'CAPS').toUpperCase();
@@ -104,12 +108,21 @@ const ParticipationPurchaseNotice = (() => {
 
     async function loadPrefill(symbol) {
         try {
-            // TODO(integration): replace with a real customer-facing prefill call, e.g.
-            //   const data = await API.getParticipationPurchaseNoticePrefill(symbol, 'Intraday');
-            // once that endpoint exists. Field render/validation logic below is written
-            // against this same shape so the swap should be a one-line change.
-            ctx = await getMockPrefillContext(symbol);
-            console.log('[ParticipationPurchaseNotice] Prefill context (mock):', ctx);
+            const [data, staticCtx] = await Promise.all([
+                API.getIntradayPrefill(symbol),
+                getStaticTemplateContext(symbol),
+            ]);
+            console.log('[ParticipationPurchaseNotice] Prefill (real):', data);
+
+            ctx = {
+                symbol,
+                maxShareAmount: data.maxShareAmount,
+                defaultPurchasePercentagePct: data.defaultPurchasePercentage,
+                previousClose: data.previousClose,
+                defaultPriceThresholdPct: data.defaultPriceThresholdPercentage,
+                commitmentRemaining: data.commitmentRemaining,
+                ...staticCtx,
+            };
 
             state = {
                 shareAmount: ctx.maxShareAmount,
@@ -127,23 +140,14 @@ const ParticipationPurchaseNotice = (() => {
         }
     }
 
-    async function getMockPrefillContext(symbol) {
-        // Placeholder data for CAPS. Values are representative, not live:
-        //   maxShareAmount               <- min(intraday_vwap_max_shares, ownership cap − firm position)
-        //   defaultPurchasePercentagePct <- eloc_pricing_period.intraday_max_percentage
-        //   previousClose                <- previous NY trading session's closing price
-        //   defaultPriceThresholdPct     <- eloc_pricing_period.intraday_default_price_threshold_percentage
-        //   commitmentRemaining          <- existing Commitment Remaining for the deal
+    // Document-text fields — static for now, no customer-facing template-fetch endpoint exists
+    // yet (see PARTICIPATION_ELOC_HANDOFF.md). These match the CAPS Intraday Purchase Notice
+    // participation template (Admin Dashboard ▸ ELOC ▸ Participation Templates) verbatim.
+    async function getStaticTemplateContext(symbol) {
         return {
-            symbol,
             companyName: 'Capstone Holding Corp.',
             toName: 'Tumim Stone Capital, LLC',
             toEmail: 'eloc@3ifund.com',
-            maxShareAmount: 150000,
-            defaultPurchasePercentagePct: 25,
-            previousClose: 3.42,
-            defaultPriceThresholdPct: 10,
-            commitmentRemaining: 4250000.00,
             agreedAcceptedEntity: 'TUMIM STONE CAPITAL, LLC',
             bodyText: 'Reference is made to the Amended and Restated Common Stock Purchase Agreement, dated as of ' +
                 'June 11, 2026, between Capstone Holding Corp., a Delaware corporation (the “Company”), and ' +

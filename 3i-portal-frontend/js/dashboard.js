@@ -185,7 +185,18 @@ const Dashboard = (() => {
                 const canInitiate = enableBtn && hasSignatories;
                 btn.disabled = !canInitiate;
                 if (canInitiate && period) {
-                    btn.onclick = () => openSharesModal(symbol, period.pricingPeriodId, period.availableShares, period.backwardVwapPrice);
+                    // Intraday has no fixed share count to ask for up front — it's an editable
+                    // entry form (share amount, purchase percentage, minimum price threshold are
+                    // all company-entered), not the plain "how many shares" dialog every other
+                    // period type uses.
+                    if (periodType === 'Intraday') {
+                        btn.onclick = () => {
+                            console.log('[Dashboard] Initiate Purchase Notice (Intraday): routing to participation entry form for %s', symbol);
+                            window.location.href = `participation-purchase-notice.html?symbol=${encodeURIComponent(symbol)}`;
+                        };
+                    } else {
+                        btn.onclick = () => openSharesModal(symbol, period.pricingPeriodId, period.availableShares, period.backwardVwapPrice);
+                    }
                 } else {
                     btn.onclick = null;
                 }

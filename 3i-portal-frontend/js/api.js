@@ -368,6 +368,17 @@ const API = (() => {
     }
 
     /**
+     * GET /purchase-notices/intraday-prefill/{symbol} — Intraday VWAP Purchase Notice entry-form
+     * prefill (max share amount, default purchase percentage, default minimum price threshold,
+     * previous close, commitment remaining) from the company's real deal data.
+     */
+    async function getIntradayPrefill(symbol) {
+        const url = `${BASE_URL}/purchase-notices/intraday-prefill/${encodeURIComponent(symbol)}`;
+        const response = await fetch(url, { headers: authHeaders() });
+        return handleResponse(response);
+    }
+
+    /**
      * POST /purchase-notices/submit — submit portal-initiated purchase notice to DTS
      */
     async function submitPortalPurchaseNotice(payload) {
@@ -727,6 +738,7 @@ const API = (() => {
         getMySignatory,
         updateMySignatory,
         getPurchaseNoticePrefill,
+        getIntradayPrefill,
         getPurchaseConfirmationPrefill,
         submitCountersign,
         adminGetApprovalContacts,
