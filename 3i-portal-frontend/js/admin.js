@@ -2048,6 +2048,15 @@ const Admin = (() => {
                 const labelTd = document.createElement('td');
                 labelTd.className = 'ptv-field-label';
                 labelTd.textContent = f.label || f.key;
+                // The note (e.g. Minimum Price Threshold's "if blank, the default..." / auto-
+                // terminate text) is a continuation of the LABEL on the executed PDF, directly
+                // under the field name — not an annotation next to the value.
+                if (f.note) {
+                    const note = document.createElement('span');
+                    note.className = 'ptv-field-note';
+                    note.textContent = f.note;
+                    labelTd.appendChild(note);
+                }
                 tr.appendChild(labelTd);
 
                 const valueTd = document.createElement('td');
@@ -2072,12 +2081,6 @@ const Admin = (() => {
                     box.className = 'ptv-edit-box';
                     box.readOnly = true;
                     valueTd.appendChild(box);
-                }
-                if (f.note) {
-                    const note = document.createElement('span');
-                    note.className = 'ptv-field-note';
-                    note.textContent = '  ' + f.note;
-                    valueTd.appendChild(note);
                 }
                 tr.appendChild(valueTd);
                 fieldsBody.appendChild(tr);
