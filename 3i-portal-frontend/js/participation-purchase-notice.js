@@ -298,8 +298,13 @@ const ParticipationPurchaseNotice = (() => {
         hint.textContent = `Up to ${formatNumber(ctx.maxShareAmount)} shares available`;
 
         input.addEventListener('input', () => {
-            const raw = parseInt(input.value, 10);
-            const clamped = isNaN(raw) ? 0 : Math.max(0, Math.min(raw, ctx.maxShareAmount));
+            let raw = parseInt(input.value, 10);
+            if (!isNaN(raw) && raw > ctx.maxShareAmount) {
+                // Hard cap — the Share Amount can never exceed the ownership/commitment ceiling,
+                // not merely flag it invalid and let the out-of-range value stand.
+                raw = ctx.maxShareAmount;
+                input.value = String(raw);
+            }
             const valid = !isNaN(raw) && raw >= 1 && raw <= ctx.maxShareAmount;
             state.shareAmount = isNaN(raw) ? 0 : raw;
             setInvalid(input, !valid);
@@ -340,7 +345,12 @@ const ParticipationPurchaseNotice = (() => {
         hint.textContent = `0% – ${ctx.defaultPurchasePercentagePct}% (default cap)`;
 
         input.addEventListener('input', () => {
-            const raw = parseFloat(input.value);
+            let raw = parseFloat(input.value);
+            if (!isNaN(raw) && raw > ctx.defaultPurchasePercentagePct) {
+                // Hard cap — cannot exceed the default Purchase Percentage.
+                raw = ctx.defaultPurchasePercentagePct;
+                input.value = String(raw);
+            }
             const valid = !isNaN(raw) && raw >= 0 && raw <= ctx.defaultPurchasePercentagePct;
             state.percentagePct = isNaN(raw) ? 0 : raw;
             setInvalid(input, !valid);
@@ -388,7 +398,12 @@ const ParticipationPurchaseNotice = (() => {
             `(${refLabel} $${ctx.referencePrice} × (1 − ${ctx.defaultPriceThresholdPct}%)). Max $${ctx.referencePrice} (${refLabel}).`;
 
         input.addEventListener('input', () => {
-            const raw = parseFloat(input.value);
+            let raw = parseFloat(input.value);
+            if (!isNaN(raw) && raw > ctx.referencePrice) {
+                // Hard cap — cannot exceed the reference price (previous close / last price).
+                raw = ctx.referencePrice;
+                input.value = String(raw);
+            }
             const valid = !isNaN(raw) && raw >= 0 && raw <= ctx.referencePrice;
             state.minPriceThreshold = isNaN(raw) ? 0 : raw;
             setInvalid(input, !valid);
