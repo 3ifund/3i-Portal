@@ -141,6 +141,11 @@ class InternalElocState(BaseModel):
     workflow_complete: bool = False
     modified_at: str | None = None
     steps: list[InternalElocWorkflowStep] = []
+    # Intraday-only live progress — null for every other period type. Snapshot as of the GET
+    # fetch (page load / WS reconnect); not yet pushed live mid-session via workflow_update frames.
+    intraday_shares_accumulated: float | None = None
+    intraday_purchase_share_amount: int | None = None
+    intraday_pricing_status: str | None = None
 
 
 class InternalDeleteResponse(BaseModel):

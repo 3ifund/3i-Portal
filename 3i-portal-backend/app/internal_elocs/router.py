@@ -95,6 +95,11 @@ async def list_included_states(admin: UserInfo = Depends(require_admin)):
             "workflow_complete": workflow_complete,
             "modified_at": str(modified_at) if modified_at else None,
             "steps": steps,
+            # Intraday-only — null for every other period type. Snapshot as of this fetch (page
+            # load / WS reconnect); not pushed live mid-session yet — see workflow_update frames.
+            "intraday_shares_accumulated": state.get("intradaySharesAccumulated"),
+            "intraday_purchase_share_amount": state.get("intradayPurchaseShareAmount"),
+            "intraday_pricing_status": state.get("intradayPricingStatus"),
         })
 
     t_total = (time.monotonic() - t_start) * 1000
