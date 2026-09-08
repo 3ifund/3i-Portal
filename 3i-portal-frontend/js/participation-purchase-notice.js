@@ -506,6 +506,7 @@ const ParticipationPurchaseNotice = (() => {
             sendBtn.textContent = 'Submitted';
             showBanner('ppn-submit-success-banner',
                 `Purchase notice ${result.elocId} submitted successfully.`);
+            startLiveProgressPolling();
         } catch (err) {
             console.error('[ParticipationPurchaseNotice] Submit failed:', err);
             const code = err.detail && err.detail.code;
@@ -557,6 +558,43 @@ const ParticipationPurchaseNotice = (() => {
     function hideBanner(id) {
         const el = document.getElementById(id);
         el.hidden = true;
+    }
+
+    // ---- Live progress (after submission, while the VWAP valuation window is pricing) ----
+
+    const LIVE_PROGRESS_POLL_MS = 3000;
+    const LIVE_PROGRESS_STATUS_LABELS = {
+        WaitingForTradingStart: 'Waiting for Intraday Trading Start Time…',
+        Monitoring: 'Pricing in progress — live',
+        TerminatedMaxShares: 'Complete — target share amount reached',
+        TerminatedPriceBreach: 'Ended — price fell below the Minimum Price Threshold',
+    };
+    let liveProgressTimer = null;
+
+    function startLiveProgressPolling() {
+        const box = document.getElementById('ppn-live-progress');
+        box.hidden = false;
+        pollLiveProgress();
+        liveProgressTimer = setInterval(pollLiveProgress, LIVE_PROGRESS_POLL_MS);
+    }
+
+    async function pollLiveProgress() {
+        try {
+            const progress = await API.getIntradayLiveProgress(ctx.symbol);
+            document.getElementById('ppn-live-progress-value').textContent =
+                `${formatNumber(progress.sharesAccumulated)} of ${formatNumber(progress.purchaseShareAmount)} shares`;
+            document.getElementById('ppn-live-progress-status').textContent =
+                LIVE_PROGRESS_STATUS_LABELS[progress.status] || progress.status;
+
+            if (progress.status === 'TerminatedMaxShares' || progress.status === 'TerminatedPriceBreach') {
+                clearInterval(liveProgressTimer);
+                liveProgressTimer = null;
+            }
+        } catch (err) {
+            // Transient fetch failure — leave the last-known value displayed and keep polling;
+            // don't tear down the display over one missed poll.
+            console.warn('[ParticipationPurchaseNotice] Live progress poll failed:', err);
+        }
     }
 
     // ---- Formatting Utilities ----

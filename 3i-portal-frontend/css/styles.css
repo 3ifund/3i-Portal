@@ -1612,6 +1612,34 @@ input[type="number"] {
     color: var(--text-primary);
 }
 
+.ppn-live-progress {
+    text-align: center;
+    padding: 1.25rem 1rem;
+    margin: 1rem 0;
+    border: 1px solid var(--border-blue-dim);
+    border-radius: var(--border-radius);
+    background: rgba(38, 158, 223, 0.06);
+}
+
+.ppn-live-progress-label {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.ppn-live-progress-value {
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin: 0.25rem 0;
+}
+
+.ppn-live-progress-status {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+}
+
 /* ============================================
    Participation Template View (admin) — mirrors
    ParticipationPdfRenderer.Render exactly

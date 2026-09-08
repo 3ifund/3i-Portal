@@ -1095,6 +1095,19 @@ async def get_intraday_eloc_prefill(symbol: str) -> dict | None:
     return response.json()
 
 
+async def get_intraday_eloc_live_progress(symbol: str) -> dict | None:
+    """Live shares-accumulated snapshot for an in-progress Intraday VWAP valuation window, from
+    IntradayElocPricingManager. None when there's no Intraday notice on record for the symbol."""
+    logger.info("GET /api/intraday-eloc/%s/live-progress", symbol)
+    response = await _request_with_retry("GET", f"/api/intraday-eloc/{symbol}/live-progress")
+    if response.status_code in (404, 503):
+        logger.info("  → %s", response.status_code)
+        return None
+    logger.info("  → %s (%d bytes)", response.status_code, len(response.content))
+    response.raise_for_status()
+    return response.json()
+
+
 async def get_purchase_notice_fields(symbol: str, pricing_period_id: int) -> dict | None:
     logger.info("GET /api/purchasenotice/fields/%s/%s", symbol, pricing_period_id)
     response = await _request_with_retry(

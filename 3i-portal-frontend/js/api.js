@@ -393,6 +393,16 @@ const API = (() => {
     }
 
     /**
+     * GET /purchase-notices/intraday-live-progress/{symbol} — shares accumulated so far in an
+     * in-progress Intraday VWAP valuation window. Polled after submission while pricing.
+     */
+    async function getIntradayLiveProgress(symbol) {
+        const url = `${BASE_URL}/purchase-notices/intraday-live-progress/${encodeURIComponent(symbol)}`;
+        const response = await fetch(url, { headers: authHeaders() });
+        return handleResponse(response);
+    }
+
+    /**
      * POST /purchase-notices/submit — submit portal-initiated purchase notice to DTS
      */
     async function submitPortalPurchaseNotice(payload) {
@@ -753,6 +763,8 @@ const API = (() => {
         updateMySignatory,
         getPurchaseNoticePrefill,
         getIntradayPrefill,
+        submitIntradayPurchaseNotice,
+        getIntradayLiveProgress,
         getPurchaseConfirmationPrefill,
         submitCountersign,
         adminGetApprovalContacts,

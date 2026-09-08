@@ -122,6 +122,19 @@ async def get_intraday_prefill(
     return fields
 
 
+@router.get("/intraday-live-progress/{symbol}")
+async def get_intraday_live_progress(
+    symbol: str,
+    user: UserInfo = Depends(get_current_user),
+):
+    """Live shares-accumulated snapshot for an in-progress Intraday VWAP valuation window —
+    polled by the Customer Portal after submission while the notice is pricing."""
+    progress = await onprem.get_intraday_eloc_live_progress(symbol)
+    if not progress:
+        raise HTTPException(status_code=404, detail=f"No Intraday notice on record for {symbol}")
+    return progress
+
+
 @router.post("/intraday-submit")
 async def submit_intraday_purchase_notice(
     request: IntradayPurchaseNoticeRequest,
