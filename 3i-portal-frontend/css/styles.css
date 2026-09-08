@@ -1595,20 +1595,20 @@ input[type="number"] {
 }
 
 .ppn-window-changed-banner {
-    background: rgba(240, 173, 78, 0.12);
-    border: 1px solid rgba(240, 173, 78, 0.5);
+    background: rgba(245, 158, 11, 0.12);
+    border: 1px solid var(--badge-orange);
     color: var(--text-primary);
 }
 
 .ppn-submit-error-banner {
-    background: rgba(217, 83, 79, 0.12);
+    background: rgba(239, 68, 68, 0.12);
     border: 1px solid var(--badge-red);
     color: var(--text-primary);
 }
 
 .ppn-submit-success-banner {
-    background: rgba(92, 184, 92, 0.12);
-    border: 1px solid var(--badge-green, #5cb85c);
+    background: rgba(34, 197, 94, 0.12);
+    border: 1px solid var(--badge-green);
     color: var(--text-primary);
 }
 
