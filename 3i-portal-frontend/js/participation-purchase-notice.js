@@ -283,14 +283,14 @@ const ParticipationPurchaseNotice = (() => {
         const wrap = document.createElement('div');
         wrap.className = 'ppn-input-wrap';
 
+        // type="text" (not "number") — a native number input can't render comma-grouped digits,
+        // and this field is displayed with commas everywhere else on the notice.
         const input = document.createElement('input');
-        input.type = 'number';
+        input.type = 'text';
+        input.inputMode = 'numeric';
         input.className = 'form-input ppn-input';
         input.id = 'ppn-input-shares';
-        input.min = '1';
-        input.max = String(ctx.maxShareAmount);
-        input.step = '1';
-        input.value = state.shareAmount;
+        input.value = formatNumber(state.shareAmount);
 
         const hint = document.createElement('div');
         hint.className = 'ppn-hint';
@@ -298,13 +298,18 @@ const ParticipationPurchaseNotice = (() => {
         hint.textContent = `Up to ${formatNumber(ctx.maxShareAmount)} shares available`;
 
         input.addEventListener('input', () => {
-            let raw = parseInt(input.value, 10);
+            const cursorFromEnd = input.value.length - input.selectionStart;
+            const digitsOnly = input.value.replace(/[^\d]/g, '');
+            let raw = digitsOnly === '' ? NaN : parseInt(digitsOnly, 10);
             if (!isNaN(raw) && raw > ctx.maxShareAmount) {
                 // Hard cap — the Share Amount can never exceed the ownership/commitment ceiling,
                 // not merely flag it invalid and let the out-of-range value stand.
                 raw = ctx.maxShareAmount;
-                input.value = String(raw);
             }
+            input.value = isNaN(raw) ? '' : formatNumber(raw);
+            const newPos = Math.max(0, input.value.length - cursorFromEnd);
+            input.setSelectionRange(newPos, newPos);
+
             const valid = !isNaN(raw) && raw >= 1 && raw <= ctx.maxShareAmount;
             state.shareAmount = isNaN(raw) ? 0 : raw;
             setInvalid(input, !valid);
