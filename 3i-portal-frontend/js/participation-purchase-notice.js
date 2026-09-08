@@ -506,7 +506,7 @@ const ParticipationPurchaseNotice = (() => {
             sendBtn.textContent = 'Submitted';
             showBanner('ppn-submit-success-banner',
                 `Purchase notice ${result.elocId} submitted successfully.`);
-            startLiveProgressPolling();
+            startLiveProgress(result.elocId);
         } catch (err) {
             console.error('[ParticipationPurchaseNotice] Submit failed:', err);
             const code = err.detail && err.detail.code;
@@ -561,40 +561,81 @@ const ParticipationPurchaseNotice = (() => {
     }
 
     // ---- Live progress (after submission, while the VWAP valuation window is pricing) ----
+    //
+    // Pushed in real time over the same /ws/workflows channel dashboard.js uses (company-scoped —
+    // messages for any of this company's Intraday notices arrive here; only one can be active at a
+    // time, so filtering by our own elocId is enough). Number of Shares = (currentVolume −
+    // startingVolume) × VWAP Purchase Percentage — computed and pushed by DTS's
+    // IntradayElocPricingManager, not polled.
 
-    const LIVE_PROGRESS_POLL_MS = 3000;
     const LIVE_PROGRESS_STATUS_LABELS = {
         WaitingForTradingStart: 'Waiting for Intraday Trading Start Time…',
         Monitoring: 'Pricing in progress — live',
         TerminatedMaxShares: 'Complete — target share amount reached',
         TerminatedPriceBreach: 'Ended — price fell below the Minimum Price Threshold',
     };
-    let liveProgressTimer = null;
+    let liveProgressElocId = null;
+    let liveProgressWs = null;
+    let liveProgressReconnectTimer = null;
 
-    function startLiveProgressPolling() {
-        const box = document.getElementById('ppn-live-progress');
-        box.hidden = false;
-        pollLiveProgress();
-        liveProgressTimer = setInterval(pollLiveProgress, LIVE_PROGRESS_POLL_MS);
-    }
+    async function startLiveProgress(elocId) {
+        liveProgressElocId = elocId;
+        document.getElementById('ppn-live-progress').hidden = false;
 
-    async function pollLiveProgress() {
+        // Initial paint from a one-time fetch — the WS may take a moment to (re)connect, and this
+        // guarantees the display isn't blank the instant the success banner appears.
         try {
             const progress = await API.getIntradayLiveProgress(ctx.symbol);
-            document.getElementById('ppn-live-progress-value').textContent =
-                `${formatNumber(progress.sharesAccumulated)} of ${formatNumber(progress.purchaseShareAmount)} shares`;
-            document.getElementById('ppn-live-progress-status').textContent =
-                LIVE_PROGRESS_STATUS_LABELS[progress.status] || progress.status;
-
-            if (progress.status === 'TerminatedMaxShares' || progress.status === 'TerminatedPriceBreach') {
-                clearInterval(liveProgressTimer);
-                liveProgressTimer = null;
-            }
+            renderLiveProgress(progress.sharesAccumulated, progress.purchaseShareAmount, progress.status);
         } catch (err) {
-            // Transient fetch failure — leave the last-known value displayed and keep polling;
-            // don't tear down the display over one missed poll.
-            console.warn('[ParticipationPurchaseNotice] Live progress poll failed:', err);
+            console.warn('[ParticipationPurchaseNotice] Initial live-progress fetch failed:', err);
         }
+
+        connectLiveProgressWs();
+    }
+
+    function connectLiveProgressWs() {
+        const token = sessionStorage.getItem('access_token');
+        if (!token) {
+            console.warn('[ParticipationPurchaseNotice] No access_token, skipping live-progress WS connect');
+            return;
+        }
+
+        const baseUrl = window.PORTAL_CONFIG?.apiBaseUrl || `http://${window.location.hostname}:8000`;
+        const wsUrl = baseUrl.replace(/^http/, 'ws') + `/ws/workflows?token=${encodeURIComponent(token)}`;
+        console.log('[ParticipationPurchaseNotice] Connecting live-progress WS');
+
+        liveProgressWs = new WebSocket(wsUrl);
+
+        liveProgressWs.onopen = () => console.log('[ParticipationPurchaseNotice] Live-progress WS connected');
+
+        liveProgressWs.onmessage = (event) => {
+            let msg;
+            try { msg = JSON.parse(event.data); } catch (e) { return; }
+            if (msg.type !== 'intraday_progress' || msg.eloc_id !== liveProgressElocId) return;
+
+            renderLiveProgress(msg.shares_accumulated, msg.purchase_share_amount, msg.status);
+
+            if (msg.status === 'TerminatedMaxShares' || msg.status === 'TerminatedPriceBreach') {
+                if (liveProgressWs) { liveProgressWs.onclose = null; liveProgressWs.close(); liveProgressWs = null; }
+            }
+        };
+
+        liveProgressWs.onclose = (event) => {
+            console.warn('[ParticipationPurchaseNotice] Live-progress WS closed: code=%d', event.code);
+            if (liveProgressElocId) liveProgressReconnectTimer = setTimeout(connectLiveProgressWs, 5000);
+        };
+
+        liveProgressWs.onerror = (event) => {
+            console.error('[ParticipationPurchaseNotice] Live-progress WS error:', event);
+        };
+    }
+
+    function renderLiveProgress(sharesAccumulated, purchaseShareAmount, status) {
+        document.getElementById('ppn-live-progress-value').textContent =
+            `${formatNumber(sharesAccumulated)} of ${formatNumber(purchaseShareAmount)} shares`;
+        document.getElementById('ppn-live-progress-status').textContent =
+            LIVE_PROGRESS_STATUS_LABELS[status] || status;
     }
 
     // ---- Formatting Utilities ----

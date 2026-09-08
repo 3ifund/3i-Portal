@@ -539,6 +539,8 @@ async def connect_dealterms_ws():
                     await _handle_eloc_removed(msg)
                 elif msg_type == "eloc_hidden":
                     await _handle_eloc_hidden(msg)
+                elif msg_type == "intraday_progress":
+                    await _handle_intraday_progress(msg)
 
             logger.warning("DTS WS: connection closed, will reconnect in %ds", reconnect_delay)
 
@@ -769,3 +771,27 @@ async def _handle_eloc_hidden(msg: dict):
         "scope": "internal",
         "eloc_id": eloc_id,
     })
+
+
+async def _handle_intraday_progress(msg: dict):
+    """Live Intraday-ELOC VWAP valuation-window progress, pushed by DTS's
+    IntradayElocPricingManager as shares accumulate — not a "something changed, go refetch"
+    signal like shares_refresh; the number itself is on the message, so no REST re-fetch here.
+    Number of Shares = (currentVolume − startingVolume) × VWAP Purchase Percentage."""
+    eloc_id = msg.get("elocId", "")
+    company_id = msg.get("companyId")
+    payload = {
+        "type": "intraday_progress",
+        "eloc_id": eloc_id,
+        "shares_accumulated": msg.get("intradaySharesAccumulated"),
+        "purchase_share_amount": msg.get("intradayPurchaseShareAmount"),
+        "status": msg.get("intradayPricingStatus"),
+    }
+    logger.debug("HANDLE intraday_progress: eloc_id=%s company_id=%s shares=%s/%s status=%s",
+                 eloc_id, company_id, payload["shares_accumulated"], payload["purchase_share_amount"], payload["status"])
+
+    if company_id:
+        _eloc_company_map[eloc_id] = int(company_id)
+        await _broadcast(int(company_id), payload)
+
+    await _internal_broadcast({**payload, "scope": "internal"})
