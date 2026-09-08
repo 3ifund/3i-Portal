@@ -118,7 +118,11 @@ const ParticipationPurchaseNotice = (() => {
                 symbol,
                 maxShareAmount: data.maxShareAmount,
                 defaultPurchasePercentagePct: data.defaultPurchasePercentage,
-                previousClose: data.previousClose,
+                // Reference price for the Minimum Price Threshold default/max: previous close during
+                // the Pre-Market acceptance window, live last price during the Intraday-hours window
+                // (see IntradayElocBase.ReferencePriceAsync in DTS) — referencePriceSource says which.
+                referencePrice: data.referencePrice,
+                referencePriceSource: data.referencePriceSource,
                 defaultPriceThresholdPct: data.defaultPriceThresholdPercentage,
                 commitmentRemaining: data.commitmentRemaining,
                 ...staticCtx,
@@ -127,7 +131,7 @@ const ParticipationPurchaseNotice = (() => {
             state = {
                 shareAmount: ctx.maxShareAmount,
                 percentagePct: ctx.defaultPurchasePercentagePct,
-                minPriceThreshold: roundTo(ctx.previousClose * (1 - ctx.defaultPriceThresholdPct / 100), 4),
+                minPriceThreshold: roundTo(ctx.referencePrice * (1 - ctx.defaultPriceThresholdPct / 100), 4),
             };
 
             renderNotice();
@@ -369,25 +373,29 @@ const ParticipationPurchaseNotice = (() => {
         input.className = 'form-input ppn-input';
         input.id = 'ppn-input-minprice';
         input.min = '0';
-        input.max = String(ctx.previousClose);
+        input.max = String(ctx.referencePrice);
         input.step = '0.0001';
         input.value = state.minPriceThreshold;
+
+        // "previous close" during the Pre-Market window, "last price" during Intraday-hours —
+        // matches which reference price DTS actually used (referencePriceSource).
+        const refLabel = ctx.referencePriceSource === 'LastPrice' ? 'last price' : 'previous close';
 
         const hint = document.createElement('div');
         hint.className = 'ppn-hint';
         hint.id = 'ppn-hint-minprice';
-        hint.textContent = `Default: $${roundTo(ctx.previousClose * (1 - ctx.defaultPriceThresholdPct / 100), 4)} ` +
-            `(previous close $${ctx.previousClose} × (1 − ${ctx.defaultPriceThresholdPct}%)). Max $${ctx.previousClose} (previous close).`;
+        hint.textContent = `Default: $${roundTo(ctx.referencePrice * (1 - ctx.defaultPriceThresholdPct / 100), 4)} ` +
+            `(${refLabel} $${ctx.referencePrice} × (1 − ${ctx.defaultPriceThresholdPct}%)). Max $${ctx.referencePrice} (${refLabel}).`;
 
         input.addEventListener('input', () => {
             const raw = parseFloat(input.value);
-            const valid = !isNaN(raw) && raw >= 0 && raw <= ctx.previousClose;
+            const valid = !isNaN(raw) && raw >= 0 && raw <= ctx.referencePrice;
             state.minPriceThreshold = isNaN(raw) ? 0 : raw;
             setInvalid(input, !valid);
             hint.textContent = valid
-                ? `Default: $${roundTo(ctx.previousClose * (1 - ctx.defaultPriceThresholdPct / 100), 4)} ` +
-                  `(previous close $${ctx.previousClose} × (1 − ${ctx.defaultPriceThresholdPct}%)). Max $${ctx.previousClose} (previous close).`
-                : `Must be between $0 and $${ctx.previousClose} (cannot exceed the previous close)`;
+                ? `Default: $${roundTo(ctx.referencePrice * (1 - ctx.defaultPriceThresholdPct / 100), 4)} ` +
+                  `(${refLabel} $${ctx.referencePrice} × (1 − ${ctx.defaultPriceThresholdPct}%)). Max $${ctx.referencePrice} (${refLabel}).`
+                : `Must be between $0 and $${ctx.referencePrice} (cannot exceed the ${refLabel})`;
         });
 
         inputRow.appendChild(prefix);
