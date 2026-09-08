@@ -1584,6 +1584,34 @@ input[type="number"] {
     color: var(--badge-red);
 }
 
+.ppn-window-changed-banner,
+.ppn-submit-error-banner,
+.ppn-submit-success-banner {
+    border-radius: var(--border-radius);
+    padding: 0.85rem 1rem;
+    margin: 1rem 0;
+    font-size: 0.85rem;
+    line-height: 1.5;
+}
+
+.ppn-window-changed-banner {
+    background: rgba(240, 173, 78, 0.12);
+    border: 1px solid rgba(240, 173, 78, 0.5);
+    color: var(--text-primary);
+}
+
+.ppn-submit-error-banner {
+    background: rgba(217, 83, 79, 0.12);
+    border: 1px solid var(--badge-red);
+    color: var(--text-primary);
+}
+
+.ppn-submit-success-banner {
+    background: rgba(92, 184, 92, 0.12);
+    border: 1px solid var(--badge-green, #5cb85c);
+    color: var(--text-primary);
+}
+
 /* ============================================
    Participation Template View (admin) — mirrors
    ParticipationPdfRenderer.Render exactly

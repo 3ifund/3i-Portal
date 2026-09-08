@@ -10,6 +10,7 @@ from app.auth.dependencies import get_current_user
 from app.auth.models import UserInfo
 from app.config import settings
 from app.purchase_notices.models import (
+    IntradayPurchaseNoticeRequest,
     PortalPurchaseNoticeRequest,
     UpdateSignatoryDetailsRequest,
 )
@@ -119,6 +120,83 @@ async def get_intraday_prefill(
                 fields.get("minimumPriceThresholdDefault"), fields.get("previousClose"),
                 fields.get("commitmentRemaining"))
     return fields
+
+
+@router.post("/intraday-submit")
+async def submit_intraday_purchase_notice(
+    request: IntradayPurchaseNoticeRequest,
+    user: UserInfo = Depends(get_current_user),
+):
+    """Submit a customer-initiated Intraday VWAP Purchase Notice. Identity (submitted_by) and the
+    on-file signatory are injected here from the authenticated session — never taken from the
+    client — mirroring /submit. Unlike /submit, a missing signatory does not block the submission
+    (the Intraday entry form has no signatory capture yet); the notice just goes out with a blank
+    company signature block in that case."""
+    if not user.company_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="User has no company assigned")
+
+    sig = await users_repo.get_user_signatory(user.user_id)
+    if not sig or not sig.get("signatory_name"):
+        logger.info("POST /intraday-submit — user=%s has no on-file signatory; submitting with a blank company signature block", user.user_id)
+        sig = {}
+
+    payload = {
+        **request.model_dump(),
+        "submittedBy": user.user_id,
+        "companySignatoryName": sig.get("signatory_name"),
+        "companySignatoryTitle": sig.get("signatory_title"),
+        "companySignatoryAddress": sig.get("signatory_address"),
+        "companySignatorySignatureImage": sig.get("signatory_signature_image"),
+    }
+    # DTS expects camelCase field names on this endpoint (see IntradayPurchaseNoticeRequest.cs) —
+    # translate the snake_case pydantic dump for the fields that differ.
+    payload["purchaseShareAmount"] = payload.pop("purchase_share_amount")
+    payload["purchasePercentage"] = payload.pop("purchase_percentage")
+    payload["minimumPriceThreshold"] = payload.pop("minimum_price_threshold")
+    payload["assumedWindow"] = payload.pop("assumed_window")
+
+    logger.info(
+        "POST /intraday-submit — user=%s symbol=%s shares=%s assumedWindow=%s",
+        user.user_id, request.symbol, request.purchase_share_amount, request.assumed_window,
+    )
+
+    try:
+        result = await onprem.submit_intraday_purchase_notice(payload)
+    except onprem.ElocAlreadyPricingError as race:
+        logger.warning(
+            "POST /intraday-submit REJECT (concurrency): user=%s symbol=%s — blocking elocId=%s step=%s",
+            user.user_id, request.symbol, race.blocking_eloc_id, race.blocking_workflow_step,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": "ELOC_ALREADY_PRICING",
+                "message": str(race),
+                "company_id": race.company_id,
+                "blocking_eloc_id": race.blocking_eloc_id,
+                "blocking_workflow_step": race.blocking_workflow_step,
+            },
+        )
+    except onprem.IntradayWindowChangedError as changed:
+        logger.warning("POST /intraday-submit REJECT (window changed): user=%s symbol=%s — %s",
+                        user.user_id, request.symbol, changed.body)
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"code": "WINDOW_CHANGED", "message": str(changed), **changed.body},
+        )
+    except onprem.IntradayValidationError as invalid:
+        logger.warning("POST /intraday-submit REJECT (validation): user=%s symbol=%s — %s",
+                        user.user_id, request.symbol, invalid.body)
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(invalid))
+    except Exception as exc:
+        logger.error("Intraday purchase notice submission failed: %s", exc, exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Unable to submit intraday purchase notice: {exc}",
+        )
+
+    logger.info("POST /intraday-submit — DTS created ELOC: eloc_id=%s", result.get("elocId"))
+    return result
 
 
 @router.get("/prefill/{symbol}/{pricing_period_id}")

@@ -379,6 +379,20 @@ const API = (() => {
     }
 
     /**
+     * POST /purchase-notices/intraday-submit — submit a customer-initiated Intraday VWAP Purchase
+     * Notice. Throws on non-2xx; the error carries the parsed JSON body (see handleResponse) so the
+     * caller can branch on body.code (ELOC_ALREADY_PRICING / WINDOW_CHANGED) or body.detail.code.
+     */
+    async function submitIntradayPurchaseNotice(payload) {
+        const response = await fetch(`${BASE_URL}/purchase-notices/intraday-submit`, {
+            method: 'POST',
+            headers: authHeaders(),
+            body: JSON.stringify(payload),
+        });
+        return handleResponse(response);
+    }
+
+    /**
      * POST /purchase-notices/submit — submit portal-initiated purchase notice to DTS
      */
     async function submitPortalPurchaseNotice(payload) {

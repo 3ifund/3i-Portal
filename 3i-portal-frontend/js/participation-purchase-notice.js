@@ -42,7 +42,8 @@ const ParticipationPurchaseNotice = (() => {
             label: 'Type of VWAP Purchase',
             kind: 'locked-checkbox',
             options: ['Pre-Market VWAP Purchase', 'Intraday VWAP Purchase'],
-            checked: 'Intraday VWAP Purchase',
+            // No static default — which option is checked is locked to ctx.acceptanceWindow
+            // (computed by DTS right now) and the customer cannot override it. See purchaseTypeLabel().
         },
         {
             key: 'PurchaseShareAmount',
@@ -102,6 +103,7 @@ const ParticipationPurchaseNotice = (() => {
         document.getElementById('ppn-back-btn').addEventListener('click', () => {
             window.location.href = 'dashboard.html';
         });
+        document.getElementById('ppn-send-btn').addEventListener('click', submitNotice);
     }
 
     // ---- Data Loading ----
@@ -125,6 +127,10 @@ const ParticipationPurchaseNotice = (() => {
                 referencePriceSource: data.referencePriceSource,
                 defaultPriceThresholdPct: data.defaultPriceThresholdPercentage,
                 commitmentRemaining: data.commitmentRemaining,
+                // Which acceptance window is locking the Type of VWAP Purchase checkbox right now
+                // ("Premarket" | "IntradayHours" | "Neither") — echoed back at submission so DTS can
+                // detect a rollover between page-load and submit.
+                acceptanceWindow: data.acceptanceWindow,
                 ...staticCtx,
             };
 
@@ -138,6 +144,15 @@ const ParticipationPurchaseNotice = (() => {
 
             document.getElementById('ppn-loading').style.display = 'none';
             document.getElementById('ppn-document').style.display = 'block';
+
+            const sendBtn = document.getElementById('ppn-send-btn');
+            if (ctx.acceptanceWindow === 'Neither') {
+                sendBtn.disabled = true;
+                sendBtn.title = 'Outside the acceptance window — this notice cannot be submitted right now.';
+            } else {
+                sendBtn.disabled = false;
+                sendBtn.title = '';
+            }
         } catch (err) {
             console.error('[ParticipationPurchaseNotice] Failed to load prefill:', err);
             showError(err.message || 'Failed to load purchase notice data.');
@@ -232,18 +247,25 @@ const ParticipationPurchaseNotice = (() => {
     function buildLockedCheckboxGroup(f) {
         const wrap = document.createElement('div');
         wrap.className = 'ppn-checkbox-group ppn-locked';
+        const checkedOption = f.key === 'PurchaseType' ? purchaseTypeLabel() : f.checked;
         f.options.forEach((opt) => {
             const label = document.createElement('label');
             label.className = 'ppn-checkbox-option';
             const input = document.createElement('input');
             input.type = 'checkbox';
-            input.checked = opt === f.checked;
+            input.checked = opt === checkedOption;
             input.disabled = true;
             label.appendChild(input);
             label.appendChild(document.createTextNode(' ' + opt));
             wrap.appendChild(label);
         });
         return wrap;
+    }
+
+    // Locked to ctx.acceptanceWindow (computed by DTS, re-checked at submit time) — the customer
+    // cannot override which option is checked.
+    function purchaseTypeLabel() {
+        return ctx.acceptanceWindow === 'Premarket' ? 'Pre-Market VWAP Purchase' : 'Intraday VWAP Purchase';
     }
 
     function buildLockedText(text) {
@@ -456,6 +478,85 @@ const ParticipationPurchaseNotice = (() => {
         document.getElementById('ppn-loading').style.display = 'none';
         document.getElementById('ppn-error-message').textContent = message;
         document.getElementById('ppn-error').style.display = 'block';
+    }
+
+    // ---- Submission ----
+
+    async function submitNotice() {
+        const sendBtn = document.getElementById('ppn-send-btn');
+        hideBanner('ppn-window-changed-banner');
+        hideBanner('ppn-submit-error-banner');
+        hideBanner('ppn-submit-success-banner');
+        sendBtn.disabled = true;
+        const originalLabel = sendBtn.textContent;
+        sendBtn.textContent = 'Submitting…';
+
+        try {
+            const payload = {
+                symbol: ctx.symbol,
+                purchaseShareAmount: state.shareAmount,
+                purchasePercentage: state.percentagePct,
+                minimumPriceThreshold: state.minPriceThreshold,
+                assumedWindow: ctx.acceptanceWindow,
+            };
+            console.log('[ParticipationPurchaseNotice] Submitting:', payload);
+            const result = await API.submitIntradayPurchaseNotice(payload);
+            console.log('[ParticipationPurchaseNotice] Submitted:', result);
+
+            sendBtn.textContent = 'Submitted';
+            showBanner('ppn-submit-success-banner',
+                `Purchase notice ${result.elocId} submitted successfully.`);
+        } catch (err) {
+            console.error('[ParticipationPurchaseNotice] Submit failed:', err);
+            const code = err.detail && err.detail.code;
+
+            if (code === 'WINDOW_CHANGED') {
+                applyWindowChange(err.detail);
+                showBanner('ppn-window-changed-banner',
+                    'The pricing window changed while you were completing this notice. ' +
+                    'The Type of VWAP Purchase and Minimum Price Threshold below have been updated ' +
+                    'to match — please review and submit again.');
+                sendBtn.textContent = originalLabel;
+                sendBtn.disabled = false;
+            } else if (code === 'ELOC_ALREADY_PRICING') {
+                showBanner('ppn-submit-error-banner',
+                    'An ELOC for this company is already in progress. Wait for it to complete before submitting another.');
+                sendBtn.textContent = originalLabel;
+                sendBtn.disabled = false;
+            } else {
+                showBanner('ppn-submit-error-banner', err.message || 'Failed to submit purchase notice.');
+                sendBtn.textContent = originalLabel;
+                sendBtn.disabled = false;
+            }
+        }
+    }
+
+    // Applies the corrected values DTS returned with a WINDOW_CHANGED rejection: the notice must be
+    // reviewed and re-submitted by the customer, never silently resubmitted under the new window.
+    // The Minimum Price Threshold is deliberately overridden with the fresh default — a value
+    // computed against the old reference price has no valid meaning under the new one.
+    function applyWindowChange(detail) {
+        ctx.acceptanceWindow = detail.correctWindow;
+        ctx.referencePrice = detail.referencePrice;
+        ctx.referencePriceSource = detail.referencePriceSource;
+        ctx.defaultPriceThresholdPct = detail.defaultPriceThresholdPercentage;
+        ctx.maxShareAmount = detail.maxShareAmount;
+
+        state.minPriceThreshold = roundTo(detail.minimumPriceThresholdDefault, 4);
+        state.shareAmount = Math.min(state.shareAmount, ctx.maxShareAmount);
+
+        renderNotice();
+    }
+
+    function showBanner(id, message) {
+        const el = document.getElementById(id);
+        el.textContent = message;
+        el.hidden = false;
+    }
+
+    function hideBanner(id) {
+        const el = document.getElementById(id);
+        el.hidden = true;
     }
 
     // ---- Formatting Utilities ----

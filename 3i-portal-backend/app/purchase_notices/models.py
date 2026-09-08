@@ -17,6 +17,19 @@ class UpdateSignatoryDetailsRequest(BaseModel):
 
 
 
+class IntradayPurchaseNoticeRequest(BaseModel):
+    """Minimal payload for submitting a customer-initiated Intraday VWAP Purchase Notice — only
+    what the entry form actually lets the customer edit. Every locked field, bound, and the
+    acceptance-window check are re-derived server-side in DTS from the company's IIntradayEloc,
+    never taken from the client."""
+    symbol: str
+    purchase_share_amount: int
+    purchase_percentage: float | None = None
+    minimum_price_threshold: float | None = None
+    assumed_window: str  # "Premarket" | "IntradayHours" — echoes IntradayAcceptanceWindow from the prefill the form loaded
+
+
+
 class PortalPurchaseNoticeRequest(BaseModel):
     """Full payload for submitting a portal-initiated purchase notice to DTS."""
     symbol: str

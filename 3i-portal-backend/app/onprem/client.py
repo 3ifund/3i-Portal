@@ -1185,6 +1185,75 @@ async def submit_portal_purchase_notice(payload: dict) -> dict:
     return response.json()
 
 
+class IntradayWindowChangedError(Exception):
+    """
+    Raised when DTS rejects an Intraday Purchase Notice submission because the
+    Pre-Market/Intraday-hours acceptance window rolled over between when the
+    entry form loaded and when the customer pressed Submit. Carries the
+    corrected values (Type of VWAP Purchase, reference price, Minimum Price
+    Threshold default) DTS computed just now, so the frontend can update the
+    form and have the customer review + re-submit rather than silently
+    submitting under the wrong window.
+    """
+    def __init__(self, body: dict):
+        self.body = body or {}
+        super().__init__(self.body.get("error") or "The pricing window changed — please review and submit again.")
+
+
+class IntradayValidationError(Exception):
+    """Raised when DTS rejects an Intraday Purchase Notice submission for an ordinary validation
+    reason (share amount over cap, outside acceptance window entirely, etc.) — carries DTS's
+    message so the frontend can show it instead of a generic failure."""
+    def __init__(self, body: dict):
+        self.body = body or {}
+        super().__init__(self.body.get("error") or "Unable to submit purchase notice.")
+
+
+async def submit_intraday_purchase_notice(payload: dict) -> dict:
+    logger.info(
+        "POST /api/portal/intraday-purchase-notice symbol=%s shares=%s assumedWindow=%s",
+        payload.get("symbol"), payload.get("purchaseShareAmount"), payload.get("assumedWindow"),
+    )
+    logger.info("  payload keys: %s", list(payload.keys()))
+
+    response = await _request_with_retry("POST", "/api/portal/intraday-purchase-notice", json=payload)
+    logger.info("  → %s (%d bytes)", response.status_code, len(response.content))
+
+    if response.status_code == 409:
+        try:
+            body = response.json()
+        except Exception:
+            body = {}
+        if body.get("code") == "ELOC_ALREADY_PRICING":
+            logger.warning(
+                "  → DTS rejected submission: ELOC_ALREADY_PRICING — company=%s blockingEloc=%s blockingStep=%s",
+                body.get("companyId"), body.get("blockingElocId"), body.get("blockingWorkflowStep"),
+            )
+            raise ElocAlreadyPricingError(body)
+        if body.get("code") == "WINDOW_CHANGED":
+            logger.warning(
+                "  → DTS rejected submission: WINDOW_CHANGED — correctWindow=%s purchaseType=%s",
+                body.get("correctWindow"), body.get("purchaseType"),
+            )
+            raise IntradayWindowChangedError(body)
+        logger.error("  → 409 with unrecognized body: %s", response.text[:2000])
+
+    if response.status_code == 400:
+        try:
+            body = response.json()
+        except Exception:
+            body = {}
+        logger.warning("  → DTS rejected submission (400): %s", body.get("error"))
+        raise IntradayValidationError(body)
+
+    if response.status_code >= 400:
+        logger.error("  → DTS error response: %s", response.text[:2000])
+    else:
+        logger.debug("  → body: %s", response.text[:2000])
+    response.raise_for_status()
+    return response.json()
+
+
 async def get_portal_eloc_states_included() -> list[dict]:
     logger.info("GET /api/portal/eloc/states/included")
     response = await _request_with_retry("GET", "/api/portal/eloc/states/included")
