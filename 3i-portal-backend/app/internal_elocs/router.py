@@ -96,7 +96,8 @@ async def list_included_states(admin: UserInfo = Depends(require_admin)):
             "modified_at": str(modified_at) if modified_at else None,
             "steps": steps,
             # Intraday-only — null for every other period type. Snapshot as of this fetch (page
-            # load / WS reconnect); not pushed live mid-session yet — see workflow_update frames.
+            # load / WS reconnect) — live mid-session updates arrive separately as intraday_progress
+            # WS frames (app/workflows/router.py _handle_intraday_progress), not through this GET.
             "intraday_shares_accumulated": state.get("intradaySharesAccumulated"),
             "intraday_purchase_share_amount": state.get("intradayPurchaseShareAmount"),
             "intraday_pricing_status": state.get("intradayPricingStatus"),
