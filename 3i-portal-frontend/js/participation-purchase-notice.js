@@ -494,10 +494,10 @@ const ParticipationPurchaseNotice = (() => {
         try {
             const payload = {
                 symbol: ctx.symbol,
-                purchaseShareAmount: state.shareAmount,
-                purchasePercentage: state.percentagePct,
-                minimumPriceThreshold: state.minPriceThreshold,
-                assumedWindow: ctx.acceptanceWindow,
+                purchase_share_amount: state.shareAmount,
+                purchase_percentage: state.percentagePct,
+                minimum_price_threshold: state.minPriceThreshold,
+                assumed_window: ctx.acceptanceWindow,
             };
             console.log('[ParticipationPurchaseNotice] Submitting:', payload);
             const result = await API.submitIntradayPurchaseNotice(payload);
