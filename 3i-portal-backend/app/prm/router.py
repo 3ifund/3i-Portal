@@ -25,6 +25,7 @@ class SyntheticTradeBody(BaseModel):
     account_id: int
     broker_id: int
     source: str | None = "SYNTHETIC"
+    include_dto: bool = False
 
 
 class RestrictedTradeBody(BaseModel):
@@ -153,8 +154,8 @@ async def execute_synthetic_trade(
     t_start = time.monotonic()
     side = "BUY" if body.is_buy else "SELL"
     logger.info(
-        "POST /internal/prm/synthetic-trade by user=%s — %s %s %s @ %s positionId=%s acct=%s broker=%s — START",
-        admin.user_id, side, body.quantity, body.symbol, body.price, body.position_id, body.account_id, body.broker_id,
+        "POST /internal/prm/synthetic-trade by user=%s — %s %s %s @ %s positionId=%s acct=%s broker=%s includeDto=%s — START",
+        admin.user_id, side, body.quantity, body.symbol, body.price, body.position_id, body.account_id, body.broker_id, body.include_dto,
     )
     if body.quantity <= 0:
         raise HTTPException(status_code=400, detail="quantity must be > 0")
@@ -172,6 +173,7 @@ async def execute_synthetic_trade(
         "brokerId": body.broker_id,
         "source": body.source or "SYNTHETIC",
         "traderIdentifier": admin.user_id,
+        "includeDto": body.include_dto,
     }
 
     try:
