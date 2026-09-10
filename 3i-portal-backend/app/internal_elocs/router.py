@@ -166,6 +166,21 @@ async def send_eloc_nudge(eloc_id: str, admin: UserInfo = Depends(require_admin)
     return body
 
 
+@router.get("/elocs/intraday-live-progress/{symbol}")
+async def get_intraday_live_progress(symbol: str, admin: UserInfo = Depends(require_admin)):
+    """Live shares-accumulated snapshot for an in-progress Intraday VWAP valuation window — lets the
+    PRM ELOC page (pages/eloc/eloc.js) show the CURRENT figure immediately on load/reconnect instead
+    of the persisted intraday_shares_accumulated field (which GET /elocs/states/included above
+    returns, but that field is only ever written at termination — null/0 for a session still
+    Monitoring, so a row showed no progress at all until the next intraday_progress WS push arrived).
+    Mirrors the customer-facing GET /purchase-notices/intraday-live-progress/{symbol} — same DTS
+    endpoint, just also exposed here since PRM has no reason to go through the customer router."""
+    body = await onprem.get_intraday_eloc_live_progress(symbol)
+    if body is None:
+        raise HTTPException(status_code=404, detail=f"No Intraday notice on record for {symbol}")
+    return body
+
+
 @router.delete("/elocs/{eloc_id}")
 async def delete_eloc(eloc_id: str, admin: UserInfo = Depends(require_admin)):
     t_start = time.monotonic()
