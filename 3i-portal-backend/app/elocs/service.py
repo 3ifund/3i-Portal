@@ -155,11 +155,16 @@ async def get_eloc_workflow(eloc_id: str) -> dict:
     status = state.get("status", "Pending")
 
     step_list, _ = build_workflow_steps(workflow_step, status)
-    steps = {s["key"]: s["status"] for s in step_list}
-    logger.debug("  Workflow steps: %s", steps)
 
     events = {}
     data = await onprem.get_eloc_data(eloc_id)
+    if data:
+        from app.elocs.models import apply_intraday_step_overrides
+        step_list = apply_intraday_step_overrides(step_list, data.get("intradayPricingStatus"))
+
+    steps = {s["key"]: s["status"] for s in step_list}
+    logger.debug("  Workflow steps: %s", steps)
+
     if data:
         for step_key, mapping in _STEP_EVENT_MAP.items():
             ts = data.get(mapping["timestamp_field"])
@@ -275,7 +280,7 @@ async def get_action_items(company_id: int) -> list[dict]:
 
 
 async def get_pricing_workflows(company_id: int) -> list[dict]:
-    from app.elocs.models import build_workflow_steps
+    from app.elocs.models import build_workflow_steps, apply_intraday_step_overrides
 
     logger.info("get_pricing_workflows company_id=%s", company_id)
     workflows = []
@@ -305,6 +310,7 @@ async def get_pricing_workflows(company_id: int) -> list[dict]:
             workflow_complete = state.get("workflowComplete", False)
             steps, can_remove = build_workflow_steps(
                 workflow_step, status, pricing_direction, workflow_complete)
+            steps = apply_intraday_step_overrides(steps, state.get("intradayPricingStatus"))
 
             scheduled_iso = scheduled_by_eloc.get(eloc_id)
             if scheduled_iso:

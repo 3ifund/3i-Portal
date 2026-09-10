@@ -9,7 +9,7 @@ import websockets
 
 from app.auth.jwt import decode_access_token
 from app.config import settings
-from app.elocs.models import build_workflow_steps
+from app.elocs.models import build_workflow_steps, apply_intraday_step_overrides
 from app.internal_elocs.models import derive_workflow_steps as _internal_derive_steps
 from app.onprem import client as onprem
 import uuid as _uuid
@@ -389,6 +389,7 @@ def _build_workflow_message(state: dict, source: str = "dts") -> dict:
 
     steps, can_remove = build_workflow_steps(
         workflow_step, status, pricing_direction, workflow_complete)
+    steps = apply_intraday_step_overrides(steps, state.get("intradayPricingStatus"))
 
     if eloc_id and company_id:
         prev = _eloc_company_map.get(eloc_id)

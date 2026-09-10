@@ -10,9 +10,22 @@ logger = logging.getLogger("portal.elocs.models")
 
 
 class WorkflowStepEnum(str, Enum):
-    """Sequential steps of the Portal ELOC workflow."""
+    """Sequential steps of the Portal ELOC workflow — order here MUST match the actual chronological
+    forward chain (DTS PortalElocController.GetPortalNextStep), not DTS's raw C# enum declaration
+    order (which differs — e.g. SavedContractToSharePoint is declared before SignedContractToCompany
+    there). build_workflow_steps() below uses this list's ORDINAL POSITION to infer which visible
+    steps are done (i < current_idx -> Completed), so a wrong order silently mis-renders every card,
+    and a MISSING value makes WorkflowStepEnum(current_step) raise -> current_idx falls back to -1 ->
+    every step renders "Awaiting" forever, regardless of real progress. That second failure mode was
+    a real bug: SignedContractToPrimeBroker and DeemedToOwnPosition (both real intermediate steps DTS
+    writes) were missing from this list, so any ELOC sitting at either — which every Intraday ELOC
+    does for its whole live-pricing window, since DTS advances it that far within seconds of
+    submission and no further via workflow_step — showed every card frozen on "Awaiting", including
+    "Signed Contract to Company" despite that step having genuinely completed."""
     SignedContractToCompany = "SignedContractToCompany"
     SavedContractToSharePoint = "SavedContractToSharePoint"
+    SignedContractToPrimeBroker = "SignedContractToPrimeBroker"
+    DeemedToOwnPosition = "DeemedToOwnPosition"
     FinalVwapPricingCalculated = "FinalVwapPricingCalculated"
     VwapNotificationToCompany = "VwapNotificationToCompany"
     VwapCountersignedToCompany = "VwapCountersignedToCompany"
@@ -130,6 +143,27 @@ def build_workflow_steps(
                  len(steps), can_remove)
 
     return steps, can_remove
+
+
+def apply_intraday_step_overrides(steps: list[dict], intraday_pricing_status: str | None) -> list[dict]:
+    """DTS only advances an Intraday ELOC's workflow_step as far as SignedContractToPrimeBroker for
+    its entire live-pricing window — real advancement past FinalVwapPricingCalculated to
+    VwapNotificationToCompany only happens once one of the 3 triggers fires (DTS
+    IntradayElocPricingManager.PopulatePurchaseConfirmationAndNotifyAsync). So while pricing is still
+    live, build_workflow_steps() correctly derives "Final Pricing Calculated" as Awaiting from
+    workflow_step alone — which reads as "hasn't started" when it's actually in progress. Override it
+    to InProgress (renders orange) while intraday_pricing_status is WaitingForTradingStart/Monitoring.
+    Once a trigger actually fires, workflow_step has genuinely advanced past this step and
+    build_workflow_steps() already shows it Completed (green) on its own — no override needed then, so
+    this only ever touches the one Awaiting/live-pricing case. No-op for every non-Intraday ELOC
+    (intraday_pricing_status is None for those)."""
+    if intraday_pricing_status in ("WaitingForTradingStart", "Monitoring"):
+        for step in steps:
+            if step.get("key") == WorkflowStepEnum.FinalVwapPricingCalculated.value and step.get("status") == "Awaiting":
+                step["status"] = WorkflowStepState.InProgress.value
+                logger.debug("apply_intraday_step_overrides: FinalVwapPricingCalculated Awaiting -> InProgress (intraday_pricing_status=%s)",
+                             intraday_pricing_status)
+    return steps
 
 
 class PricingPeriod(BaseModel):
