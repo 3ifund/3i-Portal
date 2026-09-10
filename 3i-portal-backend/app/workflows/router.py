@@ -410,6 +410,12 @@ def _build_workflow_message(state: dict, source: str = "dts") -> dict:
             "source": source,
             "pricing_direction": pricing_direction,
             "workflow_complete": workflow_complete,
+            # Intraday-only — None for every other period type. Mirrors _build_internal_workflow_message
+            # and app/elocs/service.py get_pricing_workflows — the customer-facing "Current ELOCs" card
+            # needs this on the initial push too, not just the intraday_progress frames that follow.
+            "intraday_shares_accumulated": state.get("intradaySharesAccumulated"),
+            "intraday_purchase_share_amount": state.get("intradayPurchaseShareAmount"),
+            "intraday_pricing_status": state.get("intradayPricingStatus"),
         },
     }
 

@@ -104,6 +104,9 @@ const ParticipationPurchaseNotice = (() => {
             window.location.href = 'dashboard.html';
         });
         document.getElementById('ppn-send-btn').addEventListener('click', submitNotice);
+        document.getElementById('ppn-alert-btn').addEventListener('click', () => {
+            window.location.href = 'dashboard.html';
+        });
     }
 
     // ---- Data Loading ----
@@ -115,6 +118,16 @@ const ParticipationPurchaseNotice = (() => {
                 getStaticTemplateContext(symbol),
             ]);
             console.log('[ParticipationPurchaseNotice] Prefill (real):', data);
+
+            // Another Intraday ELOC for this company is already live-pricing (or any ELOC is mid
+            // paperwork-delivery) — block the entry form entirely rather than let the customer fill it
+            // out and only discover ELOC_ALREADY_PRICING on submit. Mirrors the Dashboard's "ELOC
+            // Currently Pricing" Shares Available state, for whoever navigates straight to this page
+            // (bookmark, back-button, stale tab) without going through the Dashboard's own check first.
+            if (data.hasPendingEloc) {
+                showError(data.pendingElocMessage || 'An ELOC for this company is already in progress.');
+                return;
+            }
 
             ctx = {
                 symbol,
@@ -480,6 +493,14 @@ const ParticipationPurchaseNotice = (() => {
         document.getElementById('ppn-error').style.display = 'block';
     }
 
+    // ---- Success Dialog (matches purchase-notice.js's showAlert/#pn-alert-overlay) ----
+
+    function showAlertModal(title, message) {
+        document.getElementById('ppn-alert-title').textContent = title;
+        document.getElementById('ppn-alert-message').textContent = message;
+        document.getElementById('ppn-alert-overlay').style.display = 'flex';
+    }
+
     // ---- Submission ----
 
     async function submitNotice() {
@@ -507,6 +528,13 @@ const ParticipationPurchaseNotice = (() => {
             showBanner('ppn-submit-success-banner',
                 `Purchase notice ${result.elocId} submitted successfully.`);
             startLiveProgress(result.elocId);
+            // Same confirmation dialog the day-based flow shows on a successful submit
+            // (purchase-notice.js's showAlert/#pn-alert-overlay) — unlike that one, this doesn't hide
+            // the page behind it: closing/returning still leaves the live-progress panel usable if the
+            // customer wants to keep watching this session price instead of leaving immediately.
+            showAlertModal('Purchase Notice Submitted',
+                `Your Intraday Purchase Notice (${result.elocId}) has been submitted successfully. ` +
+                'You can track its progress here or on the dashboard.');
         } catch (err) {
             console.error('[ParticipationPurchaseNotice] Submit failed:', err);
             const code = err.detail && err.detail.code;

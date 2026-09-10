@@ -822,6 +822,31 @@ a:hover {
     flex-wrap: wrap;
 }
 
+.workflow-intraday-progress {
+    margin-top: 1rem;
+    padding: 0.75rem 1rem;
+    background-color: var(--bg-primary);
+    border: 1px solid var(--border-blue-dim);
+    border-radius: 6px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.workflow-intraday-status {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--accent-blue);
+}
+
+.workflow-intraday-shares {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    font-variant-numeric: tabular-nums;
+}
+
 .workflow-step {
     display: flex;
     flex-direction: column;

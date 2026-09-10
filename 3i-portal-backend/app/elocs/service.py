@@ -334,6 +334,12 @@ async def get_pricing_workflows(company_id: int) -> list[dict]:
                 "source": "portal",
                 "pricing_direction": pricing_direction,
                 "workflow_complete": workflow_complete,
+                # Intraday-only — None for every other period type. Snapshot as of this fetch; live
+                # mid-session updates arrive separately as intraday_progress WS frames (see
+                # app/workflows/router.py _handle_intraday_progress). Mirrors app/internal_elocs/router.py.
+                "intraday_shares_accumulated": state.get("intradaySharesAccumulated"),
+                "intraday_purchase_share_amount": state.get("intradayPurchaseShareAmount"),
+                "intraday_pricing_status": state.get("intradayPricingStatus"),
             })
     except Exception as exc:
         logger.warning("  Failed to fetch portal workflows: %s", exc)

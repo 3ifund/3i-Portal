@@ -693,6 +693,37 @@ const Dashboard = (() => {
         Awaiting: 'awaiting',
     };
 
+    const INTRADAY_STATUS_LABELS = {
+        WaitingForTradingStart: 'Waiting for Trading to Start',
+        Monitoring: 'Pricing — Live',
+        TerminatedMaxShares: 'Completed — Max Shares Reached',
+        TerminatedPriceBreach: 'Completed — Price Threshold Breached',
+        TerminatedRanToClose: 'Completed — Ran to Close',
+    };
+    function formatIntradayStatus(status) {
+        return INTRADAY_STATUS_LABELS[status] || status || '';
+    }
+    function formatIntradayShares(accumulated, target) {
+        const acc = Number(accumulated);
+        const tgt = Number(target);
+        if (!Number.isFinite(acc) || !Number.isFinite(tgt)) return '';
+        return `${acc.toLocaleString()} / ${tgt.toLocaleString()} shares`;
+    }
+
+    /**
+     * Update an in-DOM Intraday progress panel in place from an intraday_progress WS frame —
+     * no full workflow card re-render, since these can arrive multiple times per second while a
+     * session is actively Monitoring.
+     */
+    function handleIntradayProgress(msg) {
+        const panel = document.querySelector(`.workflow-intraday-progress[data-eloc-id="${CSS.escape(msg.eloc_id || '')}"]`);
+        if (!panel) return;
+        const statusEl = panel.querySelector('.workflow-intraday-status');
+        const sharesEl = panel.querySelector('[data-role="shares"]');
+        if (statusEl) statusEl.textContent = formatIntradayStatus(msg.status);
+        if (sharesEl) sharesEl.textContent = formatIntradayShares(msg.shares_accumulated, msg.purchase_share_amount);
+    }
+
     /**
      * Render a single workflow card for an ELOC currently pricing.
      */
@@ -727,6 +758,18 @@ const Dashboard = (() => {
             `;
         });
 
+        // Intraday ELOCs don't move current_step/step_status while their live VWAP pricing window is
+        // open (DTS tracks that on eloc_data separately) — the step badges above stay frozen on
+        // "Signed Contract to Company" for the whole trading day otherwise. Add a live progress panel
+        // whenever intraday_pricing_status is present; intraday_progress WS frames update it in place
+        // afterward (see handleIntradayProgress) without needing a full card re-render.
+        const intradayHtml = workflow.intraday_pricing_status
+            ? `<div class="workflow-intraday-progress" data-eloc-id="${escapeHtml(workflow.eloc_id)}">
+                   <div class="workflow-intraday-status">${escapeHtml(formatIntradayStatus(workflow.intraday_pricing_status))}</div>
+                   <div class="workflow-intraday-shares" data-role="shares">${formatIntradayShares(workflow.intraday_shares_accumulated, workflow.intraday_purchase_share_amount)}</div>
+               </div>`
+            : '';
+
         card.innerHTML = `
             <div class="workflow-header">
                 <div class="workflow-title">ELOC ${escapeHtml(workflow.eloc_id)}</div>
@@ -735,6 +778,7 @@ const Dashboard = (() => {
             <div class="workflow-steps">
                 ${stepsHtml}
             </div>
+            ${intradayHtml}
         `;
 
         // Click handlers for completed document badges
@@ -974,6 +1018,10 @@ const Dashboard = (() => {
                     console.log('[Dashboard] 12-step ELOC %s changed — refreshing shares and workflows', msg.eloc_id);
                     pollSharesAvailable();
                     loadPricingWorkflows();
+                } else if (msg.type === 'intraday_progress' && msg.eloc_id) {
+                    // Live shares-accumulated/status for an Intraday ELOC's VWAP pricing window — update
+                    // the existing card in place (no re-fetch; these can arrive multiple times a second).
+                    handleIntradayProgress(msg);
                 }
             } catch (e) {
                 console.warn('[Dashboard] Workflows WS parse error:', e);

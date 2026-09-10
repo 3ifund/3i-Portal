@@ -193,3 +193,10 @@ class PricingWorkflowState(BaseModel):
     can_remove: bool = False
     workflow_complete: bool = False
     steps: list[dict] = []
+    # Intraday ELOCs don't move current_step/step_status while their live VWAP pricing window is
+    # open (DTS tracks that separately, on eloc_data) — these three carry that instead, so the
+    # frontend can show live progress rather than a step badge frozen on "Signed Contract to
+    # Company" for the whole trading day. None/absent for a day-based ELOC.
+    intraday_shares_accumulated: float | None = None
+    intraday_purchase_share_amount: int | None = None
+    intraday_pricing_status: str | None = None
