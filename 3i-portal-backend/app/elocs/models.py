@@ -117,15 +117,30 @@ def build_workflow_steps(
         if step not in CLIENT_VISIBLE_STEPS:
             continue
 
+        # A Completed visible step inherits a hidden step's non-Completed status ONLY when that
+        # hidden step is the genuinely ACTIVE one (j == current_idx) — e.g. workflow_step sitting
+        # mid-SharePoint-save with status=InProgress should surface as activity on the preceding
+        # visible badge, not leave it looking falsely at-rest. Restricting to j == current_idx (not
+        # "any non-Completed hidden step before the next visible one") matters: every hidden step
+        # AFTER current_idx is correctly "Awaiting" for the mundane reason that the workflow simply
+        # hasn't reached it yet, not because anything is wrong — inheriting from those unconditionally
+        # was a real bug (caught while wiring the Intraday pipeline, which parks workflow_step at
+        # SignedContractToPrimeBroker — a hidden step — for its entire live-pricing window, turning
+        # what was a sub-second race for day-based ELOCs into an always-on failure: it permanently
+        # dragged "Signed Contract to Company" back down to Awaiting even though workflow_step had
+        # genuinely already passed it).
         effective_status = status
-        for j in range(i + 1, len(all_steps)):
-            next_step, next_status = all_steps[j]
-            if next_step in CLIENT_VISIBLE_STEPS:
-                break
-            if effective_status == WorkflowStepState.Completed.value and next_status != WorkflowStepState.Completed.value:
-                logger.debug("build_workflow_steps: %s inherits status %s from hidden step %s",
-                             step.value, next_status, next_step.value)
-                effective_status = next_status
+        if status == WorkflowStepState.Completed.value:
+            for j in range(i + 1, len(all_steps)):
+                next_step, next_status = all_steps[j]
+                if next_step in CLIENT_VISIBLE_STEPS:
+                    break
+                if j == current_idx:
+                    if next_status != WorkflowStepState.Completed.value:
+                        logger.debug("build_workflow_steps: %s inherits status %s from active hidden step %s",
+                                     step.value, next_status, next_step.value)
+                        effective_status = next_status
+                    break
 
         steps.append({
             "key": step.value,
