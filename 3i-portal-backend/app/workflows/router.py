@@ -548,6 +548,8 @@ async def connect_dealterms_ws():
                     await _handle_eloc_hidden(msg)
                 elif msg_type == "intraday_progress":
                     await _handle_intraday_progress(msg)
+                elif msg_type == "intraday_tick":
+                    await _handle_intraday_tick(msg)
 
             logger.warning("DTS WS: connection closed, will reconnect in %ds", reconnect_delay)
 
@@ -800,5 +802,32 @@ async def _handle_intraday_progress(msg: dict):
     if company_id:
         _eloc_company_map[eloc_id] = int(company_id)
         await _broadcast(int(company_id), payload)
+
+    await _internal_broadcast({**payload, "scope": "internal"})
+
+
+async def _handle_intraday_tick(msg: dict):
+    """One row for the PRM ELOC Details dialog's live time-and-sales feed — a genuinely-new trade print
+    or VWAP-volume anchor update, pushed by DTS's IntradayElocPricingManager.OnQuoteReceived as it
+    happens. PRM-internal only (no customer-facing broadcast — this is operational tick-level detail,
+    not something the customer portal shows)."""
+    eloc_id = msg.get("elocId", "")
+    payload = {
+        "type": "intraday_tick",
+        "eloc_id": eloc_id,
+        "kind": msg.get("tickKind"),
+        "time_utc": msg.get("tickTimeUtc"),
+        "price": msg.get("tickPrice"),
+        "size": msg.get("tickSize"),
+        "qualifies_price_trigger": msg.get("tickQualifiesPriceTrigger"),
+        "vwap_volume": msg.get("tickVwapVolume"),
+        "delta_volume": msg.get("tickDeltaVolume"),
+        "shares_accumulated": msg.get("tickSharesAccumulated"),
+        "running_vwap": msg.get("tickRunningVwap"),
+        "running_low": msg.get("tickRunningLow"),
+        "triggered": msg.get("tickTriggered"),
+    }
+    logger.debug("HANDLE intraday_tick: eloc_id=%s kind=%s triggered=%s",
+                 eloc_id, payload["kind"], payload["triggered"])
 
     await _internal_broadcast({**payload, "scope": "internal"})

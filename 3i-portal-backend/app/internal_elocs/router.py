@@ -181,6 +181,28 @@ async def get_intraday_live_progress(symbol: str, admin: UserInfo = Depends(requ
     return body
 
 
+@router.get("/elocs/intraday-details/{symbol}")
+async def get_intraday_details(symbol: str, admin: UserInfo = Depends(require_admin)):
+    """Full snapshot for the PRM ELOC page's Details dialog — static submission-time fields plus the
+    three trigger statuses and running VWAP/low. Backs the dialog's opening fetch; live updates after
+    that arrive via the intraday_tick/intraday_progress WS pushes, not repeated polling of this."""
+    body = await onprem.get_intraday_eloc_details(symbol)
+    if body is None:
+        raise HTTPException(status_code=404, detail=f"No Intraday notice on record for {symbol}")
+    return body
+
+
+@router.get("/elocs/intraday-tick-history/{symbol}")
+async def get_intraday_tick_history(symbol: str, since_utc: str, admin: UserInfo = Depends(require_admin)):
+    """Backfill for the Details dialog's time-and-sales feed — real trade prints since `since_utc`
+    (ISO-8601 query param), rendered by the dialog as the orange "repopulated" rows until a genuinely
+    new live tick (white) arrives."""
+    body = await onprem.get_intraday_eloc_tick_history(symbol, since_utc)
+    if body is None:
+        raise HTTPException(status_code=404, detail=f"No Intraday notice on record for {symbol}")
+    return body
+
+
 @router.delete("/elocs/{eloc_id}")
 async def delete_eloc(eloc_id: str, admin: UserInfo = Depends(require_admin)):
     t_start = time.monotonic()
