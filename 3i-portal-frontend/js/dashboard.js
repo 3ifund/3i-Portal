@@ -781,13 +781,20 @@ const Dashboard = (() => {
             ${intradayHtml}
         `;
 
-        // Click handlers for completed document badges
+        // Click handlers for completed document badges. At the final step, an Intraday ELOC's
+        // second document is its own ELOC Details (IntradayElocDetails, the numbers-only price
+        // derivation) instead of the day-based multi-day PricingDetails PDF, which doesn't apply to
+        // Intraday. intraday_pricing_status is present only on Intraday workflows (see
+        // formatIntradayStatus usage above) — the same signal already used elsewhere in this file.
+        const isIntraday = !!workflow.intraday_pricing_status;
         card.querySelectorAll('.workflow-step.clickable').forEach((stepEl) => {
             stepEl.addEventListener('click', () => {
                 const stepKey = stepEl.dataset.step;
                 const docs = stepKey === 'ReceivedCountersignedVwapNotification'
                     ? [{ step: 'ReceivedCountersignedVwapNotification', label: STEP_LABELS.ReceivedCountersignedVwapNotification },
-                       { step: 'PricingDetails', label: STEP_LABELS.PricingDetails }]
+                       isIntraday
+                           ? { step: 'IntradayElocDetails', label: 'ELOC Details' }
+                           : { step: 'PricingDetails', label: STEP_LABELS.PricingDetails }]
                     : stepKey;
                 openDocumentViewer(workflow.eloc_id, docs, workflow.source || 'dts');
             });

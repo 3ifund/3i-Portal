@@ -208,7 +208,7 @@
         // Populate signatory dropdown
         displaySignatory(data.signatory);
 
-        renderTemplateFields(confirmationFields, data.eloc_id);
+        renderTemplateFields(confirmationFields);
 
         // Wire up events
         // Signatory dropdown removed — user's signatory auto-displayed from profile
@@ -218,11 +218,21 @@
     // ---- Purchase Confirmation fields — the admin-edited Participation Template's full field set,
     // mirrored directly in document order/sections. Nothing hidden behind a toggle. ----
 
+    // A fixed-option-set field (options present) renders every option as its own checkbox row,
+    // checked when it matches the field's value — mirrors ParticipationPdfRenderer.cs's PDF layout
+    // exactly (every option shown, not just the chosen one).
     function templateFieldRow(field) {
+        if (field.options && field.options.length) {
+            const optionsHtml = field.options.map((opt) => {
+                const checked = field.value != null && String(opt).toLowerCase() === String(field.value).toLowerCase();
+                return `<label class="pn-checkbox-option"><input type="checkbox" disabled${checked ? ' checked' : ''}> ${opt}</label>`;
+            }).join('');
+            return `<tr><td class="pn-field-label">${field.label || ''}</td><td class="pn-field-value">${optionsHtml}</td></tr>`;
+        }
         return `<tr><td class="pn-field-label">${field.label || ''}</td><td class="pn-field-value">${field.value != null ? field.value : ''}</td></tr>`;
     }
 
-    function renderTemplateFields(confirmationFields, elocId) {
+    function renderTemplateFields(confirmationFields) {
         const section = document.getElementById('pc-template-fields-section');
         if (!confirmationFields || !confirmationFields.fields || !confirmationFields.fields.length) {
             section.style.display = 'none';
@@ -243,14 +253,6 @@
                 rows.push(templateFieldRow(f));
             });
         document.getElementById('pc-template-fields-body').innerHTML = rows.join('');
-
-        // The PDFs behind these buttons are the exact bytes this same template-driven content was
-        // rendered into (BuildAndStoreConfirmationDocumentsAsync) — a convenience download, not a
-        // second source of truth.
-        wirePdfDownloadButton('pc-download-confirmation-btn', true,
-            elocId, 'IntradayPurchaseConfirmation', `${elocId}-Purchase-Confirmation.pdf`);
-        wirePdfDownloadButton('pc-download-details-btn', true,
-            elocId, 'IntradayElocDetails', `${elocId}-ELOC-Details.pdf`);
     }
 
     // ---- ELOC Details panel — HTML, shown to the right of the Purchase Confirmation on load ----
@@ -287,43 +289,6 @@
         document.getElementById('pc-details-body').innerHTML = rows.join('') +
             `<div class="pc-details-total"><span>${Number(details.elocShares || 0).toLocaleString()} sh × ${fmtPrice(details.purchasePrice)}</span><span>${fmtMoney(details.totalDollarAmount)}</span></div>`;
         document.getElementById('pc-details-panel').style.display = 'block';
-    }
-
-    function wirePdfDownloadButton(buttonId, available, elocId, step, defaultFilename) {
-        const btn = document.getElementById(buttonId);
-        if (!available) { btn.style.display = 'none'; return; }
-        btn.style.display = 'inline-block';
-        const newBtn = btn.cloneNode(true);
-        btn.parentNode.replaceChild(newBtn, btn);
-        newBtn.addEventListener('click', () => downloadPortalPdf(elocId, step, defaultFilename));
-    }
-
-    async function downloadPortalPdf(elocId, step, defaultFilename) {
-        const statusEl = document.getElementById('pc-intraday-download-status');
-        statusEl.textContent = 'Downloading...';
-        try {
-            const docData = await API.getPortalElocDocument(elocId, step);
-            if (!docData || !docData.pdf_base64) {
-                statusEl.textContent = 'PDF not yet available. Please try again in a moment.';
-                return;
-            }
-            const byteCharacters = atob(docData.pdf_base64);
-            const byteNumbers = new Array(byteCharacters.length);
-            for (let i = 0; i < byteCharacters.length; i++) byteNumbers[i] = byteCharacters.charCodeAt(i);
-            const blob = new Blob([new Uint8Array(byteNumbers)], { type: 'application/pdf' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = docData.filename || defaultFilename;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-            statusEl.textContent = 'Download complete.';
-        } catch (err) {
-            console.error('[PurchaseConfirmation] Download error:', err);
-            statusEl.textContent = 'Download failed: ' + (err.message || 'Unknown error');
-        }
     }
 
     // ---- Signatory Display (auto from user profile) ----
@@ -467,60 +432,28 @@
         }
     }
 
-    // ---- Success + Download ----
+    // ---- Success ----
 
+    // No download here — the countersigned Purchase Confirmation and ELOC Details become
+    // downloadable from Current ELOCs on the dashboard once this step shows Completed, same as
+    // every other ELOC document.
     function showSuccessWithDownload(elocId) {
-        // Replace just the Purchase Confirmation document with a success message + download button —
-        // leave the ELOC Details panel (a sibling in the pc-layout flex container) in place.
+        // Replace just the Purchase Confirmation document with a success message — leave the ELOC
+        // Details panel (a sibling in the pc-layout flex container) in place.
         const doc = document.querySelector('#pc-document .pn-document') || document.getElementById('pc-document');
         doc.innerHTML = `
             <div style="text-align:center; padding:3rem 1rem;">
                 <h2 style="color:var(--badge-green); margin-bottom:1rem;">Purchase Confirmation Countersigned Successfully</h2>
                 <p style="color:var(--text-secondary); margin-bottom:2rem;">
                     The countersigned Purchase Confirmation has been submitted and emailed to the relevant parties.
+                    You can download it, along with the ELOC Details, from Current ELOCs on the dashboard.
                 </p>
-                <div style="display:flex; gap:1rem; justify-content:center;">
-                    <button class="btn btn-primary" id="pc-download-btn">Download Countersigned PDF</button>
-                    <button class="btn btn-secondary" id="pc-return-btn">Return to Dashboard</button>
-                </div>
-                <p id="pc-download-status" style="color:var(--text-secondary); margin-top:1rem; font-size:0.9rem;"></p>
+                <button class="btn btn-primary" id="pc-return-btn">Return to Dashboard</button>
             </div>
         `;
 
         document.getElementById('pc-return-btn').addEventListener('click', () => {
             window.location.href = 'dashboard.html';
-        });
-
-        document.getElementById('pc-download-btn').addEventListener('click', async () => {
-            const statusEl = document.getElementById('pc-download-status');
-            statusEl.textContent = 'Downloading...';
-            try {
-                const docData = await API.getPortalElocDocument(elocId, 'CountersignedPurchaseConfirmation');
-                if (docData && docData.pdf_base64) {
-                    // Convert base64 to blob and trigger download
-                    const byteCharacters = atob(docData.pdf_base64);
-                    const byteNumbers = new Array(byteCharacters.length);
-                    for (let i = 0; i < byteCharacters.length; i++) {
-                        byteNumbers[i] = byteCharacters.charCodeAt(i);
-                    }
-                    const byteArray = new Uint8Array(byteNumbers);
-                    const blob = new Blob([byteArray], { type: 'application/pdf' });
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = docData.filename || elocId + '-CountersignedPurchaseConfirmation.pdf';
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
-                    URL.revokeObjectURL(url);
-                    statusEl.textContent = 'Download complete.';
-                } else {
-                    statusEl.textContent = 'PDF not yet available. Please try again in a moment.';
-                }
-            } catch (err) {
-                console.error('[PurchaseConfirmation] Download error:', err);
-                statusEl.textContent = 'Download failed: ' + (err.message || 'Unknown error');
-            }
         });
     }
 

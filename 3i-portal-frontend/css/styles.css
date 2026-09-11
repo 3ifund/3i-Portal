@@ -1551,6 +1551,27 @@ input[type="number"] {
     color: var(--text-primary);
 }
 
+/* A fixed-option-set field (Type of VWAP Purchase, Valuation Period end trigger) — every option
+   shown as its own checkbox row, matching ParticipationPdfRenderer.cs's PDF layout. */
+.pn-checkbox-option {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    color: var(--text-primary);
+    margin-bottom: 0.25rem;
+}
+
+.pn-checkbox-option input[type="checkbox"] {
+    accent-color: var(--accent-blue);
+    width: 15px;
+    height: 15px;
+    flex-shrink: 0;
+}
+
+.pn-checkbox-option:last-child {
+    margin-bottom: 0;
+}
+
 .pn-signature-block,
 .pn-accepted-block {
     border-top: 1px solid var(--border-blue-dim);
