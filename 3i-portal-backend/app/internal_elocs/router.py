@@ -194,9 +194,11 @@ async def get_intraday_details(symbol: str, admin: UserInfo = Depends(require_ad
 
 @router.get("/elocs/intraday-tick-history/{symbol}")
 async def get_intraday_tick_history(symbol: str, since_utc: str, admin: UserInfo = Depends(require_admin)):
-    """Backfill for the Details dialog's time-and-sales feed — real trade prints since `since_utc`
-    (ISO-8601 query param), rendered by the dialog as the orange "repopulated" rows until a genuinely
-    new live tick (white) arrives."""
+    """Backfill for the Details dialog's time-and-sales feed since `since_utc` (ISO-8601 query param).
+    Transparent pass-through of DTS's response, which carries a top-level "source": "live_log" (this
+    process's own live-observed ticks -- no DTS restart since since_utc) or "market_data_query" (a real
+    gap -- DTS had to re-derive the window from the market data vendor). The dialog colors strictly by
+    that field, not by whether this call happened on open vs. a reconnect."""
     body = await onprem.get_intraday_eloc_tick_history(symbol, since_utc)
     if body is None:
         raise HTTPException(status_code=404, detail=f"No Intraday notice on record for {symbol}")
