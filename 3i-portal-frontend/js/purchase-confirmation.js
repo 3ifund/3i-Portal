@@ -20,6 +20,31 @@
         return '$' + Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     }
 
+    function fmtPrice(value) {
+        return (value === null || value === undefined) ? '' : '$' + Number(value).toFixed(4);
+    }
+
+    function fmtPct(value) {
+        return (value === null || value === undefined) ? '' : Number(value).toFixed(2) + '%';
+    }
+
+    // Renders a UTC ISO datetime as New York local time — no timezone library needed, the browser's
+    // Intl support handles the DST-aware conversion.
+    function fmtEasternTime(isoUtc) {
+        if (!isoUtc) return '';
+        try {
+            const d = new Date(isoUtc);
+            if (isNaN(d.getTime())) return '';
+            return d.toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit', second: '2-digit' });
+        } catch { return ''; }
+    }
+
+    const VALUATION_END_TRIGGER_LABELS = {
+        RanToClose: '03:59:59 p.m., New York City time',
+        BelowMinPrice: 'Minimum Price Threshold trigger',
+        VolumeThresholdReached: 'VWAP Purchase Volume Threshold reached',
+    };
+
     // ---- Init ----
 
     async function init() {
@@ -157,9 +182,111 @@
         // Populate signatory dropdown
         displaySignatory(data.signatory);
 
+        renderIntradayDetails(data);
+
         // Wire up events
         // Signatory dropdown removed — user's signatory auto-displayed from profile
         document.getElementById('pc-submit-btn').addEventListener('click', openConfirmDialog);
+    }
+
+    // ---- Intraday VWAP Purchase — full Exhibit C field set + downloads, behind a "Show Details" toggle ----
+
+    function intradayFieldRow(label, value) {
+        return `<tr><td class="pn-field-label">${label}</td><td class="pn-field-value">${value || ''}</td></tr>`;
+    }
+
+    function renderIntradayDetails(data) {
+        const section = document.getElementById('pc-intraday-section');
+        const intraday = data.intraday || {};
+        // Only show this section for an Intraday VWAP Purchase with data actually on it — a day-based
+        // ELOC's confirmation-prefill returns an empty {} for "intraday".
+        if (data.period_type !== 'Intraday' || !intraday.purchase_type) {
+            section.style.display = 'none';
+            return;
+        }
+        section.style.display = 'block';
+
+        const pct = intraday.percentage_of_volume;
+        const volumeThreshold = (pct && data.shares) ? Math.ceil(Number(data.shares) / (Number(pct) / 100)) : null;
+        const trigger = intraday.valuation_end_trigger || '';
+        const endTimeIso = intraday.price_breached_at || intraday.max_shares_reached_at || intraday.ran_to_close_at;
+        const lowTradeLabel = intraday.low_price_trade_time
+            ? `(trade at ${fmtEasternTime(intraday.low_price_trade_time)} ET, ${Number(intraday.low_price_trade_size || 0).toLocaleString()} shares)`
+            : '(no single trade ≥ 100 shares — unfiltered low)';
+
+        const rows = [
+            intradayFieldRow('Type of VWAP Purchase:', intraday.purchase_type),
+            intradayFieldRow('VWAP Purchase Percentage specified in VWAP Purchase Notice:', fmtPct(pct)),
+            intradayFieldRow('Aggregate VWAP Purchase Percentage immediately after giving effect to the applicable VWAP Purchase Notice:', fmtPct(pct)),
+            intradayFieldRow('VWAP Purchase Volume Threshold (calculated as VWAP Purchase Share Amount divided by VWAP Purchase Percentage):',
+                volumeThreshold !== null ? volumeThreshold.toLocaleString() : ''),
+            intradayFieldRow('Minimum Price Threshold:', fmtPrice(intraday.threshold_price)),
+            intradayFieldRow('VWAP Purchase Valuation Period start time:', fmtEasternTime(intraday.starting_time) + ' ET'),
+            intradayFieldRow('VWAP Purchase Valuation Period end time:', fmtEasternTime(endTimeIso) + ' ET'),
+            intradayFieldRow('VWAP Purchase Valuation Period end trigger:', VALUATION_END_TRIGGER_LABELS[trigger] || trigger),
+            intradayFieldRow('Aggregate trading volume during applicable VWAP Purchase Valuation Period:',
+                intraday.aggregate_trading_volume != null ? Number(intraday.aggregate_trading_volume).toLocaleString() : ''),
+            intradayFieldRow('VWAP during VWAP Purchase Valuation Period:', fmtPrice(intraday.vwap_during_period)),
+            intradayFieldRow(`Low Price during VWAP Purchase Valuation Period: <span style="color:var(--text-secondary); font-weight:normal;">${lowTradeLabel}</span>`,
+                fmtPrice(intraday.low_price_during_period)),
+            intradayFieldRow('VWAP Purchase Price (per Share):', fmtPrice(intraday.purchase_price)),
+            intradayFieldRow('VWAP Purchase Maximum Amount:', Number(data.shares || 0).toLocaleString()),
+            intradayFieldRow('Final VWAP Purchase Share Amount:',
+                intraday.shares_accumulated != null ? Number(intraday.shares_accumulated).toLocaleString() : ''),
+        ];
+        document.getElementById('pc-intraday-fields-body').innerHTML = rows.join('');
+
+        const toggleBtn = document.getElementById('pc-details-toggle');
+        const detailsBody = document.getElementById('pc-intraday-details');
+        const newToggleBtn = toggleBtn.cloneNode(true);
+        toggleBtn.parentNode.replaceChild(newToggleBtn, toggleBtn);
+        newToggleBtn.addEventListener('click', () => {
+            const showing = detailsBody.style.display !== 'none';
+            detailsBody.style.display = showing ? 'none' : 'block';
+            newToggleBtn.textContent = showing ? 'Show Details ▾' : 'Hide Details ▴';
+        });
+
+        wirePdfDownloadButton('pc-download-confirmation-btn', data.has_purchase_confirmation_pdf,
+            data.eloc_id, 'IntradayPurchaseConfirmation', `${data.eloc_id}-Purchase-Confirmation.pdf`);
+        wirePdfDownloadButton('pc-download-details-btn', data.has_eloc_details_pdf,
+            data.eloc_id, 'IntradayElocDetails', `${data.eloc_id}-ELOC-Details.pdf`);
+    }
+
+    function wirePdfDownloadButton(buttonId, available, elocId, step, defaultFilename) {
+        const btn = document.getElementById(buttonId);
+        if (!available) { btn.style.display = 'none'; return; }
+        btn.style.display = 'inline-block';
+        const newBtn = btn.cloneNode(true);
+        btn.parentNode.replaceChild(newBtn, btn);
+        newBtn.addEventListener('click', () => downloadPortalPdf(elocId, step, defaultFilename));
+    }
+
+    async function downloadPortalPdf(elocId, step, defaultFilename) {
+        const statusEl = document.getElementById('pc-intraday-download-status');
+        statusEl.textContent = 'Downloading...';
+        try {
+            const docData = await API.getPortalElocDocument(elocId, step);
+            if (!docData || !docData.pdf_base64) {
+                statusEl.textContent = 'PDF not yet available. Please try again in a moment.';
+                return;
+            }
+            const byteCharacters = atob(docData.pdf_base64);
+            const byteNumbers = new Array(byteCharacters.length);
+            for (let i = 0; i < byteCharacters.length; i++) byteNumbers[i] = byteCharacters.charCodeAt(i);
+            const blob = new Blob([new Uint8Array(byteNumbers)], { type: 'application/pdf' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = docData.filename || defaultFilename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            statusEl.textContent = 'Download complete.';
+        } catch (err) {
+            console.error('[PurchaseConfirmation] Download error:', err);
+            statusEl.textContent = 'Download failed: ' + (err.message || 'Unknown error');
+        }
     }
 
     // ---- Signatory Display (auto from user profile) ----

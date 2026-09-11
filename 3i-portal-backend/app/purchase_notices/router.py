@@ -464,6 +464,32 @@ async def get_portal_document(
         logger.info("Pricing Details returned for eloc=%s (%d bytes)", eloc_id, len(pdf))
         return {"pdf_base64": base64.b64encode(pdf).decode("ascii"), "filename": f"{eloc_id}-ELOC-Details.pdf"}
 
+    # Intraday's two pre-countersign review documents — stored directly on eloc_data by
+    # IntradayElocPricingManager.BuildAndStoreConfirmationDocumentsAsync at termination (not rendered
+    # on-demand like PricingDetails above), so just read the bytes straight off this Portal's own Mongo.
+    # "IntradayElocDetails" (not "ELOCDetails") deliberately avoids colliding with the older,
+    # company-level Pricing Details PDF handled just above.
+    if step in ("IntradayPurchaseConfirmation", "IntradayElocDetails"):
+        from app.database.mongo import get_db
+        import base64
+        db = get_db()
+        eloc_data = await db.eloc_data.find_one({"eloc_id": eloc_id})
+        if not eloc_data:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"ELOC data not found: {eloc_id}")
+        bytes_field, filename_field = (
+            ("purchase_confirmation_bytes", "purchase_confirmation_filename") if step == "IntradayPurchaseConfirmation"
+            else ("eloc_details_bytes", "eloc_details_filename")
+        )
+        pdf_bytes = eloc_data.get(bytes_field)
+        if not pdf_bytes:
+            logger.warning("No %s stored yet for eloc=%s", step, eloc_id)
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"{step} is not available for this ELOC yet.")
+        logger.info("%s returned for eloc=%s (%d bytes)", step, eloc_id, len(pdf_bytes))
+        return {
+            "pdf_base64": base64.b64encode(pdf_bytes).decode("ascii"),
+            "filename": eloc_data.get(filename_field) or f"{eloc_id}-{step}.pdf",
+        }
+
     doc = await onprem.get_portal_eloc_document(eloc_id, step)
     if not doc:
         logger.warning("Document not found for eloc=%s step=%s", eloc_id, step)
@@ -638,6 +664,31 @@ async def get_confirmation_prefill(
         # Per-day VWAP grid + discount/closing-substitution detail (the same breakdown the Pricing Details PDF
         # renders), so the countersign page can show how the price was derived. Null when priced before it was captured.
         "pricing_breakdown": eloc_data.get("pricing_breakdown"),
+        # Intraday-only — every field on the Purchase Confirmation ("Exhibit C") and the ELOC Details
+        # PDF, so the review page can show them all inline (not just via the PDF download) with the
+        # same numbers as the two attached PDFs. Null/empty for a day-based ELOC (period_type != Intraday).
+        "intraday": {
+            "purchase_type": eloc_data.get("intraday_purchase_type"),
+            "threshold_price": eloc_data.get("intraday_threshold_price"),
+            "percentage_of_volume": eloc_data.get("intraday_percentage_of_volume"),
+            "starting_volume": eloc_data.get("intraday_starting_volume"),
+            "starting_time": eloc_data.get("intraday_starting_time"),
+            "pricing_status": eloc_data.get("intraday_pricing_status"),
+            "max_shares_reached_at": eloc_data.get("intraday_max_shares_reached_at"),
+            "price_breached_at": eloc_data.get("intraday_price_breached_at"),
+            "price_breach_value": eloc_data.get("intraday_price_breach_value"),
+            "ran_to_close_at": eloc_data.get("intraday_ran_to_close_at"),
+            "shares_accumulated": eloc_data.get("intraday_shares_accumulated"),
+            "valuation_end_trigger": eloc_data.get("intraday_valuation_end_trigger"),
+            "aggregate_trading_volume": eloc_data.get("intraday_aggregate_trading_volume"),
+            "vwap_during_period": eloc_data.get("intraday_vwap_during_period"),
+            "low_price_during_period": eloc_data.get("intraday_low_price_during_period"),
+            "low_price_trade_time": eloc_data.get("intraday_low_price_trade_time"),
+            "low_price_trade_size": eloc_data.get("intraday_low_price_trade_size"),
+            "purchase_price": eloc_data.get("intraday_purchase_price"),
+        },
+        "has_purchase_confirmation_pdf": bool(eloc_data.get("purchase_confirmation_bytes")),
+        "has_eloc_details_pdf": bool(eloc_data.get("eloc_details_bytes")),
         "to_name": to_name,
         "to_email": to_email,
         "to_name_source": to_name_source,
