@@ -1419,101 +1419,57 @@ input[type="number"] {
     min-width: 0;
 }
 
-/* ELOC Details panel — deliberately mirrors ElocDetailsPdfRenderer.cs (DTS) field-for-field and
-   color-for-color: white "paper" card, teal section bars, shaded/highlighted rows, green total box.
-   Not a themed portal widget — a faithful HTML rendering of the same PDF the download button offers. */
 .pc-details-panel {
-    flex: 0 0 340px;
-    background: #ffffff;
+    flex: 0 0 320px;
+    background: var(--bg-card);
     border: 1px solid var(--border-blue-dim);
     border-radius: var(--border-radius);
-    padding: 1.5rem 1.25rem;
+    padding: 1.5rem;
     position: sticky;
     top: 1.5rem;
-    color: #1a1a1a;
-    font-family: Georgia, 'Times New Roman', Times, serif;
 }
 
-.pc-details-title {
-    text-align: center;
-    font-weight: 700;
-    font-size: 1.1rem;
-    letter-spacing: 0.03em;
-    margin: 0 0 0.2rem;
-    color: #1a1a1a;
-}
-
-.pc-details-meta {
-    text-align: center;
-    color: #5a5a5a;
-    font-size: 0.72rem;
+.pc-details-panel h3 {
     margin: 0 0 1rem;
+    color: var(--accent-blue);
+    font-size: 1.05rem;
 }
 
-.pc-details-section {
-    background: rgb(15, 107, 107);
-    color: #ffffff;
-    font-weight: 700;
-    font-size: 0.8rem;
-    padding: 0.3rem 0.5rem;
-    margin: 0.9rem 0 0;
+.pc-details-subtitle {
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    margin: -0.75rem 0 1rem;
 }
 
-.pc-details-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 0.8rem;
+.pc-details-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.4rem 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    font-size: 0.88rem;
 }
 
-.pc-details-table td {
-    padding: 0.32rem 0.4rem;
-    vertical-align: top;
+.pc-details-label {
+    color: var(--text-secondary);
 }
 
-.pc-details-table td:last-child {
+.pc-details-value {
+    color: var(--text-primary);
+    font-weight: 600;
     text-align: right;
-    white-space: nowrap;
-    padding-left: 0.5rem;
 }
 
-.pc-details-table tr.shaded td {
-    background: rgb(242, 242, 242);
-}
-
-.pc-details-table tr.highlight td {
-    background: rgb(255, 242, 204);
-}
-
-.pc-details-table tr.bold td {
+.pc-details-total {
+    margin-top: 0.75rem;
+    padding-top: 0.75rem;
+    border-top: 2px solid var(--border-blue-dim);
+    display: flex;
+    justify-content: space-between;
     font-weight: 700;
+    color: var(--accent-blue);
 }
 
-.pc-details-note {
-    display: block;
-    color: #5a5a5a;
-    font-weight: 400;
-    font-size: 0.72rem;
-}
-
-.pc-details-formula {
-    color: #5a5a5a;
-    font-size: 0.74rem;
-    margin: 0.3rem 0 0.15rem;
-}
-
-.pc-details-total-box {
-    margin-top: 0.6rem;
-    background: rgb(226, 240, 217);
-    border: 1px solid rgb(112, 173, 71);
-    border-radius: 3px;
-    text-align: center;
-    font-weight: 700;
-    font-size: 0.92rem;
-    padding: 0.6rem 0.5rem;
-}
-
-/* Section headers inside the Purchase Confirmation's own template-driven field table (pn-document,
-   dark theme) — distinct from .pc-details-section above (ELOC Details panel, white "paper" card). */
 .pc-section-heading {
     font-weight: 700;
     color: var(--accent-blue);
@@ -1528,7 +1484,6 @@ input[type="number"] {
     .pc-details-panel {
         flex: 1 1 auto;
         width: 100%;
-        max-width: 480px;
         position: static;
     }
 }
