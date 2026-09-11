@@ -1561,11 +1561,43 @@ input[type="number"] {
     margin-bottom: 0.25rem;
 }
 
-.pn-checkbox-option input[type="checkbox"] {
-    accent-color: var(--accent-blue);
+/* Custom-drawn checkbox — accent-color alone renders a native disabled checkbox as a plain white
+   box with a barely-visible check on some browsers/OSes; appearance:none + a hand-drawn box/check
+   guarantees the same look everywhere, dark theme included. Shared with .ppn-checkbox-option
+   (Purchase Notice's locked checkbox groups). */
+.pn-checkbox-option input[type="checkbox"],
+.ppn-checkbox-option input[type="checkbox"] {
+    appearance: none;
+    -webkit-appearance: none;
+    margin: 0;
     width: 15px;
     height: 15px;
+    min-width: 15px;
     flex-shrink: 0;
+    border: 1.5px solid var(--input-border);
+    border-radius: 3px;
+    background: var(--input-bg);
+    position: relative;
+    cursor: not-allowed;
+}
+
+.pn-checkbox-option input[type="checkbox"]:checked,
+.ppn-checkbox-option input[type="checkbox"]:checked {
+    background: var(--accent-blue);
+    border-color: var(--accent-blue);
+}
+
+.pn-checkbox-option input[type="checkbox"]:checked::after,
+.ppn-checkbox-option input[type="checkbox"]:checked::after {
+    content: '';
+    position: absolute;
+    left: 4px;
+    top: 1px;
+    width: 4px;
+    height: 8px;
+    border: solid #ffffff;
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
 }
 
 .pn-checkbox-option:last-child {
@@ -1669,10 +1701,6 @@ input[type="number"] {
 
 .ppn-checkbox-group.ppn-locked {
     opacity: 0.85;
-}
-
-.ppn-checkbox-option input[type="checkbox"]:disabled {
-    cursor: not-allowed;
 }
 
 .ppn-input-wrap {
