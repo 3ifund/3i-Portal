@@ -1403,6 +1403,91 @@ input[type="number"] {
     padding: 2.5rem;
 }
 
+/* Purchase Confirmation + ELOC Details side by side — the document and its numeric derivation,
+   both fully visible on one page, no toggle/accordion hiding either. */
+.pc-layout {
+    display: flex;
+    align-items: flex-start;
+    gap: 1.5rem;
+    max-width: 1180px;
+    margin: 2rem auto;
+}
+
+.pc-layout .pn-document {
+    margin: 0;
+    flex: 1 1 800px;
+    min-width: 0;
+}
+
+.pc-details-panel {
+    flex: 0 0 320px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-blue-dim);
+    border-radius: var(--border-radius);
+    padding: 1.5rem;
+    position: sticky;
+    top: 1.5rem;
+}
+
+.pc-details-panel h3 {
+    margin: 0 0 1rem;
+    color: var(--accent-blue);
+    font-size: 1.05rem;
+}
+
+.pc-details-subtitle {
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    margin: -0.75rem 0 1rem;
+}
+
+.pc-details-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.4rem 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    font-size: 0.88rem;
+}
+
+.pc-details-label {
+    color: var(--text-secondary);
+}
+
+.pc-details-value {
+    color: var(--text-primary);
+    font-weight: 600;
+    text-align: right;
+}
+
+.pc-details-total {
+    margin-top: 0.75rem;
+    padding-top: 0.75rem;
+    border-top: 2px solid var(--border-blue-dim);
+    display: flex;
+    justify-content: space-between;
+    font-weight: 700;
+    color: var(--accent-blue);
+}
+
+.pc-section-heading {
+    font-weight: 700;
+    color: var(--accent-blue);
+    padding: 0.75rem 0.75rem 0.35rem;
+    font-size: 0.9rem;
+}
+
+@media (max-width: 1024px) {
+    .pc-layout {
+        flex-direction: column;
+    }
+    .pc-details-panel {
+        flex: 1 1 auto;
+        width: 100%;
+        position: static;
+    }
+}
+
 .pn-title {
     text-align: center;
     font-size: 1.3rem;
@@ -1810,7 +1895,8 @@ input[type="number"] {
 @media print {
     .navbar,
     .pn-actions,
-    .pn-signatory-select-row {
+    .pn-signatory-select-row,
+    .pc-details-panel {
         display: none !important;
     }
 

@@ -40,8 +40,9 @@
                 <button class="btn btn-secondary" onclick="window.location.href='dashboard.html'">Return to Dashboard</button>
             </div>
 
-            <!-- Purchase Confirmation Document -->
-            <div class="pn-document" id="pc-document" style="display:none;">
+            <!-- Purchase Confirmation Document + ELOC Details, side by side -->
+            <div class="pc-layout" id="pc-document" style="display:none;">
+            <div class="pn-document">
 
                 <!-- Title -->
                 <h2 class="pn-title">FORM OF PURCHASE CONFIRMATION</h2>
@@ -61,8 +62,9 @@
                 <!-- Body Text (from template) -->
                 <div class="pn-section pn-body-text" id="pc-body-text"></div>
 
-                <!-- VWAP Pricing Fields Table -->
-                <div class="pn-section">
+                <!-- Generic 7-field table — day-based ELOCs only (no admin-edited Participation
+                     Template field catalog for those yet). Hidden for Intraday. -->
+                <div class="pn-section" id="pc-generic-fields-section">
                     <table class="pn-fields-table">
                         <tbody>
                             <tr>
@@ -97,28 +99,23 @@
                     </table>
                 </div>
 
-                <!-- Intraday VWAP Purchase — full Exhibit C field set + downloads. Toggled closed by
-                     default; only shown at all when the backend reports Intraday data. -->
-                <div class="pn-section" id="pc-intraday-section" style="display:none;">
-                    <button type="button" class="btn btn-secondary" id="pc-details-toggle" style="margin-bottom:0.75rem;">
-                        Show Details ▾
-                    </button>
-                    <div id="pc-intraday-details" style="display:none;">
-                        <table class="pn-fields-table">
-                            <tbody id="pc-intraday-fields-body"></tbody>
-                        </table>
-                        <div style="display:flex; gap:0.75rem; margin-top:1rem;">
-                            <button type="button" class="btn btn-secondary" id="pc-download-confirmation-btn" style="display:none;">
-                                Download Purchase Confirmation PDF
-                            </button>
-                            <button type="button" class="btn btn-secondary" id="pc-download-details-btn" style="display:none;">
-                                Download ELOC Details PDF
-                            </button>
-                        </div>
-                        <p id="pc-intraday-download-status" style="color:var(--text-secondary); margin-top:0.5rem; font-size:0.9rem;"></p>
+                <!-- Intraday VWAP Purchase — the admin-edited Participation Template's full field set,
+                     mirrored directly (no toggle, nothing hidden). Only shown when the backend reports
+                     an Intraday ELOC with a mapped template. -->
+                <div class="pn-section" id="pc-template-fields-section" style="display:none;">
+                    <table class="pn-fields-table">
+                        <tbody id="pc-template-fields-body"></tbody>
+                    </table>
+                    <div style="display:flex; gap:0.75rem; margin-top:1rem;">
+                        <button type="button" class="btn btn-secondary" id="pc-download-confirmation-btn" style="display:none;">
+                            Download Purchase Confirmation PDF
+                        </button>
+                        <button type="button" class="btn btn-secondary" id="pc-download-details-btn" style="display:none;">
+                            Download ELOC Details PDF
+                        </button>
                     </div>
+                    <p id="pc-intraday-download-status" style="color:var(--text-secondary); margin-top:0.5rem; font-size:0.9rem;"></p>
                 </div>
-
 
                 <!-- Dated + Firm Signature Block (already signed by firm) -->
                 <div class="pn-section pn-signature-block">
@@ -183,7 +180,16 @@
                     <button class="btn btn-secondary" id="pc-back-btn">Back to Dashboard</button>
                     <button class="btn btn-primary" id="pc-submit-btn" disabled>Countersign & Submit</button>
                 </div>
-            </div>
+            </div><!-- /pn-document -->
+
+            <!-- ELOC Details — HTML, not PDF, on the same page as Purchase Confirmation. Intraday only. -->
+            <aside class="pc-details-panel" id="pc-details-panel" style="display:none;">
+                <h3>ELOC Details</h3>
+                <p class="pc-details-subtitle">How the purchase price was derived</p>
+                <div id="pc-details-body"></div>
+            </aside>
+
+            </div><!-- /pc-layout -->
 
         </div><!-- /main-content -->
 

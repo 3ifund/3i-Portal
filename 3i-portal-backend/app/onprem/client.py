@@ -1385,6 +1385,37 @@ async def get_pricing_details_pdf(eloc_id: str) -> bytes | None:
     return response.content
 
 
+async def get_confirmation_fields(eloc_id: str, countersigned: bool = False) -> dict | None:
+    # The full Purchase Confirmation content — the SAME merged admin-edited Participation Template
+    # the PDF renders (body text, field labels/order/sections, values, both signatories) — as JSON.
+    # Intraday-only on the DTS side for now; returns None (404) for day-based ELOCs or when no
+    # template is mapped for this company/period.
+    logger.info("GET /api/portal/eloc/%s/confirmation-fields?countersigned=%s", eloc_id, countersigned)
+    response = await _request_with_retry(
+        "GET", f"/api/portal/eloc/{eloc_id}/confirmation-fields",
+        params={"countersigned": str(countersigned).lower()})
+    if response.status_code == 404:
+        logger.info("  → 404 (no template mapped, or not an Intraday ELOC)")
+        return None
+    logger.info("  → %s (%d bytes)", response.status_code, len(response.content))
+    response.raise_for_status()
+    return response.json()
+
+
+async def get_eloc_details(eloc_id: str) -> dict | None:
+    # ELOC Details as structured JSON (VWAP/low price/aggregate volume/purchase %/shares/total $) —
+    # same numbers as the ELOC Details PDF, for inline HTML rendering instead of a PDF download.
+    # Intraday-only; None (404/400) if not priced yet or not Intraday.
+    logger.info("GET /api/portal/eloc/%s/details", eloc_id)
+    response = await _request_with_retry("GET", f"/api/portal/eloc/{eloc_id}/details")
+    if response.status_code in (400, 404):
+        logger.info("  → %s (no details available for %s)", response.status_code, eloc_id)
+        return None
+    logger.info("  → %s (%d bytes)", response.status_code, len(response.content))
+    response.raise_for_status()
+    return response.json()
+
+
 async def accept_portal_eloc(eloc_id: str) -> dict:
     logger.info("POST /api/portal/eloc/%s/accept", eloc_id)
     response = await _request_with_retry("POST", f"/api/portal/eloc/{eloc_id}/accept")

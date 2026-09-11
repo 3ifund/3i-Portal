@@ -426,6 +426,31 @@ const API = (() => {
     }
 
     /**
+     * GET /purchase-notices/confirmation-fields/:elocId — the full Purchase Confirmation content
+     * (body text + admin-edited field labels/order/sections/values + both signatories), same
+     * template the PDF renders. Intraday-only for now.
+     */
+    async function getConfirmationFields(elocId, countersigned = false) {
+        const response = await fetch(
+            `${BASE_URL}/purchase-notices/confirmation-fields/${encodeURIComponent(elocId)}?countersigned=${countersigned}`,
+            { headers: authHeaders() }
+        );
+        return handleResponse(response);
+    }
+
+    /**
+     * GET /purchase-notices/eloc-details/:elocId — ELOC Details (VWAP/low price/volume/%/shares/total)
+     * as JSON, for inline HTML display next to the Purchase Confirmation. Intraday-only for now.
+     */
+    async function getElocDetails(elocId) {
+        const response = await fetch(
+            `${BASE_URL}/purchase-notices/eloc-details/${encodeURIComponent(elocId)}`,
+            { headers: authHeaders() }
+        );
+        return handleResponse(response);
+    }
+
+    /**
      * POST /purchase-notices/countersign — submit countersigned purchase confirmation
      */
     async function submitCountersign(payload) {
@@ -766,6 +791,8 @@ const API = (() => {
         submitIntradayPurchaseNotice,
         getIntradayLiveProgress,
         getPurchaseConfirmationPrefill,
+        getConfirmationFields,
+        getElocDetails,
         submitCountersign,
         adminGetApprovalContacts,
         adminAddApprovalContact,

@@ -503,6 +503,36 @@ async def get_portal_document(
 
 
 
+@router.get("/confirmation-fields/{eloc_id}")
+async def get_confirmation_fields(
+    eloc_id: str,
+    countersigned: bool = Query(default=False),
+    user: UserInfo = Depends(get_current_user),
+):
+    # The full Purchase Confirmation content — same admin-edited Participation Template the PDF
+    # renders, as JSON — so the review page can render it directly instead of a hardcoded field list.
+    logger.info("GET /confirmation-fields/%s?countersigned=%s — user=%s", eloc_id, countersigned, user.user_id)
+    await _verify_eloc_ownership(eloc_id, user)
+    fields = await onprem.get_confirmation_fields(eloc_id, countersigned=countersigned)
+    if fields is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No confirmation template available for this ELOC")
+    return fields
+
+
+@router.get("/eloc-details/{eloc_id}")
+async def get_eloc_details_fields(
+    eloc_id: str,
+    user: UserInfo = Depends(get_current_user),
+):
+    # ELOC Details as JSON, for inline HTML display next to the Purchase Confirmation.
+    logger.info("GET /eloc-details/%s — user=%s", eloc_id, user.user_id)
+    await _verify_eloc_ownership(eloc_id, user)
+    details = await onprem.get_eloc_details(eloc_id)
+    if details is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No ELOC details available for this ELOC")
+    return details
+
+
 @router.get("/confirmation-prefill/{eloc_id}")
 async def get_confirmation_prefill(
     eloc_id: str,

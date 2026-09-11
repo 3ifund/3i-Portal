@@ -83,6 +83,9 @@
 
         console.log('[PurchaseConfirmation] Loading prefill for', elocId);
         await loadPrefill(elocId);
+        // Independent of the confirmation document itself — a failure here just leaves the
+        // details panel hidden, it never blocks the Purchase Confirmation from rendering.
+        loadElocDetailsPanel(elocId);
     }
 
     // ---- Load Prefill Data ----
@@ -97,7 +100,18 @@
                 return;
             }
 
-            renderConfirmation(prefillData);
+            // The full admin-edited Participation Template content (body text + labeled/ordered/
+            // sectioned fields + firm signatory) — Intraday only; 404s (null) for day-based ELOCs,
+            // which fall back to the generic field table below exactly as before.
+            let confirmationFields = null;
+            try {
+                confirmationFields = await API.getConfirmationFields(prefillData.eloc_id || elocId);
+                console.log('[PurchaseConfirmation] Confirmation fields (template-driven):', confirmationFields);
+            } catch (err) {
+                console.log('[PurchaseConfirmation] No template-driven confirmation fields (expected for day-based ELOCs):', err.message || err);
+            }
+
+            renderConfirmation(prefillData, confirmationFields);
         } catch (err) {
             console.error('[PurchaseConfirmation] Prefill error:', err);
             showError(err.message || 'Failed to load purchase confirmation data.');
@@ -107,10 +121,10 @@
     // ---- Render ----
 
 
-    function renderConfirmation(data) {
+    function renderConfirmation(data, confirmationFields) {
         // Hide loading, show document
         document.getElementById('pc-loading').style.display = 'none';
-        document.getElementById('pc-document').style.display = 'block';
+        document.getElementById('pc-document').style.display = 'flex';
 
         // Header.
         //   "To:"     ← data.to_name  (live: eloc_deal.to via DTS WPF ELOC Deal Mgmt)
@@ -126,35 +140,40 @@
             'to_email=', data.to_email, '[' + (data.to_email_source || '?') + ']',
             'firm.email=', firmSig.email, '[block_source=' + (data.firm_signature_source || '?') + ']');
 
-        // Body text
+        // Body text — prefer the admin-edited Participation Template's body text (confirmationFields,
+        // Intraday) over the legacy prefill copy (day-based fallback).
         const bodyEl = document.getElementById('pc-body-text');
-        if (data.body_text) {
-            bodyEl.innerHTML = data.body_text.replace(/\n/g, '<br>');
+        const bodyText = (confirmationFields && confirmationFields.bodyText) || data.body_text;
+        if (bodyText) {
+            bodyEl.innerHTML = bodyText.replace(/\n/g, '<br>');
         } else {
             bodyEl.innerHTML = '<em style="color:var(--text-secondary);">No template body text configured for this company/period type.</em>';
         }
 
-        // VWAP pricing fields
-        document.getElementById('pc-shares').textContent = Number(data.shares || 0).toLocaleString();
-        document.getElementById('pc-exercise-date').textContent = fmtDate(data.exercise_date);
-        document.getElementById('pc-period-start').textContent = fmtDate(data.valuation_period_start);
-        document.getElementById('pc-period-end').textContent = fmtDate(data.valuation_period_end);
-        document.getElementById('pc-settlement-date').textContent = fmtDate(data.settlement_date);
-
-        const vwapPrice = data.vwap_purchase_price || data.vwap_used;
-        if (vwapPrice) {
-            document.getElementById('pc-vwap-price').textContent = '$' + Number(vwapPrice).toFixed(6);
+        // Generic 7-field table — day-based fallback only, hidden once a template-driven field set
+        // (confirmationFields) is available.
+        const genericSection = document.getElementById('pc-generic-fields-section');
+        if (confirmationFields) {
+            genericSection.style.display = 'none';
         } else {
-            document.getElementById('pc-vwap-price').textContent = 'Pending';
-        }
+            genericSection.style.display = 'block';
+            document.getElementById('pc-shares').textContent = Number(data.shares || 0).toLocaleString();
+            document.getElementById('pc-exercise-date').textContent = fmtDate(data.exercise_date);
+            document.getElementById('pc-period-start').textContent = fmtDate(data.valuation_period_start);
+            document.getElementById('pc-period-end').textContent = fmtDate(data.valuation_period_end);
+            document.getElementById('pc-settlement-date').textContent = fmtDate(data.settlement_date);
 
-        const totalPrice = data.dollar_amount_calculated;
-        if (totalPrice) {
-            document.getElementById('pc-total-price').textContent = fmtMoney(totalPrice);
-        } else if (vwapPrice && data.shares) {
-            document.getElementById('pc-total-price').textContent = fmtMoney(Number(vwapPrice) * Number(data.shares));
-        } else {
-            document.getElementById('pc-total-price').textContent = 'Pending';
+            const vwapPrice = data.vwap_purchase_price || data.vwap_used;
+            document.getElementById('pc-vwap-price').textContent = vwapPrice ? '$' + Number(vwapPrice).toFixed(6) : 'Pending';
+
+            const totalPrice = data.dollar_amount_calculated;
+            if (totalPrice) {
+                document.getElementById('pc-total-price').textContent = fmtMoney(totalPrice);
+            } else if (vwapPrice && data.shares) {
+                document.getElementById('pc-total-price').textContent = fmtMoney(Number(vwapPrice) * Number(data.shares));
+            } else {
+                document.getElementById('pc-total-price').textContent = 'Pending';
+            }
         }
 
         // Dated
@@ -162,16 +181,23 @@
             month: 'numeric', day: 'numeric', year: '2-digit'
         });
 
-        // Firm signature block (already signed)
-        document.getElementById('pc-firm-entity').textContent = data.agreed_accepted_entity || 'TUMIM STONE CAPITAL, LLC';
-        document.getElementById('pc-firm-name').textContent = firmSig.name || '';
-        document.getElementById('pc-firm-title').textContent = firmSig.title || '';
-        document.getElementById('pc-firm-address').textContent = firmSig.address || '';
-        document.getElementById('pc-firm-email').textContent = firmSig.email || '';
+        // Firm signature block (already signed) — prefer confirmationFields.firmSignatory (same
+        // template-driven source as the body text/fields above) over the legacy prefill copy.
+        const templateFirmSig = confirmationFields && confirmationFields.firmSignatory;
+        const effectiveFirmSig = templateFirmSig || firmSig;
+        const firmSigImage = templateFirmSig ? templateFirmSig.signatureImageBase64 : firmSig.signature_image;
+        document.getElementById('pc-firm-entity').textContent =
+            (confirmationFields && confirmationFields.agreedAcceptedEntity) || data.agreed_accepted_entity || 'TUMIM STONE CAPITAL, LLC';
+        document.getElementById('pc-firm-name').textContent = effectiveFirmSig.name || '';
+        document.getElementById('pc-firm-title').textContent = effectiveFirmSig.title || '';
+        document.getElementById('pc-firm-address').textContent = effectiveFirmSig.address || '';
+        document.getElementById('pc-firm-email').textContent = effectiveFirmSig.email || '';
 
-        if (firmSig.signature_image) {
+        if (firmSigImage) {
             const sigImg = document.getElementById('pc-firm-signature');
-            sigImg.src = firmSig.signature_image;
+            // Template signatures come back as raw base64 (no data: prefix); the legacy prefill copy
+            // already includes one.
+            sigImg.src = firmSigImage.indexOf('data:') === 0 ? firmSigImage : 'data:image/png;base64,' + firmSigImage;
             sigImg.style.display = 'inline-block';
             document.getElementById('pc-firm-signature-line').style.display = 'none';
         }
@@ -182,74 +208,85 @@
         // Populate signatory dropdown
         displaySignatory(data.signatory);
 
-        renderIntradayDetails(data);
+        renderTemplateFields(confirmationFields, data.eloc_id);
 
         // Wire up events
         // Signatory dropdown removed — user's signatory auto-displayed from profile
         document.getElementById('pc-submit-btn').addEventListener('click', openConfirmDialog);
     }
 
-    // ---- Intraday VWAP Purchase — full Exhibit C field set + downloads, behind a "Show Details" toggle ----
+    // ---- Purchase Confirmation fields — the admin-edited Participation Template's full field set,
+    // mirrored directly in document order/sections. Nothing hidden behind a toggle. ----
 
-    function intradayFieldRow(label, value) {
-        return `<tr><td class="pn-field-label">${label}</td><td class="pn-field-value">${value || ''}</td></tr>`;
+    function templateFieldRow(field) {
+        return `<tr><td class="pn-field-label">${field.label || ''}</td><td class="pn-field-value">${field.value != null ? field.value : ''}</td></tr>`;
     }
 
-    function renderIntradayDetails(data) {
-        const section = document.getElementById('pc-intraday-section');
-        const intraday = data.intraday || {};
-        // Only show this section for an Intraday VWAP Purchase with data actually on it — a day-based
-        // ELOC's confirmation-prefill returns an empty {} for "intraday".
-        if (data.period_type !== 'Intraday' || !intraday.purchase_type) {
+    function renderTemplateFields(confirmationFields, elocId) {
+        const section = document.getElementById('pc-template-fields-section');
+        if (!confirmationFields || !confirmationFields.fields || !confirmationFields.fields.length) {
             section.style.display = 'none';
             return;
         }
         section.style.display = 'block';
 
-        const pct = intraday.percentage_of_volume;
-        const volumeThreshold = (pct && data.shares) ? Math.ceil(Number(data.shares) / (Number(pct) / 100)) : null;
-        const trigger = intraday.valuation_end_trigger || '';
-        const endTimeIso = intraday.price_breached_at || intraday.max_shares_reached_at || intraday.ran_to_close_at;
-        const lowTradeLabel = intraday.low_price_trade_time
-            ? `(trade at ${fmtEasternTime(intraday.low_price_trade_time)} ET, ${Number(intraday.low_price_trade_size || 0).toLocaleString()} shares)`
-            : '(no single trade ≥ 100 shares — unfiltered low)';
+        const rows = [];
+        let lastSection = null;
+        confirmationFields.fields
+            .filter(f => f.visible)
+            .sort((a, b) => (a.order || 0) - (b.order || 0))
+            .forEach(f => {
+                if (f.section && f.section !== lastSection) {
+                    lastSection = f.section;
+                    rows.push(`<tr><td colspan="2" class="pc-section-heading">${f.section}</td></tr>`);
+                }
+                rows.push(templateFieldRow(f));
+            });
+        document.getElementById('pc-template-fields-body').innerHTML = rows.join('');
+
+        // The PDFs behind these buttons are the exact bytes this same template-driven content was
+        // rendered into (BuildAndStoreConfirmationDocumentsAsync) — a convenience download, not a
+        // second source of truth.
+        wirePdfDownloadButton('pc-download-confirmation-btn', true,
+            elocId, 'IntradayPurchaseConfirmation', `${elocId}-Purchase-Confirmation.pdf`);
+        wirePdfDownloadButton('pc-download-details-btn', true,
+            elocId, 'IntradayElocDetails', `${elocId}-ELOC-Details.pdf`);
+    }
+
+    // ---- ELOC Details panel — HTML, shown to the right of the Purchase Confirmation on load ----
+
+    function elocDetailsRow(label, value) {
+        return `<div class="pc-details-row"><span class="pc-details-label">${label}</span><span class="pc-details-value">${value}</span></div>`;
+    }
+
+    async function loadElocDetailsPanel(elocId) {
+        let details;
+        try {
+            details = await API.getElocDetails(elocId);
+        } catch (err) {
+            console.log('[PurchaseConfirmation] No ELOC details available (expected for day-based ELOCs or unpriced ELOCs):', err.message || err);
+            return;
+        }
+        if (!details) return;
+
+        const lowTradeLabel = details.lowPriceTradeTimeUtc
+            ? `trade at ${fmtEasternTime(details.lowPriceTradeTimeUtc)} ET, ${Number(details.lowPriceTradeSize || 0).toLocaleString()} sh`
+            : 'no single trade ≥ 100 shares — unfiltered low';
 
         const rows = [
-            intradayFieldRow('Type of VWAP Purchase:', intraday.purchase_type),
-            intradayFieldRow('VWAP Purchase Percentage specified in VWAP Purchase Notice:', fmtPct(pct)),
-            intradayFieldRow('Aggregate VWAP Purchase Percentage immediately after giving effect to the applicable VWAP Purchase Notice:', fmtPct(pct)),
-            intradayFieldRow('VWAP Purchase Volume Threshold (calculated as VWAP Purchase Share Amount divided by VWAP Purchase Percentage):',
-                volumeThreshold !== null ? volumeThreshold.toLocaleString() : ''),
-            intradayFieldRow('Minimum Price Threshold:', fmtPrice(intraday.threshold_price)),
-            intradayFieldRow('VWAP Purchase Valuation Period start time:', fmtEasternTime(intraday.starting_time) + ' ET'),
-            intradayFieldRow('VWAP Purchase Valuation Period end time:', fmtEasternTime(endTimeIso) + ' ET'),
-            intradayFieldRow('VWAP Purchase Valuation Period end trigger:', VALUATION_END_TRIGGER_LABELS[trigger] || trigger),
-            intradayFieldRow('Aggregate trading volume during applicable VWAP Purchase Valuation Period:',
-                intraday.aggregate_trading_volume != null ? Number(intraday.aggregate_trading_volume).toLocaleString() : ''),
-            intradayFieldRow('VWAP during VWAP Purchase Valuation Period:', fmtPrice(intraday.vwap_during_period)),
-            intradayFieldRow(`Low Price during VWAP Purchase Valuation Period: <span style="color:var(--text-secondary); font-weight:normal;">${lowTradeLabel}</span>`,
-                fmtPrice(intraday.low_price_during_period)),
-            intradayFieldRow('VWAP Purchase Price (per Share):', fmtPrice(intraday.purchase_price)),
-            intradayFieldRow('VWAP Purchase Maximum Amount:', Number(data.shares || 0).toLocaleString()),
-            intradayFieldRow('Final VWAP Purchase Share Amount:',
-                intraday.shares_accumulated != null ? Number(intraday.shares_accumulated).toLocaleString() : ''),
+            elocDetailsRow('VWAP over pricing period', fmtPrice(details.vwap)),
+            elocDetailsRow('Total volume over pricing period', Number(details.aggregateVolume || 0).toLocaleString()),
+            elocDetailsRow(`Low price of pricing period <br><span style="color:var(--text-secondary); font-weight:normal; font-size:0.8rem;">(${lowTradeLabel})</span>`,
+                fmtPrice(details.lowPrice)),
+            elocDetailsRow('Discount × VWAP', fmtPrice((details.discountMultiplier || 1) * (details.vwap || 0))),
+            elocDetailsRow('Purchase price (greater of the two)', fmtPrice(details.purchasePrice)),
+            elocDetailsRow(`Purchase % × total volume (${fmtPct(details.purchasePercentage)})`,
+                Number(details.elocShares || 0).toLocaleString() + ' sh'),
         ];
-        document.getElementById('pc-intraday-fields-body').innerHTML = rows.join('');
 
-        const toggleBtn = document.getElementById('pc-details-toggle');
-        const detailsBody = document.getElementById('pc-intraday-details');
-        const newToggleBtn = toggleBtn.cloneNode(true);
-        toggleBtn.parentNode.replaceChild(newToggleBtn, toggleBtn);
-        newToggleBtn.addEventListener('click', () => {
-            const showing = detailsBody.style.display !== 'none';
-            detailsBody.style.display = showing ? 'none' : 'block';
-            newToggleBtn.textContent = showing ? 'Show Details ▾' : 'Hide Details ▴';
-        });
-
-        wirePdfDownloadButton('pc-download-confirmation-btn', data.has_purchase_confirmation_pdf,
-            data.eloc_id, 'IntradayPurchaseConfirmation', `${data.eloc_id}-Purchase-Confirmation.pdf`);
-        wirePdfDownloadButton('pc-download-details-btn', data.has_eloc_details_pdf,
-            data.eloc_id, 'IntradayElocDetails', `${data.eloc_id}-ELOC-Details.pdf`);
+        document.getElementById('pc-details-body').innerHTML = rows.join('') +
+            `<div class="pc-details-total"><span>${Number(details.elocShares || 0).toLocaleString()} sh × ${fmtPrice(details.purchasePrice)}</span><span>${fmtMoney(details.totalDollarAmount)}</span></div>`;
+        document.getElementById('pc-details-panel').style.display = 'block';
     }
 
     function wirePdfDownloadButton(buttonId, available, elocId, step, defaultFilename) {
@@ -433,8 +470,9 @@
     // ---- Success + Download ----
 
     function showSuccessWithDownload(elocId) {
-        // Replace the document content with a success message + download button
-        const doc = document.getElementById('pc-document');
+        // Replace just the Purchase Confirmation document with a success message + download button —
+        // leave the ELOC Details panel (a sibling in the pc-layout flex container) in place.
+        const doc = document.querySelector('#pc-document .pn-document') || document.getElementById('pc-document');
         doc.innerHTML = `
             <div style="text-align:center; padding:3rem 1rem;">
                 <h2 style="color:var(--badge-green); margin-bottom:1rem;">Purchase Confirmation Countersigned Successfully</h2>
