@@ -273,11 +273,21 @@
     function elocPdfPct(v) { return (v === null || v === undefined) ? '' : elocTrimDecimals(v, 2) + '%'; }
     // Percentage as a decimal fraction (25% -> "0.25"), not "25%".
     function elocPctDecimal(v) { return (v === null || v === undefined) ? '' : elocTrimDecimals(v / 100, 4); }
-    // The DTS value is already UTC — shown as-is (not converted to ET), matching the PDF exactly.
-    function elocPdfUtcTime(iso) {
+    // New York (America/New_York) local time, DST-aware, "yyyy-MM-dd HH:mm:ss ET" — matches the PDF.
+    function elocEtTime(iso) {
         if (!iso) return '';
-        const s = String(iso).replace('T', ' ').replace('Z', '');
-        return s.split('.')[0] + ' UTC';
+        const d = new Date(iso);
+        if (isNaN(d.getTime())) return '';
+        try {
+            const parts = new Intl.DateTimeFormat('en-US', {
+                timeZone: 'America/New_York',
+                year: 'numeric', month: '2-digit', day: '2-digit',
+                hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
+            }).formatToParts(d);
+            const get = (type) => (parts.find((p) => p.type === type) || {}).value || '';
+            let hh = get('hour'); if (hh === '24') hh = '00';
+            return `${get('year')}-${get('month')}-${get('day')} ${hh}:${get('minute')}:${get('second')} ET`;
+        } catch { return ''; }
     }
     // New York (America/New_York) local time, DST-aware — no timezone library needed, the browser's
     // Intl support handles it. hour12:false can format midnight as "24" in some engines; normalized
@@ -319,7 +329,7 @@
 
         const discountVwap = (d.discountMultiplier || 1) * (d.vwap || 0);
         const lowTradeNote = d.lowPriceTradeTimeUtc
-            ? `(trade at ${elocPdfUtcTime(d.lowPriceTradeTimeUtc)}, ${elocPdfShares(d.lowPriceTradeSize)} shares)`
+            ? `(trade at ${elocEtTime(d.lowPriceTradeTimeUtc)}, ${elocPdfShares(d.lowPriceTradeSize)} shares)`
             : '(no single trade ≥ 100 shares — unfiltered low)';
 
         let html = '';
