@@ -255,39 +255,83 @@
         document.getElementById('pc-template-fields-body').innerHTML = rows.join('');
     }
 
-    // ---- ELOC Details panel — HTML, shown to the right of the Purchase Confirmation on load ----
+    // ---- ELOC Details panel — HTML rendering of the SAME layout as ElocDetailsPdfRenderer.cs (DTS):
+    // identical sections/order, shaded/highlighted rows, formula line, green total box. Not a summary —
+    // a faithful mirror of the PDF, just in HTML instead of pushed pixels. ----
 
-    function elocDetailsRow(label, value) {
-        return `<div class="pc-details-row"><span class="pc-details-label">${label}</span><span class="pc-details-value">${value}</span></div>`;
+    // Mirrors C#'s "0.####" format: up to 4 decimals, no forced trailing zeros.
+    function elocTrimDecimals(v, digits) {
+        if (v === null || v === undefined) return '';
+        let s = Number(v).toFixed(digits);
+        if (s.indexOf('.') !== -1) s = s.replace(/0+$/, '').replace(/\.$/, '');
+        return s;
+    }
+    function elocPdfPrice(v) { return (v === null || v === undefined) ? '' : '$' + elocTrimDecimals(v, 4); }
+    function elocPdfMult(v) { return elocTrimDecimals(v === null || v === undefined ? 1 : v, 4); }
+    function elocPdfMoney(v) { return '$' + Number(v || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+    function elocPdfShares(v) { return Math.round(Number(v || 0)).toLocaleString('en-US'); }
+    function elocPdfPct(v) { return (v === null || v === undefined) ? '' : elocTrimDecimals(v, 2) + '%'; }
+    // The DTS value is already UTC — shown as-is (not converted to ET), matching the PDF exactly.
+    function elocPdfUtcTime(iso) {
+        if (!iso) return '';
+        const s = String(iso).replace('T', ' ').replace('Z', '');
+        return s.split('.')[0] + ' UTC';
+    }
+
+    function elocSectionHeader(title) {
+        return `<div class="pc-details-section">${title}</div>`;
+    }
+    function elocRow(label, value, opts) {
+        opts = opts || {};
+        const cls = [opts.shaded ? 'shaded' : '', opts.highlight ? 'highlight' : '', opts.bold ? 'bold' : ''].filter(Boolean).join(' ');
+        return `<tr${cls ? ` class="${cls}"` : ''}><td>${label}</td><td>${value}</td></tr>`;
     }
 
     async function loadElocDetailsPanel(elocId) {
-        let details;
+        let d;
         try {
-            details = await API.getElocDetails(elocId);
+            d = await API.getElocDetails(elocId);
         } catch (err) {
             console.log('[PurchaseConfirmation] No ELOC details available (expected for day-based ELOCs or unpriced ELOCs):', err.message || err);
             return;
         }
-        if (!details) return;
+        if (!d) return;
 
-        const lowTradeLabel = details.lowPriceTradeTimeUtc
-            ? `trade at ${fmtEasternTime(details.lowPriceTradeTimeUtc)} ET, ${Number(details.lowPriceTradeSize || 0).toLocaleString()} sh`
-            : 'no single trade ≥ 100 shares — unfiltered low';
+        const discountVwap = (d.discountMultiplier || 1) * (d.vwap || 0);
+        const volumeShares = (d.aggregateVolume || 0) * (d.purchasePercentage || 0) / 100;
+        const lowTradeNote = d.lowPriceTradeTimeUtc
+            ? `(trade at ${elocPdfUtcTime(d.lowPriceTradeTimeUtc)}, ${elocPdfShares(d.lowPriceTradeSize)} shares)`
+            : '(no single trade ≥ 100 shares — unfiltered low)';
 
-        const rows = [
-            elocDetailsRow('VWAP over pricing period', fmtPrice(details.vwap)),
-            elocDetailsRow('Total volume over pricing period', Number(details.aggregateVolume || 0).toLocaleString()),
-            elocDetailsRow(`Low price of pricing period <br><span style="color:var(--text-secondary); font-weight:normal; font-size:0.8rem;">(${lowTradeLabel})</span>`,
-                fmtPrice(details.lowPrice)),
-            elocDetailsRow('Discount × VWAP', fmtPrice((details.discountMultiplier || 1) * (details.vwap || 0))),
-            elocDetailsRow('Purchase price (greater of the two)', fmtPrice(details.purchasePrice)),
-            elocDetailsRow(`Purchase % × total volume (${fmtPct(details.purchasePercentage)})`,
-                Number(details.elocShares || 0).toLocaleString() + ' sh'),
-        ];
+        let html = '';
+        html += `<div class="pc-details-title">ELOC DETAILS</div>`;
+        html += `<div class="pc-details-meta">${d.symbol || ''} - ${d.companyName || ''}&nbsp;&nbsp;&nbsp;(Intraday VWAP Purchase)&nbsp;&nbsp;&nbsp;${d.purchaseDate || ''}&nbsp;&nbsp;&nbsp;${d.elocId || ''}</div>`;
 
-        document.getElementById('pc-details-body').innerHTML = rows.join('') +
-            `<div class="pc-details-total"><span>${Number(details.elocShares || 0).toLocaleString()} sh × ${fmtPrice(details.purchasePrice)}</span><span>${fmtMoney(details.totalDollarAmount)}</span></div>`;
+        html += elocSectionHeader('PRICING PERIOD');
+        html += '<table class="pc-details-table"><tbody>';
+        html += elocRow('VWAP over Pricing Period', elocPdfPrice(d.vwap));
+        html += elocRow('Total Volume over Pricing Period', elocPdfShares(d.aggregateVolume), { shaded: true });
+        html += elocRow(`Low Price of Pricing Period<span class="pc-details-note">${lowTradeNote}</span>`, elocPdfPrice(d.lowPrice), { highlight: true });
+        html += '</tbody></table>';
+
+        html += elocSectionHeader('PURCHASE PRICE');
+        html += `<div class="pc-details-formula">Purchase Price&nbsp;=&nbsp;max( Discount ${elocPdfMult(d.discountMultiplier)} × VWAP ${elocPdfPrice(d.vwap)} ,&nbsp;Low Price ${elocPdfPrice(d.lowPrice)} )&nbsp;=&nbsp;${elocPdfPrice(d.purchasePrice)}</div>`;
+        html += '<table class="pc-details-table"><tbody>';
+        html += elocRow(`Discount × VWAP&nbsp;(${elocPdfMult(d.discountMultiplier)} × ${elocPdfPrice(d.vwap)})`, elocPdfPrice(discountVwap));
+        html += elocRow('Low Price', elocPdfPrice(d.lowPrice), { shaded: true });
+        html += elocRow('Purchase Price (the greater of the two)', elocPdfPrice(d.purchasePrice), { highlight: true, bold: true });
+        html += '</tbody></table>';
+
+        html += elocSectionHeader('SHARES');
+        html += '<table class="pc-details-table"><tbody>';
+        html += elocRow(`Purchase Percentage × Total Volume&nbsp;(${elocPdfPct(d.purchasePercentage)} × ${elocPdfShares(d.aggregateVolume)})`, elocPdfShares(volumeShares));
+        html += elocRow('ELOC Shares (actual)', elocPdfShares(d.elocShares), { highlight: true, bold: true });
+        html += '</tbody></table>';
+
+        html += elocSectionHeader('DOLLAR AMOUNT');
+        html += `<div class="pc-details-total-box">${elocPdfShares(d.elocShares)} shares&nbsp;×&nbsp;${elocPdfPrice(d.purchasePrice)}&nbsp;=&nbsp;${elocPdfMoney(d.totalDollarAmount)}</div>`;
+
+        document.getElementById('pc-details-body').innerHTML = html;
         document.getElementById('pc-details-panel').style.display = 'block';
     }
 
