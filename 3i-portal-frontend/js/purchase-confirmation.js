@@ -323,12 +323,16 @@
 
         html += elocSectionHeader('SHARES');
         html += '<table class="pc-details-table"><tbody>';
-        // Both rows show d.elocShares — the real, actual total, not an independently recomputed
-        // aggregateVolume x percentage (a different data source: aggregateVolume is a post-hoc
-        // /time-and-sales query over the whole window, not the live VWAP-eligible-volume delta that
-        // actually produced elocShares tick by tick). Showing the same number in both places matches
-        // ElocDetailsPdfRenderer.cs and guarantees they can never diverge on screen.
-        html += elocRow(`Purchase Percentage × Total Volume&nbsp;(${elocPdfPct(d.purchasePercentage)} × ${elocPdfShares(d.aggregateVolume)})`, elocPdfShares(d.elocShares));
+        // Both rows show d.elocShares (the real, actual total) as the result — but this row's own
+        // "Total Volume" must be the volume that actually produces that result at this percentage, or
+        // the printed math is wrong (25% x 19,154 does not equal 4,838). d.aggregateVolume ("Total
+        // Volume over Pricing Period" above) is a different, independently-measured quantity — a
+        // post-hoc /time-and-sales query over the whole window, not the live VWAP-eligible-volume delta
+        // that actually produced elocShares tick by tick. So back-derive the volume shown here from
+        // elocShares itself: percentage x volume = elocShares exactly, by construction. It can
+        // legitimately differ from aggregateVolume above — that's expected, not a bug.
+        const impliedVolume = d.purchasePercentage > 0 ? d.elocShares / (d.purchasePercentage / 100) : 0;
+        html += elocRow(`Purchase Percentage × Total Volume&nbsp;(${elocPdfPct(d.purchasePercentage)} × ${elocPdfShares(impliedVolume)})`, elocPdfShares(d.elocShares));
         html += elocRow('ELOC Shares (actual)', elocPdfShares(d.elocShares), { highlight: true, bold: true });
         html += '</tbody></table>';
 
