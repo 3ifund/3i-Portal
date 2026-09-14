@@ -323,16 +323,14 @@
 
         html += elocSectionHeader('SHARES');
         html += '<table class="pc-details-table"><tbody>';
-        // Both rows show d.elocShares (the real, actual total) as the result — but this row's own
-        // "Total Volume" must be the volume that actually produces that result at this percentage, or
-        // the printed math is wrong (25% x 19,154 does not equal 4,838). d.aggregateVolume ("Total
-        // Volume over Pricing Period" above) is a different, independently-measured quantity — a
-        // post-hoc /time-and-sales query over the whole window, not the live VWAP-eligible-volume delta
-        // that actually produced elocShares tick by tick. So back-derive the volume shown here from
-        // elocShares itself: percentage x volume = elocShares exactly, by construction. It can
-        // legitimately differ from aggregateVolume above — that's expected, not a bug.
-        const impliedVolume = d.purchasePercentage > 0 ? d.elocShares / (d.purchasePercentage / 100) : 0;
-        html += elocRow(`Purchase Percentage × Total Volume&nbsp;(${elocPdfPct(d.purchasePercentage)} × ${elocPdfShares(impliedVolume)})`, elocPdfShares(d.elocShares));
+        // d.aggregateVolume is now the same live-tracked VWAP-eligible-volume delta the incremental
+        // accumulation itself used to produce d.elocShares (see DealTermsServer's
+        // BuildTradingStatsFromSessionAsync) — not a separately-queried number — so in the normal
+        // (uncapped) case these two rows agree on their own, honestly. They can still differ when a
+        // session terminates because it hit its requested-shares cap (elocShares clamped to the
+        // target) — that gap is real and worth showing, not something to paper over.
+        const volumeShares = Math.floor((d.aggregateVolume || 0) * (d.purchasePercentage || 0) / 100);
+        html += elocRow(`Purchase Percentage × Total Volume&nbsp;(${elocPdfPct(d.purchasePercentage)} × ${elocPdfShares(d.aggregateVolume)})`, elocPdfShares(volumeShares));
         html += elocRow('ELOC Shares (actual)', elocPdfShares(d.elocShares), { highlight: true, bold: true });
         html += '</tbody></table>';
 
