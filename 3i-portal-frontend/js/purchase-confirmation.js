@@ -271,11 +271,20 @@
     function elocPdfMoney(v) { return '$' + Number(v || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
     function elocPdfShares(v) { return Math.round(Number(v || 0)).toLocaleString('en-US'); }
     function elocPdfPct(v) { return (v === null || v === undefined) ? '' : elocTrimDecimals(v, 2) + '%'; }
+    // Percentage as a decimal fraction (25% -> "0.25"), not "25%".
+    function elocPctDecimal(v) { return (v === null || v === undefined) ? '' : elocTrimDecimals(v / 100, 4); }
     // The DTS value is already UTC — shown as-is (not converted to ET), matching the PDF exactly.
     function elocPdfUtcTime(iso) {
         if (!iso) return '';
         const s = String(iso).replace('T', ' ').replace('Z', '');
         return s.split('.')[0] + ' UTC';
+    }
+    function elocPdfUtcDateTime(iso) {
+        if (!iso) return '';
+        const d = new Date(iso);
+        if (isNaN(d.getTime())) return '';
+        const pad = (n) => String(n).padStart(2, '0');
+        return `${pad(d.getUTCMonth() + 1)}/${pad(d.getUTCDate())}/${d.getUTCFullYear()} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())} UTC`;
     }
 
     function elocSectionHeader(title) {
@@ -323,15 +332,17 @@
 
         html += elocSectionHeader('SHARES');
         html += '<table class="pc-details-table"><tbody>';
-        // d.aggregateVolume is now the same live-tracked VWAP-eligible-volume delta the incremental
-        // accumulation itself used to produce d.elocShares (see DealTermsServer's
-        // BuildTradingStatsFromSessionAsync) — not a separately-queried number — so in the normal
-        // (uncapped) case these two rows agree on their own, honestly. They can still differ when a
-        // session terminates because it hit its requested-shares cap (elocShares clamped to the
-        // target) — that gap is real and worth showing, not something to paper over.
-        const volumeShares = Math.floor((d.aggregateVolume || 0) * (d.purchasePercentage || 0) / 100);
-        html += elocRow(`Purchase Percentage × Total Volume&nbsp;(${elocPdfPct(d.purchasePercentage)} × ${elocPdfShares(d.aggregateVolume)})`, elocPdfShares(volumeShares));
-        html += elocRow('ELOC Shares (actual)', elocPdfShares(d.elocShares), { highlight: true, bold: true });
+        // Volume here is back-derived from d.elocShares (the real, actual total, already capped to the
+        // requested share amount if the session hit it) rather than shown as the raw observed
+        // aggregateVolume: showing the real trading volume could put a bigger number here than what was
+        // actually purchased (a session that hit its cap keeps seeing volume after the cap stops
+        // mattering), which reads as "we bought more than requested" even though we didn't. This
+        // guarantees the row can never exceed the VWAP Purchase Share Amount, by construction, for
+        // every trigger — not just a capped volume-threshold completion.
+        const impliedVolume = d.purchasePercentage > 0 ? d.elocShares / (d.purchasePercentage / 100) : 0;
+        const triggerAt = d.triggerReachedAtUtc ? ` at ${elocPdfUtcDateTime(d.triggerReachedAtUtc)}` : '';
+        html += elocRow(`Purchase Percentage × Total Volume&nbsp;(${elocPdfShares(impliedVolume)} × ${elocPctDecimal(d.purchasePercentage)})${triggerAt}`, elocPdfShares(d.elocShares));
+        html += elocRow('ELOC Shares', elocPdfShares(d.elocShares), { highlight: true, bold: true });
         html += '</tbody></table>';
 
         html += elocSectionHeader('DOLLAR AMOUNT');
