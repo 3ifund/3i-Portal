@@ -279,12 +279,23 @@
         const s = String(iso).replace('T', ' ').replace('Z', '');
         return s.split('.')[0] + ' UTC';
     }
-    function elocPdfUtcDateTime(iso) {
+    // New York (America/New_York) local time, DST-aware — no timezone library needed, the browser's
+    // Intl support handles it. hour12:false can format midnight as "24" in some engines; normalized
+    // to "00" below.
+    function elocEtDateTime(iso) {
         if (!iso) return '';
         const d = new Date(iso);
         if (isNaN(d.getTime())) return '';
-        const pad = (n) => String(n).padStart(2, '0');
-        return `${pad(d.getUTCMonth() + 1)}/${pad(d.getUTCDate())}/${d.getUTCFullYear()} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())} UTC`;
+        try {
+            const parts = new Intl.DateTimeFormat('en-US', {
+                timeZone: 'America/New_York',
+                year: 'numeric', month: '2-digit', day: '2-digit',
+                hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
+            }).formatToParts(d);
+            const get = (type) => (parts.find((p) => p.type === type) || {}).value || '';
+            let hh = get('hour'); if (hh === '24') hh = '00';
+            return `${get('month')}/${get('day')}/${get('year')} ${hh}:${get('minute')}:${get('second')} ET`;
+        } catch { return ''; }
     }
 
     function elocSectionHeader(title) {
@@ -340,7 +351,7 @@
         // guarantees the row can never exceed the VWAP Purchase Share Amount, by construction, for
         // every trigger — not just a capped volume-threshold completion.
         const impliedVolume = d.purchasePercentage > 0 ? d.elocShares / (d.purchasePercentage / 100) : 0;
-        const triggerAt = d.triggerReachedAtUtc ? ` at ${elocPdfUtcDateTime(d.triggerReachedAtUtc)}` : '';
+        const triggerAt = d.triggerReachedAtUtc ? ` at ${elocEtDateTime(d.triggerReachedAtUtc)}` : '';
         html += elocRow(`Purchase Percentage × Total Volume&nbsp;(${elocPdfShares(impliedVolume)} × ${elocPctDecimal(d.purchasePercentage)})${triggerAt}`, elocPdfShares(d.elocShares));
         html += elocRow('ELOC Shares', elocPdfShares(d.elocShares), { highlight: true, bold: true });
         html += '</tbody></table>';
