@@ -298,9 +298,6 @@
         if (!d) return;
 
         const discountVwap = (d.discountMultiplier || 1) * (d.vwap || 0);
-        // Floored, not rounded — matches ElocDetailsPdfRenderer.cs's Math.Floor: you can't buy a
-        // fractional share, and rounding a .5 case up would overstate what the percentage allows.
-        const volumeShares = Math.floor((d.aggregateVolume || 0) * (d.purchasePercentage || 0) / 100);
         const lowTradeNote = d.lowPriceTradeTimeUtc
             ? `(trade at ${elocPdfUtcTime(d.lowPriceTradeTimeUtc)}, ${elocPdfShares(d.lowPriceTradeSize)} shares)`
             : '(no single trade ≥ 100 shares — unfiltered low)';
@@ -326,7 +323,12 @@
 
         html += elocSectionHeader('SHARES');
         html += '<table class="pc-details-table"><tbody>';
-        html += elocRow(`Purchase Percentage × Total Volume&nbsp;(${elocPdfPct(d.purchasePercentage)} × ${elocPdfShares(d.aggregateVolume)})`, elocPdfShares(volumeShares));
+        // Both rows show d.elocShares — the real, actual total, not an independently recomputed
+        // aggregateVolume x percentage (a different data source: aggregateVolume is a post-hoc
+        // /time-and-sales query over the whole window, not the live VWAP-eligible-volume delta that
+        // actually produced elocShares tick by tick). Showing the same number in both places matches
+        // ElocDetailsPdfRenderer.cs and guarantees they can never diverge on screen.
+        html += elocRow(`Purchase Percentage × Total Volume&nbsp;(${elocPdfPct(d.purchasePercentage)} × ${elocPdfShares(d.aggregateVolume)})`, elocPdfShares(d.elocShares));
         html += elocRow('ELOC Shares (actual)', elocPdfShares(d.elocShares), { highlight: true, bold: true });
         html += '</tbody></table>';
 
