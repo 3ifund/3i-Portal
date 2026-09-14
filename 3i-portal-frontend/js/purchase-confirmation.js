@@ -298,7 +298,9 @@
         if (!d) return;
 
         const discountVwap = (d.discountMultiplier || 1) * (d.vwap || 0);
-        const volumeShares = (d.aggregateVolume || 0) * (d.purchasePercentage || 0) / 100;
+        // Floored, not rounded — matches ElocDetailsPdfRenderer.cs's Math.Floor: you can't buy a
+        // fractional share, and rounding a .5 case up would overstate what the percentage allows.
+        const volumeShares = Math.floor((d.aggregateVolume || 0) * (d.purchasePercentage || 0) / 100);
         const lowTradeNote = d.lowPriceTradeTimeUtc
             ? `(trade at ${elocPdfUtcTime(d.lowPriceTradeTimeUtc)}, ${elocPdfShares(d.lowPriceTradeSize)} shares)`
             : '(no single trade ≥ 100 shares — unfiltered low)';
