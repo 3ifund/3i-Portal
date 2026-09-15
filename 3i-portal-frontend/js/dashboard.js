@@ -634,8 +634,20 @@ const Dashboard = (() => {
                 console.warn('[Dashboard] Could not check for external ELOCs:', sharesErr.message);
             }
 
-            // Merge REST results into the shared map
+            // Reconcile the shared map against this REST snapshot — add/update everything present,
+            // and PRUNE anything no longer present. A pure merge (add/update only) left deleted ELOCs
+            // stuck on screen forever whenever the workflow_removed WebSocket message for them was
+            // missed (e.g. a gap while the backend's own DTS WS connection was reconnecting) — a REST
+            // load is a full snapshot of the truth, so anything not in it no longer exists and should
+            // come off the map exactly like handleWorkflowRemoved would do for an explicit message.
             if (workflows) {
+                const freshIds = new Set(workflows.map((wf) => wf.eloc_id));
+                for (const existingId of Array.from(_workflowMap.keys())) {
+                    if (!freshIds.has(existingId)) {
+                        console.log('[Dashboard] Pruning stale workflow not in REST snapshot: %s', existingId);
+                        _workflowMap.delete(existingId);
+                    }
+                }
                 workflows.forEach((wf) => {
                     _workflowMap.set(wf.eloc_id, wf);
                 });
@@ -1004,6 +1016,14 @@ const Dashboard = (() => {
 
         workflowsWs.onopen = () => {
             console.log('[Dashboard] Workflows WS connected');
+            // Re-sync from REST on every (re)connect, not just the first one — closes the same gap a
+            // dropped connection can otherwise leave open: any workflow_update/workflow_removed message
+            // that arrived (or a deletion that happened) while this socket was down is never resent by
+            // the backend's own reconnect resync (it only re-pushes what's currently included, not
+            // removals), so without this the dashboard can show a stale/deleted ELOC until something
+            // else happens to trigger a reload. loadPricingWorkflows() now reconciles (prunes stale
+            // entries), so this alone is enough to self-heal.
+            loadPricingWorkflows();
         };
 
         workflowsWs.onmessage = (event) => {
