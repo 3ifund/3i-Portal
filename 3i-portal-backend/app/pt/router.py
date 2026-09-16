@@ -228,6 +228,36 @@ async def get_position_traders(position_id: int, instrumentType: str, admin: Use
         raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
 
 
+@router.get("/positions/{position_id}/dto-accounts")
+async def get_position_dto_accounts(position_id: int, admin: UserInfo = Depends(require_admin)):
+    try:
+        return await onprem.get_position_dto_accounts(position_id)
+    except Exception as exc:
+        logger.error("position dto-accounts — DTS fetch FAILED (positionId=%s): %s", position_id, exc, exc_info=True)
+        raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
+
+
+class RemoveDtoUnitsBody(BaseModel):
+    accountId: int
+    amount: int
+    userName: str | None = None
+
+
+@router.post("/positions/{position_id}/dto-remove")
+async def remove_position_dto_units(position_id: int, body: RemoveDtoUnitsBody, admin: UserInfo = Depends(require_admin)):
+    logger.info("POST /internal/pt/positions/%s/dto-remove accountId=%s amount=%s by user=%s", position_id, body.accountId, body.amount, admin.user_id)
+    try:
+        status, data = await onprem.remove_position_dto_units(position_id, body.model_dump())
+        if status >= 400:
+            raise HTTPException(status_code=status, detail=data.get("error") or data.get("message") or "DTS error")
+        return data
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("position dto-remove — DTS FAILED (positionId=%s): %s", position_id, exc, exc_info=True)
+        raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
+
+
 @router.get("/allocations")
 async def get_allocations(traderId: int, admin: UserInfo = Depends(require_admin)):
     try:

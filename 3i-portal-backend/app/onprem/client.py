@@ -484,6 +484,23 @@ async def get_position_traders(position_id: int, instrument_type: str) -> dict:
     return response.json()
 
 
+async def get_position_dto_accounts(position_id: int) -> dict:
+    response = await _request_with_retry("GET", f"/api/pt/positions/{position_id}/dto-accounts")
+    response.raise_for_status()
+    return response.json()
+
+
+async def remove_position_dto_units(position_id: int, body: dict) -> tuple[int, dict]:
+    client = _get_client()
+    logger.info("POST /api/pt/positions/%s/dto-remove accountId=%s amount=%s (write)", position_id, body.get("accountId"), body.get("amount"))
+    response = await client.post(f"/api/pt/positions/{position_id}/dto-remove", json=body)
+    logger.info("  → %s", response.status_code)
+    try:
+        return response.status_code, response.json()
+    except Exception:
+        return response.status_code, {"message": response.text}
+
+
 async def dts_reachable() -> bool:
     """Quick liveness probe of DTS over the existing on-prem connection — backs the portal's DTS nav icon.
     Short timeout, no retry, so 'down' surfaces promptly."""
