@@ -403,6 +403,26 @@ const API = (() => {
     }
 
     /**
+     * GET /purchase-notices/intraday-details — full snapshot for the Intraday Details dialog (static
+     * fields, the three trigger statuses, running VWAP/low). No {symbol} param — scoped server-side to
+     * the caller's own company via their JWT.
+     */
+    async function getIntradayDetails() {
+        const response = await fetch(`${BASE_URL}/purchase-notices/intraday-details`, { headers: authHeaders() });
+        return handleResponse(response);
+    }
+
+    /**
+     * GET /purchase-notices/intraday-tick-history?since_utc=... — backfill for the Details dialog's
+     * time-and-sales feed. Same company-scoping as getIntradayDetails.
+     */
+    async function getIntradayTickHistory(sinceIso) {
+        const url = `${BASE_URL}/purchase-notices/intraday-tick-history?since_utc=${encodeURIComponent(sinceIso)}`;
+        const response = await fetch(url, { headers: authHeaders() });
+        return handleResponse(response);
+    }
+
+    /**
      * POST /purchase-notices/submit — submit portal-initiated purchase notice to DTS
      */
     async function submitPortalPurchaseNotice(payload) {
@@ -790,6 +810,8 @@ const API = (() => {
         getIntradayPrefill,
         submitIntradayPurchaseNotice,
         getIntradayLiveProgress,
+        getIntradayDetails,
+        getIntradayTickHistory,
         getPurchaseConfirmationPrefill,
         getConfirmationFields,
         getElocDetails,

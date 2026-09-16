@@ -249,6 +249,29 @@
         </div>
     </div>
 
+    <!-- Intraday VWAP — Live Details Modal -->
+    <div class="modal-overlay" id="intraday-details-modal-overlay">
+        <div class="modal" style="max-width:900px; height:88vh; display:flex; flex-direction:column;">
+            <div class="modal-header">
+                <h2 class="modal-title">Intraday VWAP — Live Details</h2>
+                <button class="modal-close" id="intraday-details-modal-close">&times;</button>
+            </div>
+            <div class="modal-body eid-modal-body">
+                <div id="eid-static-grid" class="eid-static-grid"></div>
+                <div id="eid-triggers" class="eid-triggers"></div>
+                <div class="eid-tape-header">
+                    <span>Time &amp; Sales — VWAP volume ticks and priced trades used for the triggers above</span>
+                    <span class="eid-tape-legend">
+                        <span class="eid-legend-swatch eid-tick-orange"></span> repopulated
+                        <span class="eid-legend-swatch eid-tick-white"></span> live
+                        <span class="eid-legend-swatch eid-tick-red"></span> triggered
+                    </span>
+                </div>
+                <div id="eid-tape" class="eid-tape"></div>
+            </div>
+        </div>
+    </div>
+
     <script>var _v = Date.now();</script>
     <script>document.write('<script src="js/config.js?v=' + _v + '"><\/script>');</script>
     <script>document.write('<script src="js/api.js?v=' + _v + '"><\/script>');</script>

@@ -736,6 +736,228 @@ const Dashboard = (() => {
         if (sharesEl) sharesEl.textContent = formatIntradayShares(msg.shares_accumulated, msg.purchase_share_amount);
     }
 
+    // ---- Intraday VWAP — Live Details dialog ----
+    // Same dialog PRM's admin Details button shows (static fields, the three trigger statuses, a live
+    // time-and-sales tape), ported for the customer portal's own "Current ELOCs" section. Trigger cards
+    // are refreshed by polling GET .../intraday-details every 5s while the dialog is open (DTS's own
+    // canonical trigger-status computation, not re-derived client-side); the tape itself is live per-tick
+    // via the workflows WS's intraday_tick push, same as PRM's dialog.
+    const intradayDetails = {
+        open: false,
+        elocId: null,
+        lastTickTimeUtc: null, // ISO string of the latest tick shown — drives reconnect-gap backfill
+        tickCount: 0,
+        clockTimer: null,
+    };
+
+    function formatShares(n) {
+        const v = Number(n);
+        return Number.isFinite(v) ? Math.round(v).toLocaleString() : '—';
+    }
+
+    function fmtTime(hhmmss) {
+        if (!hhmmss) return '—';
+        const parts = String(hhmmss).split(':');
+        if (parts.length < 2) return String(hhmmss);
+        let h = parseInt(parts[0], 10);
+        const m = parts[1];
+        const ampm = h >= 12 ? 'PM' : 'AM';
+        h = h % 12; if (h === 0) h = 12;
+        return `${h}:${m} ${ampm}`;
+    }
+
+    function fmtDateTime(iso) {
+        if (!iso) return '—';
+        try {
+            const d = new Date(iso);
+            if (isNaN(d.getTime())) return String(iso);
+            return d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true });
+        } catch { return String(iso); }
+    }
+
+    function fmtPrice(n) {
+        return (n == null || isNaN(n)) ? '—' : `$${Number(n).toFixed(4)}`;
+    }
+
+    function fmtPct(n) {
+        return (n == null || isNaN(n)) ? '—' : `${Number(n).toFixed(2)}%`;
+    }
+
+    function eidFieldRow(label, value) {
+        return `<span class="eid-field-label">${escapeHtml(label)}</span><span class="eid-field-value">${escapeHtml(value)}</span>`;
+    }
+
+    function renderIntradayStatic(d) {
+        const grid = document.getElementById('eid-static-grid');
+        if (!grid || !d) return;
+        grid.innerHTML = [
+            eidFieldRow('Type of VWAP Purchase', d.purchaseType || '—'),
+            eidFieldRow('VWAP Purchase Shares Amount', formatShares(d.purchaseShareAmount)),
+            eidFieldRow('VWAP Purchase Date', fmtDateTime(d.purchaseDate)),
+            eidFieldRow('VWAP Purchase Percentage', fmtPct(d.purchasePercentage)),
+            eidFieldRow('VWAP Purchase Volume Threshold', formatShares(d.volumeThreshold)),
+            eidFieldRow('Minimum Price Threshold', fmtPrice(d.minimumPriceThreshold)),
+            eidFieldRow('Trading Start Time', fmtTime(d.tradingStartTime)),
+            eidFieldRow('Starting VWAP Volume', d.startingVwapVolume != null
+                ? `${formatShares(d.startingVwapVolume)} (as of ${fmtDateTime(d.startingVolumeTimeUtc)})`
+                : 'not yet captured'),
+            eidFieldRow('Status', formatIntradayStatus(d.status)),
+        ].join('');
+    }
+
+    function eidTriggerCard(id, title, valueHtml, crossed) {
+        const cls = crossed === true ? 'crossed' : crossed === false ? 'not-crossed' : 'unknown';
+        return `<div class="eid-trigger ${cls}" id="${id}">
+                    <div class="eid-trigger-title">${escapeHtml(title)}</div>
+                    <div class="eid-trigger-value">${valueHtml}</div>
+                </div>`;
+    }
+
+    function renderIntradayTriggers(d) {
+        const el = document.getElementById('eid-triggers');
+        if (!el || !d) return;
+        const nowLabel = d.currentTimeEt ? fmtTime(d.currentTimeEt) : '—';
+        const endLabel = d.tradingEndTime ? fmtTime(d.tradingEndTime) : '—';
+        const lowLabel = d.runningLowPrice != null ? fmtPrice(d.runningLowPrice) : 'no trades yet';
+        const lowDetail = d.runningLowPrice != null && d.lowPriceTradeTimeUtc != null
+            ? `<div class="eid-trigger-sub">at ${escapeHtml(fmtDateTime(d.lowPriceTradeTimeUtc))}${d.lowPriceTradeSize != null ? ` &times; ${escapeHtml(formatShares(d.lowPriceTradeSize))}` : ''}</div>`
+            : '';
+        const volLabel = d.cumulativeVwapVolume != null ? formatShares(d.cumulativeVwapVolume) : '—';
+        const vwapLabel = d.runningVwap != null ? fmtPrice(d.runningVwap) : 'no trades yet';
+        const dtoLabel = d.sharesAccumulated != null ? formatShares(d.sharesAccumulated) : '—';
+
+        el.innerHTML = [
+            eidTriggerCard('eid-trig-time', 'Trigger 3 — Time',
+                `${escapeHtml(nowLabel)} &gt; ${escapeHtml(endLabel)}`, d.timeThresholdCrossed),
+            eidTriggerCard('eid-trig-price', 'Trigger 2 — Low Price',
+                `${escapeHtml(lowLabel)} &lt; ${escapeHtml(fmtPrice(d.minimumPriceThreshold))}${lowDetail}`, d.priceThresholdCrossed),
+            eidTriggerCard('eid-trig-volume', 'Trigger 1 — VWAP Volume',
+                `${escapeHtml(volLabel)} &gt;= ${escapeHtml(formatShares(d.volumeThreshold))}`, d.volumeThresholdCrossed),
+        ].join('') + `
+            <div class="eid-trigger unknown" style="grid-column: 1 / -1;">
+                <div class="eid-trigger-title">Current VWAP for Pricing Period &nbsp;/&nbsp; DTO Shares (Purchase % &times; Cumulative Volume)</div>
+                <div class="eid-trigger-value">${escapeHtml(vwapLabel)} &nbsp;/&nbsp; ${escapeHtml(dtoLabel)} shares</div>
+            </div>`;
+    }
+
+    function tickRowHtml(tick, colorClass) {
+        const time = tick.timeUtc || tick.time_utc;
+        const kind = tick.kind || 'Trade';
+        let detail;
+        if (kind === 'Volume') {
+            detail = `VWAP VOL delta=${escapeHtml(formatShares(tick.deltaVolume ?? tick.delta_volume))} &rarr; DTO shares=${escapeHtml(formatShares(tick.sharesAccumulated ?? tick.shares_accumulated))}`;
+        } else {
+            const price = tick.price;
+            const size = tick.size;
+            const qualifies = tick.qualifiesPriceTrigger ?? tick.qualifies_price_trigger;
+            detail = `TRADE ${escapeHtml(fmtPrice(price))} x ${escapeHtml(formatShares(size))}${qualifies ? '' : ' (size &lt; 100 — does not qualify for Trigger 2)'}`;
+        }
+        const triggered = tick.triggered;
+        if (triggered) detail += ` — TRIGGERED (${escapeHtml(triggered)})`;
+        return `<div class="eid-tape-row ${colorClass}">
+                    <span>${escapeHtml(fmtDateTime(time))}</span>
+                    <span>${escapeHtml(kind)}</span>
+                    <span>${detail}</span>
+                </div>`;
+    }
+
+    function appendTickRow(tick, colorClass) {
+        const tape = document.getElementById('eid-tape');
+        if (!tape) return;
+        const empty = tape.querySelector('.eid-tape-empty');
+        if (empty) empty.remove();
+        const stickToBottom = tape.scrollTop + tape.clientHeight >= tape.scrollHeight - 20;
+        tape.insertAdjacentHTML('beforeend', tickRowHtml(tick, colorClass));
+        intradayDetails.tickCount++;
+        if (stickToBottom) tape.scrollTop = tape.scrollHeight;
+        const t = tick.timeUtc || tick.time_utc;
+        if (t) intradayDetails.lastTickTimeUtc = t;
+    }
+
+    async function fetchAndRenderDetails() {
+        try {
+            const d = await API.getIntradayDetails();
+            renderIntradayStatic(d);
+            renderIntradayTriggers(d);
+            return d;
+        } catch (err) {
+            console.warn('[Dashboard] intraday details fetch failed:', err.message || err);
+            return null;
+        }
+    }
+
+    // Colors strictly by what the server says actually happened (resp.source), same as PRM's dialog —
+    // "market_data_query" means DTS had to re-derive the window from the market data vendor (a real
+    // gap); "live_log" means every one of these ticks was genuinely captured live by DTS itself. A
+    // triggering tick is always red, regardless of source.
+    async function fetchTickHistory(sinceIso) {
+        try {
+            const resp = await API.getIntradayTickHistory(sinceIso);
+            const ticks = Array.isArray(resp && resp.ticks) ? resp.ticks : [];
+            const baseColorClass = (resp && resp.source === 'market_data_query') ? 'eid-tick-repopulated' : 'eid-tick-live';
+            for (const t of ticks) appendTickRow(t, t.triggered ? 'eid-tick-triggered' : baseColorClass);
+            return ticks.length;
+        } catch (err) {
+            console.warn('[Dashboard] tick history fetch failed:', err.message || err);
+            return 0;
+        }
+    }
+
+    async function openIntradayDetails(elocId) {
+        console.log('[Dashboard] Opening Intraday details dialog: eloc=%s', elocId);
+        intradayDetails.open = true;
+        intradayDetails.elocId = elocId;
+        intradayDetails.lastTickTimeUtc = null;
+        intradayDetails.tickCount = 0;
+
+        const overlay = document.getElementById('intraday-details-modal-overlay');
+        if (overlay) overlay.classList.add('visible');
+        const grid = document.getElementById('eid-static-grid'); if (grid) grid.innerHTML = '<span class="eid-field-label">Loading…</span>';
+        const triggers = document.getElementById('eid-triggers'); if (triggers) triggers.innerHTML = '';
+        const tape = document.getElementById('eid-tape'); if (tape) tape.innerHTML = '<div class="eid-tape-empty">Loading time and sales…</div>';
+
+        const d = await fetchAndRenderDetails();
+        // Prefer the true monitoring-start instant (startingVolumeTimeUtc) over purchaseDate (the
+        // earlier submission timestamp) — same reasoning as PRM's dialog: DTS's tick-history endpoint
+        // only serves from its own live-observed log (white/live) when sinceUtc >= that instant.
+        const sinceIso = (d && d.startingVolumeTimeUtc) || (d && d.purchaseDate) || new Date(Date.now() - 24 * 3600 * 1000).toISOString();
+        if (tape) tape.innerHTML = '';
+        const count = await fetchTickHistory(sinceIso);
+        if (count === 0 && tape) {
+            tape.innerHTML = '<div class="eid-tape-empty">No trade prints yet in this window.</div>';
+        }
+        intradayDetails.lastTickTimeUtc = intradayDetails.lastTickTimeUtc || new Date().toISOString();
+
+        clearInterval(intradayDetails.clockTimer);
+        intradayDetails.clockTimer = setInterval(() => {
+            if (!intradayDetails.open) return;
+            fetchAndRenderDetails();
+        }, 5000);
+
+        console.log('[Dashboard] Intraday details loaded: eloc=%s ticks=%d', elocId, count);
+    }
+
+    function closeIntradayDetails() {
+        if (!intradayDetails.open) return;
+        console.log('[Dashboard] Closing Intraday details dialog (%d tick(s) shown)', intradayDetails.tickCount);
+        intradayDetails.open = false;
+        clearInterval(intradayDetails.clockTimer);
+        intradayDetails.clockTimer = null;
+        const overlay = document.getElementById('intraday-details-modal-overlay');
+        if (overlay) overlay.classList.remove('visible');
+    }
+
+    function initIntradayDetailsDialog() {
+        const closeBtn = document.getElementById('intraday-details-modal-close');
+        if (closeBtn) closeBtn.addEventListener('click', closeIntradayDetails);
+        const overlay = document.getElementById('intraday-details-modal-overlay');
+        if (overlay) {
+            overlay.addEventListener('click', (e) => {
+                if (e.target === overlay) closeIntradayDetails();
+            });
+        }
+    }
+
     /**
      * Render a single workflow card for an ELOC currently pricing.
      */
@@ -775,17 +997,27 @@ const Dashboard = (() => {
         // "Signed Contract to Company" for the whole trading day otherwise. Add a live progress panel
         // whenever intraday_pricing_status is present; intraday_progress WS frames update it in place
         // afterward (see handleIntradayProgress) without needing a full card re-render.
-        const intradayHtml = workflow.intraday_pricing_status
+        // Intraday_pricing_status is present only on Intraday workflows — the same signal used below to
+        // pick the "ELOC Details" document tab, and the gate for the "Details" button (live VWAP triggers
+        // dialog) — day-based ELOCs have no live pricing window to show, so they don't get the button.
+        const isIntraday = !!workflow.intraday_pricing_status;
+        const intradayHtml = isIntraday
             ? `<div class="workflow-intraday-progress" data-eloc-id="${escapeHtml(workflow.eloc_id)}">
                    <div class="workflow-intraday-status">${escapeHtml(formatIntradayStatus(workflow.intraday_pricing_status))}</div>
                    <div class="workflow-intraday-shares" data-role="shares">${formatIntradayShares(workflow.intraday_shares_accumulated, workflow.intraday_purchase_share_amount)}</div>
                </div>`
             : '';
+        const detailsBtnHtml = isIntraday
+            ? `<button class="workflow-details-btn" type="button" title="Live VWAP details — triggers, running VWAP/low, time and sales">Details</button>`
+            : '';
 
         card.innerHTML = `
             <div class="workflow-header">
                 <div class="workflow-title">ELOC ${escapeHtml(workflow.eloc_id)}</div>
-                <button class="workflow-remove-btn" ${workflow.can_remove ? '' : 'disabled'}>Remove</button>
+                <div class="workflow-header-actions">
+                    ${detailsBtnHtml}
+                    <button class="workflow-remove-btn" ${workflow.can_remove ? '' : 'disabled'}>Remove</button>
+                </div>
             </div>
             <div class="workflow-steps">
                 ${stepsHtml}
@@ -796,9 +1028,7 @@ const Dashboard = (() => {
         // Click handlers for completed document badges. At the final step, an Intraday ELOC's
         // second document is its own ELOC Details (IntradayElocDetails, the numbers-only price
         // derivation) instead of the day-based multi-day PricingDetails PDF, which doesn't apply to
-        // Intraday. intraday_pricing_status is present only on Intraday workflows (see
-        // formatIntradayStatus usage above) — the same signal already used elsewhere in this file.
-        const isIntraday = !!workflow.intraday_pricing_status;
+        // Intraday. isIntraday is computed once, above, and reused here.
         card.querySelectorAll('.workflow-step.clickable').forEach((stepEl) => {
             stepEl.addEventListener('click', () => {
                 const stepKey = stepEl.dataset.step;
@@ -812,6 +1042,10 @@ const Dashboard = (() => {
             });
             stepEl.style.cursor = 'pointer';
         });
+
+        // Details button handler (Intraday only)
+        const detailsBtn = card.querySelector('.workflow-details-btn');
+        if (detailsBtn) detailsBtn.addEventListener('click', () => openIntradayDetails(workflow.eloc_id));
 
         // Remove button handler
         const removeBtn = card.querySelector('.workflow-remove-btn');
@@ -1024,6 +1258,15 @@ const Dashboard = (() => {
             // else happens to trigger a reload. loadPricingWorkflows() now reconciles (prunes stale
             // entries), so this alone is enough to self-heal.
             loadPricingWorkflows();
+
+            // Details dialog stayed open across the disconnect — backfill whatever ticks landed in the
+            // gap (colored per the server's actual source, same as the initial open) and refresh the
+            // trigger cards, same reasoning as PRM's dialog.
+            if (intradayDetails.open) {
+                const since = intradayDetails.lastTickTimeUtc || new Date().toISOString();
+                fetchTickHistory(since);
+                fetchAndRenderDetails();
+            }
         };
 
         workflowsWs.onmessage = (event) => {
@@ -1049,6 +1292,13 @@ const Dashboard = (() => {
                     // Live shares-accumulated/status for an Intraday ELOC's VWAP pricing window — update
                     // the existing card in place (no re-fetch; these can arrive multiple times a second).
                     handleIntradayProgress(msg);
+                } else if (msg.type === 'intraday_tick') {
+                    // Only append when the Details dialog is open and showing THIS elocId — the WS has
+                    // no per-symbol subscription concept, every tick for this company arrives regardless
+                    // of whether the dialog is open, so filtering happens here (same as PRM's dialog).
+                    if (intradayDetails.open && msg.eloc_id === intradayDetails.elocId) {
+                        appendTickRow(msg, msg.triggered ? 'eid-tick-triggered' : 'eid-tick-live');
+                    }
                 }
             } catch (e) {
                 console.warn('[Dashboard] Workflows WS parse error:', e);
@@ -1475,6 +1725,7 @@ const Dashboard = (() => {
         initSignatoryManagement();
         initSharesModal();
         initDocumentViewer();
+        initIntradayDetailsDialog();
 
         // Check if user has signatories (controls initiate button)
         checkSignatories();

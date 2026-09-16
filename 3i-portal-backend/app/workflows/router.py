@@ -807,10 +807,13 @@ async def _handle_intraday_progress(msg: dict):
 
 
 async def _handle_intraday_tick(msg: dict):
-    """One row for the PRM ELOC Details dialog's live time-and-sales feed — a genuinely-new trade print
+    """One row for the Intraday Details dialog's live time-and-sales feed — a genuinely-new trade print
     or VWAP-volume anchor update, pushed by DTS's IntradayElocPricingManager.OnQuoteReceived as it
-    happens. PRM-internal only (no customer-facing broadcast — this is operational tick-level detail,
-    not something the customer portal shows)."""
+    happens. Broadcast both to PRM (internal, unscoped — every tick, every company) and to the ELOC's
+    own company only (customer portal's own Details dialog) — the raw DTS message carries no companyId
+    of its own, so the owning company is resolved via _eloc_company_map (populated by workflow_update/
+    intraday_progress for this same eloc_id, exactly like _handle_eloc_removed/_handle_eloc_hidden
+    already resolve it when a message doesn't carry company_id directly)."""
     eloc_id = msg.get("elocId", "")
     payload = {
         "type": "intraday_tick",
@@ -829,5 +832,9 @@ async def _handle_intraday_tick(msg: dict):
     }
     logger.debug("HANDLE intraday_tick: eloc_id=%s kind=%s triggered=%s",
                  eloc_id, payload["kind"], payload["triggered"])
+
+    company_id = _eloc_company_map.get(eloc_id)
+    if company_id:
+        await _broadcast(company_id, payload)
 
     await _internal_broadcast({**payload, "scope": "internal"})

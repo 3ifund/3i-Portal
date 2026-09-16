@@ -135,6 +135,40 @@ async def get_intraday_live_progress(
     return progress
 
 
+@router.get("/intraday-details")
+async def get_intraday_details(
+    user: UserInfo = Depends(get_current_user),
+):
+    """Full snapshot for the Customer Portal's own Intraday Details dialog — same data PRM's admin-only
+    Details dialog shows (static fields, the three trigger statuses, running VWAP/low), scoped to the
+    caller's own company by using their JWT-carried company_symbol rather than an open {symbol} path
+    param — a customer session is always exactly one company/one symbol, so there is nothing to key off
+    of but their own."""
+    if not user.company_symbol:
+        raise HTTPException(status_code=400, detail="User has no company symbol assigned")
+    logger.info("GET /intraday-details — user=%s, company=%s, symbol=%s", user.user_id, user.company_name, user.company_symbol)
+    body = await onprem.get_intraday_eloc_details(user.company_symbol)
+    if body is None:
+        raise HTTPException(status_code=404, detail=f"No Intraday notice on record for {user.company_symbol}")
+    return body
+
+
+@router.get("/intraday-tick-history")
+async def get_intraday_tick_history(
+    since_utc: str = Query(...),
+    user: UserInfo = Depends(get_current_user),
+):
+    """Backfill for the Customer Portal Details dialog's time-and-sales feed since `since_utc`
+    (ISO-8601) — same underlying DTS query PRM's dialog uses, scoped to the caller's own company/symbol
+    the same way get_intraday_details is above."""
+    if not user.company_symbol:
+        raise HTTPException(status_code=400, detail="User has no company symbol assigned")
+    body = await onprem.get_intraday_eloc_tick_history(user.company_symbol, since_utc)
+    if body is None:
+        raise HTTPException(status_code=404, detail=f"No Intraday notice on record for {user.company_symbol}")
+    return body
+
+
 @router.post("/intraday-submit")
 async def submit_intraday_purchase_notice(
     request: IntradayPurchaseNoticeRequest,

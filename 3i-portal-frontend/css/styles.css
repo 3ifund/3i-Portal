@@ -815,6 +815,28 @@ a:hover {
     opacity: 0.5;
 }
 
+.workflow-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.workflow-details-btn {
+    font-size: 0.75rem;
+    padding: 0.3rem 1rem;
+    border: 1px solid var(--accent-blue);
+    background: transparent;
+    color: var(--accent-blue);
+    border-radius: var(--border-radius);
+    cursor: pointer;
+    transition: all var(--transition-speed);
+}
+
+.workflow-details-btn:hover {
+    background: var(--accent-blue);
+    color: #ffffff;
+}
+
 .workflow-steps {
     display: flex;
     align-items: flex-start;
@@ -1077,6 +1099,81 @@ a:hover {
     border: 1px solid rgba(30, 144, 255, 0.3);
     color: var(--accent-blue);
 }
+
+/* Intraday VWAP — Live Details dialog (same layout as PRM's admin Details dialog) */
+.eid-modal-body { gap: 1rem; }
+
+.eid-static-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 6px 24px;
+    font-size: 13px;
+    padding: 10px 12px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--input-border);
+    border-radius: var(--border-radius);
+}
+.eid-static-grid .eid-field-label { color: var(--text-secondary); }
+.eid-static-grid .eid-field-value { font-weight: 600; color: var(--text-primary); }
+
+.eid-triggers {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+}
+.eid-trigger {
+    border: 1px solid var(--input-border);
+    border-radius: var(--border-radius);
+    padding: 8px 10px;
+    font-size: 12px;
+}
+.eid-trigger-title { color: var(--text-secondary); text-transform: uppercase; font-size: 10px; letter-spacing: 0.5px; margin-bottom: 4px; }
+.eid-trigger-value { font-size: 14px; font-weight: 700; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+.eid-trigger-sub { font-size: 10px; font-weight: 400; font-family: inherit; color: var(--text-secondary); margin-top: 2px; }
+.eid-trigger.not-crossed { border-color: var(--badge-green); }
+.eid-trigger.not-crossed .eid-trigger-value { color: var(--badge-green); }
+.eid-trigger.crossed { border-color: var(--badge-red); background: rgba(239,68,68,0.12); }
+.eid-trigger.crossed .eid-trigger-value { color: var(--badge-red); }
+.eid-trigger.unknown .eid-trigger-value { color: var(--text-secondary); }
+
+.eid-tape-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 11px;
+    color: var(--text-secondary);
+}
+.eid-tape-legend { display: flex; align-items: center; gap: 4px; }
+.eid-legend-swatch {
+    display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-left: 8px;
+}
+.eid-legend-swatch:first-child { margin-left: 0; }
+.eid-tick-orange { background: var(--badge-orange); }
+.eid-tick-white { background: #ECEFF1; }
+.eid-tick-red { background: var(--badge-red); }
+
+.eid-tape {
+    min-height: 220px;
+    max-height: 360px;
+    overflow-y: auto;
+    background: var(--bg-primary);
+    border: 1px solid var(--input-border);
+    border-radius: var(--border-radius);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 12px;
+}
+.eid-tape-row {
+    display: grid;
+    grid-template-columns: 110px 60px 1fr;
+    gap: 10px;
+    padding: 3px 10px;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+    white-space: nowrap;
+}
+.eid-tape-row.eid-tick-repopulated { color: var(--badge-orange); }
+.eid-tape-row.eid-tick-live { color: var(--text-primary); }
+.eid-tape-row.eid-tick-triggered { color: var(--badge-red); font-weight: 700; background: rgba(239,68,68,0.10); }
+.eid-tape-empty { padding: 16px; text-align: center; color: var(--text-secondary); }
 
 .modal-status.success {
     display: block;
