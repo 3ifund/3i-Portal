@@ -219,6 +219,15 @@ async def get_position_accounts(position_id: int, instrumentType: str, brokerId:
         raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
 
 
+@router.get("/positions/{position_id}/traders")
+async def get_position_traders(position_id: int, instrumentType: str, admin: UserInfo = Depends(require_admin)):
+    try:
+        return await onprem.get_position_traders(position_id, instrumentType)
+    except Exception as exc:
+        logger.error("position traders — DTS fetch FAILED (positionId=%s, %s): %s", position_id, instrumentType, exc, exc_info=True)
+        raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
+
+
 @router.get("/allocations")
 async def get_allocations(traderId: int, admin: UserInfo = Depends(require_admin)):
     try:

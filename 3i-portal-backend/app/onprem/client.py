@@ -478,6 +478,12 @@ async def get_position_accounts(position_id: int, instrument_type: str, broker_i
     return response.json()
 
 
+async def get_position_traders(position_id: int, instrument_type: str) -> dict:
+    response = await _request_with_retry("GET", f"/api/pt/positions/{position_id}/traders", params={"instrumentType": instrument_type})
+    response.raise_for_status()
+    return response.json()
+
+
 async def dts_reachable() -> bool:
     """Quick liveness probe of DTS over the existing on-prem connection — backs the portal's DTS nav icon.
     Short timeout, no retry, so 'down' surfaces promptly."""
