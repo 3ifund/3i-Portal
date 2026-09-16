@@ -258,6 +258,38 @@ async def remove_position_dto_units(position_id: int, body: RemoveDtoUnitsBody, 
         raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
 
 
+@router.get("/synthetic-conversion/{instrument_id}/info")
+async def get_synthetic_conversion_info(instrument_id: int, admin: UserInfo = Depends(require_admin)):
+    try:
+        return await onprem.get_synthetic_conversion_info(instrument_id)
+    except Exception as exc:
+        logger.error("synthetic-conversion info — DTS fetch FAILED (instrumentId=%s): %s", instrument_id, exc, exc_info=True)
+        raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
+
+
+class SyntheticConversionDecrementBody(BaseModel):
+    principal: float
+    shares: int
+    use144: bool = False
+    userName: str | None = None
+
+
+@router.post("/synthetic-conversion/{instrument_id}/decrement")
+async def synthetic_conversion_decrement(instrument_id: int, body: SyntheticConversionDecrementBody, admin: UserInfo = Depends(require_admin)):
+    logger.info("POST /internal/pt/synthetic-conversion/%s/decrement principal=%s shares=%s use144=%s by user=%s",
+                instrument_id, body.principal, body.shares, body.use144, admin.user_id)
+    try:
+        status, data = await onprem.synthetic_conversion_decrement(instrument_id, body.model_dump())
+        if status >= 400:
+            raise HTTPException(status_code=status, detail=data.get("error") or data.get("message") or "DTS error")
+        return data
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("synthetic-conversion decrement — DTS FAILED (instrumentId=%s): %s", instrument_id, exc, exc_info=True)
+        raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
+
+
 @router.get("/allocations")
 async def get_allocations(traderId: int, admin: UserInfo = Depends(require_admin)):
     try:

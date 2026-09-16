@@ -501,6 +501,23 @@ async def remove_position_dto_units(position_id: int, body: dict) -> tuple[int, 
         return response.status_code, {"message": response.text}
 
 
+async def get_synthetic_conversion_info(instrument_id: int) -> dict:
+    response = await _request_with_retry("GET", f"/api/pt/synthetic-conversion/{instrument_id}/info")
+    response.raise_for_status()
+    return response.json()
+
+
+async def synthetic_conversion_decrement(instrument_id: int, body: dict) -> tuple[int, dict]:
+    client = _get_client()
+    logger.info("POST /api/pt/synthetic-conversion/%s/decrement principal=%s shares=%s (write)", instrument_id, body.get("principal"), body.get("shares"))
+    response = await client.post(f"/api/pt/synthetic-conversion/{instrument_id}/decrement", json=body)
+    logger.info("  → %s", response.status_code)
+    try:
+        return response.status_code, response.json()
+    except Exception:
+        return response.status_code, {"message": response.text}
+
+
 async def dts_reachable() -> bool:
     """Quick liveness probe of DTS over the existing on-prem connection — backs the portal's DTS nav icon.
     Short timeout, no retry, so 'down' surfaces promptly."""
