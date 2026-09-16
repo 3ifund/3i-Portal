@@ -7,6 +7,9 @@ venv/
 
 # Environment
 .env
+.env.*
+*.log
+*.log.err
 
 # IDE
 .vscode/

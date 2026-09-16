@@ -64,11 +64,13 @@ async def get_companies(admin: UserInfo = Depends(require_admin)):
 class TraderCreateBody(BaseModel):
     name: str
     reduceRisk: bool = False
+    firm: bool = False
 
 
 class TraderSaveBody(BaseModel):
     name: str
     reduceRisk: bool = False
+    firm: bool = False
     brokerIds: list[int] = []
     accountIds: list[int] = []
     defaultAccountId: int | None = None
