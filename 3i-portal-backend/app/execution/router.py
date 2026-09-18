@@ -3,7 +3,7 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from app.auth.dependencies import require_admin
+from app.auth.dependencies import get_current_user, require_admin
 from app.auth.models import UserInfo
 from app.onprem import client as onprem
 
@@ -21,7 +21,12 @@ class GatewayConfig(BaseModel):
 
 
 @router.get("/status")
-async def get_status(admin: UserInfo = Depends(require_admin)):
+async def get_status(user: UserInfo = Depends(get_current_user)):
+    # Read-only/informational (the EXEC nav-dot every user sees) — unlike config/connect/disconnect
+    # below, this must not require admin. It used to, and every non-admin user's poll (every 5s) hit a
+    # hard 403 before DTS was ever asked, showing the icon as permanently disconnected regardless of
+    # the real EMSX connection state. Confirmed live 2026-09-18: DTS itself was connected the whole
+    # time; only this endpoint's admin gate was failing.
     try:
         return await onprem.get_execution_status()
     except Exception as exc:
