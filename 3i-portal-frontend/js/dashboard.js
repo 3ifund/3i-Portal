@@ -779,6 +779,10 @@ const Dashboard = (() => {
         return (n == null || isNaN(n)) ? '—' : `$${Number(n).toFixed(4)}`;
     }
 
+    function fmtMoney(n) {
+        return (n == null || isNaN(n)) ? '—' : Number(n).toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
+    }
+
     function fmtPct(n) {
         return (n == null || isNaN(n)) ? '—' : `${Number(n).toFixed(2)}%`;
     }
@@ -806,7 +810,9 @@ const Dashboard = (() => {
     }
 
     function eidTriggerCard(id, title, valueHtml, crossed) {
-        const cls = crossed === true ? 'crossed' : crossed === false ? 'not-crossed' : 'unknown';
+        // crossed is normally a boolean (crossed/not-crossed/unknown), but a literal string (e.g.
+        // 'raised' for the info-only Capital Raised card) is passed straight through as the CSS class.
+        const cls = typeof crossed === 'string' ? crossed : crossed === true ? 'crossed' : crossed === false ? 'not-crossed' : 'unknown';
         return `<div class="eid-trigger ${cls}" id="${id}">
                     <div class="eid-trigger-title">${escapeHtml(title)}</div>
                     <div class="eid-trigger-value">${valueHtml}</div>
@@ -825,6 +831,7 @@ const Dashboard = (() => {
         const volLabel = d.cumulativeVwapVolume != null ? formatShares(d.cumulativeVwapVolume) : '—';
         const vwapLabel = d.runningVwap != null ? fmtPrice(d.runningVwap) : 'no trades yet';
         const dtoLabel = d.sharesAccumulated != null ? formatShares(d.sharesAccumulated) : '—';
+        const capitalRaisedLabel = d.capitalRaised != null ? fmtMoney(d.capitalRaised) : '—';
 
         el.innerHTML = [
             eidTriggerCard('eid-trig-time', 'Trigger 3 — Time',
@@ -833,6 +840,8 @@ const Dashboard = (() => {
                 `${escapeHtml(lowLabel)} &lt; ${escapeHtml(fmtPrice(d.minimumPriceThreshold))}${lowDetail}`, d.priceThresholdCrossed),
             eidTriggerCard('eid-trig-volume', 'Trigger 1 — VWAP Volume',
                 `${escapeHtml(volLabel)} &gt;= ${escapeHtml(formatShares(d.volumeThreshold))}`, d.volumeThresholdCrossed),
+            eidTriggerCard('eid-trig-capital', 'Capital Raised',
+                escapeHtml(capitalRaisedLabel), 'raised'),
         ].join('') + `
             <div class="eid-trigger unknown" style="grid-column: 1 / -1;">
                 <div class="eid-trigger-title">Current VWAP for Pricing Period &nbsp;/&nbsp; DTO Shares (Purchase % &times; Cumulative Volume)</div>

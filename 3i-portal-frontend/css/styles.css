@@ -1118,7 +1118,7 @@ a:hover {
 
 .eid-triggers {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(4, 1fr);
     gap: 10px;
 }
 .eid-trigger {
@@ -1135,6 +1135,8 @@ a:hover {
 .eid-trigger.crossed { border-color: var(--badge-red); background: rgba(239,68,68,0.12); }
 .eid-trigger.crossed .eid-trigger-value { color: var(--badge-red); }
 .eid-trigger.unknown .eid-trigger-value { color: var(--text-secondary); }
+.eid-trigger.raised { border-color: var(--badge-green); }
+.eid-trigger.raised .eid-trigger-value { color: var(--badge-green); }
 
 .eid-tape-header {
     display: flex;
