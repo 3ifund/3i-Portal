@@ -747,7 +747,13 @@ const Dashboard = (() => {
         elocId: null,
         lastTickTimeUtc: null, // ISO string of the latest tick shown — drives reconnect-gap backfill
         tickCount: 0,
-        clockTimer: null,
+        clockTimer: null,   // 5s: re-fetches /details and re-renders everything
+        secondTimer: null,  // 1s: locally extrapolates the Trigger 3 "now" clock between clockTimer polls
+        // Set by renderIntradayTriggers on every real poll; read by tickTriggerTimeCard every second.
+        clockSyncEtSeconds: null,    // server's currentTimeEt at the moment of the last poll, as seconds-of-day
+        clockSyncCapturedAtMs: null, // Date.now() at that same moment — the local anchor to extrapolate from
+        tradingEndLabel: '—',
+        timeThresholdCrossed: null,
     };
 
     function formatShares(n) {
@@ -764,6 +770,45 @@ const Dashboard = (() => {
         const ampm = h >= 12 ? 'PM' : 'AM';
         h = h % 12; if (h === 0) h = 12;
         return `${h}:${m} ${ampm}`;
+    }
+
+    // Same as fmtTime but keeps the seconds — used by Trigger 3's time box (both the live "now" clock
+    // and Intraday Trading End Time, e.g. 03:59:59 PM) where the seconds actually matter for reading
+    // whether the trigger is about to fire; every other use of fmtTime in this dialog stays
+    // minute-precision.
+    function fmtTimeSec(hhmmss) {
+        if (!hhmmss) return '—';
+        const parts = String(hhmmss).split(':');
+        if (parts.length < 3) return fmtTime(hhmmss);
+        let h = parseInt(parts[0], 10);
+        const m = parts[1];
+        const s = String(Math.floor(parseFloat(parts[2]))).padStart(2, '0');
+        const ampm = h >= 12 ? 'PM' : 'AM';
+        h = h % 12; if (h === 0) h = 12;
+        return `${h}:${m}:${s} ${ampm}`;
+    }
+
+    // Total seconds since midnight from a "HH:MM:SS(.ffffff)?" string — used to extrapolate the live
+    // clock locally between the dialog's 5s polls (see tickTriggerTimeCard), so the displayed "now"
+    // ticks every second instead of jumping in 5s steps.
+    function parseTimeOfDaySeconds(hhmmss) {
+        if (!hhmmss) return null;
+        const parts = String(hhmmss).split(':');
+        if (parts.length < 3) return null;
+        const h = parseInt(parts[0], 10), m = parseInt(parts[1], 10), s = parseFloat(parts[2]);
+        if (!Number.isFinite(h) || !Number.isFinite(m) || !Number.isFinite(s)) return null;
+        return h * 3600 + m * 60 + s;
+    }
+
+    function fmtSecondsOfDay(totalSeconds) {
+        if (totalSeconds == null) return '—';
+        const wrapped = ((totalSeconds % 86400) + 86400) % 86400;
+        let h = Math.floor(wrapped / 3600);
+        const m = String(Math.floor((wrapped % 3600) / 60)).padStart(2, '0');
+        const s = String(Math.floor(wrapped % 60)).padStart(2, '0');
+        const ampm = h >= 12 ? 'PM' : 'AM';
+        h = h % 12; if (h === 0) h = 12;
+        return `${h}:${m}:${s} ${ampm}`;
     }
 
     function fmtDateTime(iso) {
@@ -822,8 +867,17 @@ const Dashboard = (() => {
     function renderIntradayTriggers(d) {
         const el = document.getElementById('eid-triggers');
         if (!el || !d) return;
-        const nowLabel = d.currentTimeEt ? fmtTime(d.currentTimeEt) : '—';
-        const endLabel = d.tradingEndTime ? fmtTime(d.tradingEndTime) : '—';
+        const nowLabel = d.currentTimeEt ? fmtTimeSec(d.currentTimeEt) : '—';
+        const endLabel = d.tradingEndTime ? fmtTimeSec(d.tradingEndTime) : '—';
+
+        // Anchor for the 1s local clock tick between polls (see tickTriggerTimeCard) — the server's
+        // currentTimeEt as of THIS poll, plus the local wall-clock moment it arrived, so the displayed
+        // "now" can be extrapolated forward every second instead of jumping only every 5s poll.
+        intradayDetails.clockSyncEtSeconds = parseTimeOfDaySeconds(d.currentTimeEt);
+        intradayDetails.clockSyncCapturedAtMs = Date.now();
+        intradayDetails.tradingEndLabel = endLabel;
+        intradayDetails.timeThresholdCrossed = d.timeThresholdCrossed;
+
         const lowLabel = d.runningLowPrice != null ? fmtPrice(d.runningLowPrice) : 'no trades yet';
         const lowDetail = d.runningLowPrice != null && d.lowPriceTradeTimeUtc != null
             ? `<div class="eid-trigger-sub">at ${escapeHtml(fmtDateTime(d.lowPriceTradeTimeUtc))}${d.lowPriceTradeSize != null ? ` &times; ${escapeHtml(formatShares(d.lowPriceTradeSize))}` : ''}</div>`
@@ -847,6 +901,23 @@ const Dashboard = (() => {
                 <div class="eid-trigger-title">Current VWAP for Pricing Period &nbsp;/&nbsp; DTO Shares (Purchase % &times; Cumulative Volume)</div>
                 <div class="eid-trigger-value">${escapeHtml(vwapLabel)} &nbsp;/&nbsp; ${escapeHtml(dtoLabel)} shares</div>
             </div>`;
+    }
+
+    // Runs every second (see openIntradayDetails) to keep Trigger 3's "now" reading live between the
+    // dialog's 5s data polls — updates ONLY that one card's value text via direct DOM write, not a
+    // full renderIntradayTriggers() re-render, so it doesn't fight the 5s poll or touch anything else.
+    // Purely a local extrapolation from the last real server timestamp (clockSyncEtSeconds/
+    // clockSyncCapturedAtMs, set by renderIntradayTriggers) — the crossed/not-crossed styling and the
+    // trading-end label both stay whatever the last real poll said, since only the server can actually
+    // decide a trigger fired.
+    function tickTriggerTimeCard() {
+        if (!intradayDetails.open || intradayDetails.clockSyncEtSeconds == null) return;
+        const card = document.getElementById('eid-trig-time');
+        if (!card) return;
+        const elapsedSec = (Date.now() - intradayDetails.clockSyncCapturedAtMs) / 1000;
+        const nowLabel = fmtSecondsOfDay(intradayDetails.clockSyncEtSeconds + elapsedSec);
+        const valueEl = card.querySelector('.eid-trigger-value');
+        if (valueEl) valueEl.innerHTML = `${escapeHtml(nowLabel)} &gt; ${escapeHtml(intradayDetails.tradingEndLabel)}`;
     }
 
     function tickRowHtml(tick, colorClass) {
@@ -943,6 +1014,9 @@ const Dashboard = (() => {
             fetchAndRenderDetails();
         }, 5000);
 
+        clearInterval(intradayDetails.secondTimer);
+        intradayDetails.secondTimer = setInterval(tickTriggerTimeCard, 1000);
+
         console.log('[Dashboard] Intraday details loaded: eloc=%s ticks=%d', elocId, count);
     }
 
@@ -952,6 +1026,8 @@ const Dashboard = (() => {
         intradayDetails.open = false;
         clearInterval(intradayDetails.clockTimer);
         intradayDetails.clockTimer = null;
+        clearInterval(intradayDetails.secondTimer);
+        intradayDetails.secondTimer = null;
         const overlay = document.getElementById('intraday-details-modal-overlay');
         if (overlay) overlay.classList.remove('visible');
     }
