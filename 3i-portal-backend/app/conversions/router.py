@@ -61,10 +61,10 @@ async def get_convertible_tranches(symbol: str, admin: UserInfo = Depends(requir
 
 
 @router.get("/preview")
-async def get_preview(company: str, price: float, amount: float, discount: float | None = None, admin: UserInfo = Depends(require_admin)):
+async def get_preview(company: str, price: float, amount: float, discount: float | None = None, preDeliveryShares: int = 0, admin: UserInfo = Depends(require_admin)):
     logger.info(
-        "GET /internal/conversions/preview company=%s price=%s amount=%s by user=%s",
-        company, price, amount, admin.user_id,
+        "GET /internal/conversions/preview company=%s price=%s amount=%s preDeliveryShares=%s by user=%s",
+        company, price, amount, preDeliveryShares, admin.user_id,
     )
     if price <= 0 or amount <= 0:
         # This endpoint is fired on every debounced keystroke; a zero/negative amount or price is a normal
@@ -72,7 +72,7 @@ async def get_preview(company: str, price: float, amount: float, discount: float
         logger.info("preview — skipped (price=%s amount=%s not both > 0)", price, amount)
         raise HTTPException(status_code=422, detail="price and amount must both be greater than 0")
     try:
-        return await onprem.get_conversion_preview(company, price, amount, include_pdf=False, discount=discount)
+        return await onprem.get_conversion_preview(company, price, amount, include_pdf=False, discount=discount, pre_delivery_shares=preDeliveryShares)
     except httpx.HTTPStatusError as exc:
         # DTS rejected the input (bad/partial params) — an expected, keystroke-driven condition, not a server
         # failure. Pass the real status/message through so the UI can show an inline hint, and log at info (no trace).

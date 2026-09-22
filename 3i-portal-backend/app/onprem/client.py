@@ -124,18 +124,23 @@ async def get_conversion_aggregates() -> list[dict]:
     return response.json()
 
 
-async def get_conversion_preview(company: str, price: float, amount: float, include_pdf: bool = False, discount: float | None = None) -> dict:
+async def get_conversion_preview(company: str, price: float, amount: float, include_pdf: bool = False, discount: float | None = None, pre_delivery_shares: int = 0) -> dict:
     # Single attempt, no retry: this is a read-only, idempotent, disposable preview fired on every debounced
     # keystroke in the CONV UI. Retrying through the backoff ladder would stack stale in-flight calls and delay
     # the UI's response by seconds when a newer keystroke has already superseded this one.
+    # pre_delivery_shares: the modal's currently-elected "Apply Pre-Delivery Shares" amount, so the previewed
+    # notices[].preDeliveryShares (and the Details section's pre-delivery/fresh split + pool projection) reflect
+    # what would actually happen — without it DTS always builds the preview with 0 applied.
     logger.info(
-        "GET /api/conversion-notices/preview company=%s price=%s amount=%s includePdf=%s (single attempt)",
-        company, price, amount, include_pdf,
+        "GET /api/conversion-notices/preview company=%s price=%s amount=%s includePdf=%s preDeliveryShares=%s (single attempt)",
+        company, price, amount, include_pdf, pre_delivery_shares,
     )
     client = _get_client()
     _params = {"company": company, "price": price, "amount": amount, "includePdf": str(include_pdf).lower()}
     if discount is not None:
         _params["discount"] = discount
+    if pre_delivery_shares:
+        _params["preDeliveryShares"] = pre_delivery_shares
     response = await client.get(
         "/api/conversion-notices/preview",
         params=_params,
