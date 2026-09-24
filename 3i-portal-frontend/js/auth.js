@@ -18,13 +18,27 @@ const Auth = (() => {
     }
 
     /**
+     * Where a logged-in user belongs: PRM is the admin landing page (Admin Dashboard is now reached via
+     * the persistent nav's "Admin" link, not login) — EXCEPT a still-pending forced password change,
+     * which always wins and sends an admin to the Admin Dashboard's Change Password tab instead, since
+     * that's the only page carrying that tab. Non-admins are unaffected (dashboard.html + its modal,
+     * unchanged).
+     */
+    function postLoginDestination(role, mustChangePassword) {
+        if (role !== 'admin') return 'dashboard.html';
+        return mustChangePassword ? 'admin.html' : '/position_risk_management/';
+    }
+
+    /**
      * If already authenticated, redirect away from login page.
      */
     function redirectIfAuthenticated() {
         const token = sessionStorage.getItem('access_token');
         if (token) {
             const role = sessionStorage.getItem('user_role');
-            window.location.href = role === 'admin' ? 'admin.html' : 'dashboard.html';
+            const mustChange = sessionStorage.getItem('must_change_password') === 'true';
+            const dest = postLoginDestination(role, mustChange);
+            window.location.href = mustChange ? dest + '?change_password=1' : dest;
         }
     }
 
@@ -95,12 +109,8 @@ const Auth = (() => {
                 const data = await API.login(userId, password);
                 storeAuth(data);
 
-                const dest = data.role === 'admin' ? 'admin.html' : 'dashboard.html';
-                if (data.must_change_password) {
-                    window.location.href = dest + '?change_password=1';
-                } else {
-                    window.location.href = dest;
-                }
+                const dest = postLoginDestination(data.role, data.must_change_password);
+                window.location.href = data.must_change_password ? dest + '?change_password=1' : dest;
             } catch (err) {
                 errorEl.textContent = err.message || 'Invalid User ID or password.';
                 errorEl.classList.add('visible');

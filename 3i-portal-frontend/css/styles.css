@@ -142,6 +142,25 @@ a:hover {
     border-color: var(--border-blue);
 }
 
+/* Persistent-nav "you are here" state (Admin / Data Management / Position & Risk Management) — same
+   accent treatment .tab.active already uses, applied to the pill-button navbar style instead of the
+   underlined-tab style. */
+.navbar-logout.active {
+    color: var(--accent-blue);
+    border-color: var(--accent-blue);
+    background: rgba(38, 158, 223, 0.12);
+}
+
+/* Forced password change: the rest of the persistent nav / tab bar is locked (dimmed, unclickable)
+   until the required change is submitted — see admin.html's Change Password tab. Sign Out is
+   deliberately never disabled (always a valid way out of a forced-change state). */
+.navbar-logout[disabled],
+.tab[disabled] {
+    opacity: 0.35;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
 /* ============================================
    Login Page
    ============================================ */

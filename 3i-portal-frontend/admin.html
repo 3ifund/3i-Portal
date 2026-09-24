@@ -20,9 +20,9 @@
             </div>
             <div class="navbar-user">
                 <span class="navbar-company" id="admin-user-id">Admin</span>
-                <a class="navbar-logout" href="/data-management/">Data Management</a>
                 <a class="navbar-logout" href="/position_risk_management/">Position &amp; Risk Management</a>
-                <button class="navbar-logout" id="change-password-btn">Change Password</button>
+                <a class="navbar-logout" href="/data-management/">Data Management</a>
+                <a class="navbar-logout active" href="/admin.html">Admin</a>
                 <button class="navbar-logout" id="logout-btn">Sign Out</button>
             </div>
         </nav>
@@ -41,6 +41,7 @@
                 <button class="tab" data-tab="users">Users</button>
                 <button class="tab" data-tab="eloc">ELOC</button>
                 <button class="tab" data-tab="conversions">Conversions</button>
+                <button class="tab" data-tab="change-password" id="change-password-tab">Change Password</button>
             </div>
 
             <!-- ELOC sub-tabs -->
@@ -110,6 +111,36 @@
                 </div>
                 <h3 style="font-size:0.95rem; font-weight:600; margin:0 0 0.5rem;">Map Note Tranches to EoD Templates</h3>
                 <div id="ed-classes"></div>
+            </div>
+
+            <!-- Change Password Panel — inline tab, not a modal (was #password-modal-overlay; dashboard.html,
+                 the non-admin landing page, still uses that modal via js/password-modal.js, unchanged) -->
+            <div id="change-password-panel" style="display:none;">
+                <div style="max-width:420px;">
+                    <div class="form-group">
+                        <label class="form-label" for="current-password">Current Password</label>
+                        <div class="password-input-wrapper">
+                            <input type="password" id="current-password" class="form-input" required>
+                            <button type="button" class="password-toggle" data-target="current-password" tabindex="-1">Show</button>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="new-password">New Password</label>
+                        <div class="password-input-wrapper">
+                            <input type="password" id="new-password" class="form-input" required>
+                            <button type="button" class="password-toggle" data-target="new-password" tabindex="-1">Show</button>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="confirm-password">Confirm New Password</label>
+                        <div class="password-input-wrapper">
+                            <input type="password" id="confirm-password" class="form-input" required>
+                            <button type="button" class="password-toggle" data-target="confirm-password" tabindex="-1">Show</button>
+                        </div>
+                    </div>
+                    <div class="modal-status" id="change-password-status"></div>
+                    <button class="btn btn-primary" id="change-password-submit">Change Password</button>
+                </div>
             </div>
 
             <!-- Conversion Notice Preview Modal -->
@@ -625,42 +656,6 @@
         </div>
     </div>
 
-    <div class="modal-overlay" id="password-modal-overlay">
-        <div class="modal">
-            <div class="modal-header">
-                <h2 class="modal-title">Change Password</h2>
-                <button class="modal-close" id="password-modal-close">&times;</button>
-            </div>
-            <div class="modal-body">
-                <div class="form-group">
-                    <label class="form-label" for="current-password">Current Password</label>
-                    <div class="password-input-wrapper">
-                        <input type="password" id="current-password" class="form-input" required>
-                        <button type="button" class="password-toggle" data-target="current-password" tabindex="-1">Show</button>
-                    </div>
-                </div>
-                <div class="form-group">
-                    <label class="form-label" for="new-password">New Password</label>
-                    <div class="password-input-wrapper">
-                        <input type="password" id="new-password" class="form-input" required>
-                        <button type="button" class="password-toggle" data-target="new-password" tabindex="-1">Show</button>
-                    </div>
-                </div>
-                <div class="form-group">
-                    <label class="form-label" for="confirm-password">Confirm New Password</label>
-                    <div class="password-input-wrapper">
-                        <input type="password" id="confirm-password" class="form-input" required>
-                        <button type="button" class="password-toggle" data-target="confirm-password" tabindex="-1">Show</button>
-                    </div>
-                </div>
-                <div class="modal-status" id="password-modal-status"></div>
-            </div>
-            <div class="modal-footer">
-                <button class="btn btn-secondary" id="password-modal-cancel">Cancel</button>
-                <button class="btn btn-primary" id="password-modal-submit">Change Password</button>
-            </div>
-        </div>
-    </div>
 
     <!-- Create/Edit User Modal -->
     <div class="modal-overlay" id="user-modal-overlay">
@@ -740,7 +735,7 @@
     <script>document.write('<script src="js/api.js?v=' + _v + '"><\/script>');</script>
     <script>document.write('<script src="js/version-watcher.js?v=' + _v + '"><\/script>');</script>
     <script>document.write('<script src="js/auth.js?v=' + _v + '"><\/script>');</script>
-    <script>document.write('<script src="js/password-modal.js?v=' + _v + '"><\/script>');</script>
+    <script>document.write('<script src="js/admin-password-tab.js?v=' + _v + '"><\/script>');</script>
     <script>document.write('<script src="js/admin.js?v=' + _v + '"><\/script>');</script>
 </body>
 </html>

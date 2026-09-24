@@ -25,6 +25,7 @@ const Admin = (() => {
             'conversion-details': 'conversion-details-panel',
             'preferred-notice': 'preferred-notice-panel',
             'eod-default': 'eod-default-panel',
+            'change-password': 'change-password-panel',
         };
         const groups = {
             eloc: {
