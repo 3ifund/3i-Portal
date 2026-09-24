@@ -173,6 +173,26 @@ a:hover {
     height: 32px;
 }
 
+/* Backend connection indicator — same dot+label pattern data-management-ui/position_risk_management
+   already use in their headers, so it reads the same wherever it appears. */
+.header-status {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    flex-shrink: 0;
+}
+.status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--badge-green);
+}
+.status-dot.disconnected {
+    background: var(--badge-red);
+}
+
 /* Global operator error alert — flashes red while any action item is pending. Same look as the PRM
    SPA's identical header alert, so it reads the same wherever it appears. */
 @keyframes actionAlertFlash {

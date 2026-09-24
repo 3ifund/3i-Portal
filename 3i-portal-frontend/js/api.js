@@ -85,6 +85,16 @@ const API = (() => {
     }
 
     /**
+     * GET /health — portal backend health check, for the navbar's connection-status dot. No auth header
+     * (matches data-management-ui/position_risk_management's identical check, both unauthenticated).
+     */
+    async function checkHealth() {
+        const response = await fetch(`${BASE_URL}/health`, { cache: 'no-cache' });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        return response.json().catch(() => ({}));
+    }
+
+    /**
      * GET /api/internal/action-items/count — pending operator action items, for the navbar's flashing
      * alert. Same endpoint the PRM SPA's identical alert already polls (proxied through to DTS).
      */
@@ -854,5 +864,6 @@ const API = (() => {
         adminMapConversionTemplate,
         adminUnmapConversionTemplate,
         getActionItemsCount,
+        checkHealth,
     };
 })();

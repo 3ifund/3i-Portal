@@ -1784,6 +1784,24 @@ const Admin = (() => {
     // ---- Init ----
 
     /**
+     * Backend connection indicator — same dot+label pattern data-management-ui/position_risk_management
+     * already use in their headers.
+     */
+    async function checkBackendStatus() {
+        const dot = document.getElementById('backend-status-dot');
+        const text = document.getElementById('backend-status-text');
+        if (!dot || !text || !window.API) return;
+        try {
+            await API.checkHealth();
+            dot.className = 'status-dot';
+            text.textContent = 'Connected';
+        } catch (err) {
+            dot.className = 'status-dot disconnected';
+            text.textContent = 'No backend connected';
+        }
+    }
+
+    /**
      * Global operator error alert — flashing-red bar in the navbar while any action item is pending.
      * Same source of truth as the PRM SPA's identical alert (DTS action_items table, proxied through
      * the portal backend at /api/internal/action-items/count — this page's API client already targets
@@ -1822,9 +1840,10 @@ const Admin = (() => {
         initUserManagement();
         initVerificationManagement();
 
-        // Global operator error alert — same flashing-red header indicator the PRM SPA already has,
-        // ported here so it's visible on every page, not just PRM. Portal backend proxies straight
-        // through to DTS's action_items table.
+        // Backend connection indicator + global operator error alert — same header widgets
+        // data-management-ui/PRM SPA already have, ported here so they're visible on every page.
+        checkBackendStatus();
+        setInterval(checkBackendStatus, 30000);
         refreshActionAlert();
         setInterval(refreshActionAlert, 15000);
 

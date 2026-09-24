@@ -19,13 +19,16 @@
                 <span class="navbar-title"></span>
             </div>
             <div class="navbar-user">
+                <div class="header-status" id="backend-status">
+                    <span class="status-dot disconnected" id="backend-status-dot"></span>
+                    <span id="backend-status-text">Checking...</span>
+                </div>
                 <button class="action-alert" id="action-alert" onclick="window.location.href='/position_risk_management/'" style="display:none;" title="Open Action Items in Position &amp; Risk Management">
                     <span class="action-alert-icon">&#9888;</span>
                     <span id="action-alert-text">0 Action Items</span>
                 </button>
                 <a class="navbar-logout" href="/position_risk_management/">Position &amp; Risk Management</a>
                 <a class="navbar-logout" href="/data-management/">Data Management</a>
-                <a class="navbar-logout active" href="/admin.html">Admin</a>
                 <button class="navbar-logout" id="logout-btn">Sign Out</button>
             </div>
         </nav>
