@@ -1790,7 +1790,7 @@ const Admin = (() => {
     async function checkBackendStatus() {
         const dot = document.getElementById('backend-status-dot');
         const text = document.getElementById('backend-status-text');
-        if (!dot || !text || !window.API) return;
+        if (!dot || !text) return;
         try {
             await API.checkHealth();
             dot.className = 'status-dot';
@@ -1810,7 +1810,7 @@ const Admin = (() => {
     async function refreshActionAlert() {
         const btn = document.getElementById('action-alert');
         const txt = document.getElementById('action-alert-text');
-        if (!btn || !txt || !window.API) return;
+        if (!btn || !txt) return;
         try {
             const res = await API.getActionItemsCount();
             const n = (res && typeof res.count === 'number') ? res.count : 0;
