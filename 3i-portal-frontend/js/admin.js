@@ -1783,17 +1783,35 @@ const Admin = (() => {
 
     // ---- Init ----
 
+    /**
+     * Global operator error alert — flashing-red bar in the navbar while any action item is pending.
+     * Same source of truth as the PRM SPA's identical alert (DTS action_items table, proxied through
+     * the portal backend at /api/internal/action-items/count — this page's API client already targets
+     * that backend for everything, see js/api.js's BASE_URL).
+     */
+    async function refreshActionAlert() {
+        const btn = document.getElementById('action-alert');
+        const txt = document.getElementById('action-alert-text');
+        if (!btn || !txt || !window.API) return;
+        try {
+            const res = await API.getActionItemsCount();
+            const n = (res && typeof res.count === 'number') ? res.count : 0;
+            if (n > 0) {
+                txt.textContent = n + ' Action Item' + (n === 1 ? '' : 's');
+                btn.style.display = 'inline-flex';
+            } else {
+                btn.style.display = 'none';
+            }
+        } catch (err) {
+            console.warn('[Admin] refreshActionAlert failed:', err && err.message);
+        }
+    }
+
     async function init() {
         // Verify admin role
         if (!Auth.isAdmin()) {
             window.location.href = 'dashboard.html';
             return;
-        }
-
-        // Show admin user ID in navbar
-        const adminUserEl = document.getElementById('admin-user-id');
-        if (adminUserEl) {
-            adminUserEl.textContent = sessionStorage.getItem('user_id') || 'Admin';
         }
 
         const t0 = performance.now();
@@ -1803,6 +1821,12 @@ const Admin = (() => {
         initConversionNotice();
         initUserManagement();
         initVerificationManagement();
+
+        // Global operator error alert — same flashing-red header indicator the PRM SPA already has,
+        // ported here so it's visible on every page, not just PRM. Portal backend proxies straight
+        // through to DTS's action_items table.
+        refreshActionAlert();
+        setInterval(refreshActionAlert, 15000);
 
         // Fire visible data loads immediately (don't wait for template inits)
         console.log('[Admin] init() — dispatching data loads (companies, users)...');

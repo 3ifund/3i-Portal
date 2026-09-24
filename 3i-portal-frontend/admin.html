@@ -13,13 +13,16 @@
     <div class="page-container">
 
         <!-- Navigation Bar -->
-        <nav class="navbar">
+        <nav class="navbar navbar-compact">
             <div class="navbar-brand">
                 <img src="assets/logo.png" alt="3i Fund" class="navbar-logo" id="navbar-logo">
                 <span class="navbar-title"></span>
             </div>
             <div class="navbar-user">
-                <span class="navbar-company" id="admin-user-id">Admin</span>
+                <button class="action-alert" id="action-alert" onclick="window.location.href='/position_risk_management/'" style="display:none;" title="Open Action Items in Position &amp; Risk Management">
+                    <span class="action-alert-icon">&#9888;</span>
+                    <span id="action-alert-text">0 Action Items</span>
+                </button>
                 <a class="navbar-logout" href="/position_risk_management/">Position &amp; Risk Management</a>
                 <a class="navbar-logout" href="/data-management/">Data Management</a>
                 <a class="navbar-logout active" href="/admin.html">Admin</a>

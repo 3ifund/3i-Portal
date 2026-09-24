@@ -85,6 +85,17 @@ const API = (() => {
     }
 
     /**
+     * GET /api/internal/action-items/count — pending operator action items, for the navbar's flashing
+     * alert. Same endpoint the PRM SPA's identical alert already polls (proxied through to DTS).
+     */
+    async function getActionItemsCount() {
+        const response = await fetch(`${BASE_URL}/api/internal/action-items/count`, {
+            headers: authHeaders(),
+        });
+        return handleResponse(response);
+    }
+
+    /**
      * GET /elocs — list ELOCs for the current user's company
      */
     async function getElocs(status) {
@@ -842,5 +853,6 @@ const API = (() => {
         adminListConversionClasses,
         adminMapConversionTemplate,
         adminUnmapConversionTemplate,
+        getActionItemsCount,
     };
 })();

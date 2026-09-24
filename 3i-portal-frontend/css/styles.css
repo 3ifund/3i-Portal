@@ -161,6 +161,42 @@ a:hover {
     pointer-events: none;
 }
 
+/* Compact navbar height, matching data-management-ui/position_risk_management's 56px header — scoped
+   to this modifier class (not the base .navbar) so dashboard.html and the other customer-facing pages
+   keep their original full-size logo/navbar untouched. */
+.navbar-compact {
+    height: 56px;
+    padding: 0 24px;
+}
+.navbar-compact .navbar-logo {
+    width: auto;
+    height: 32px;
+}
+
+/* Global operator error alert — flashes red while any action item is pending. Same look as the PRM
+   SPA's identical header alert, so it reads the same wherever it appears. */
+@keyframes actionAlertFlash {
+    0%, 100% { background: #b91c1c; box-shadow: 0 0 10px rgba(239, 68, 68, 0.8); }
+    50%      { background: #7f1d1d; box-shadow: 0 0 3px rgba(239, 68, 68, 0.3); }
+}
+.action-alert {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 6px 14px;
+    border: none;
+    border-radius: var(--border-radius);
+    color: #fff;
+    font-weight: 700;
+    font-size: 0.85rem;
+    cursor: pointer;
+    animation: actionAlertFlash 1s ease-in-out infinite;
+    flex-shrink: 0;
+}
+.action-alert .action-alert-icon {
+    font-size: 1rem;
+}
+
 /* ============================================
    Login Page
    ============================================ */
