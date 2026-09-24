@@ -814,6 +814,37 @@ async def preferred_company_convert(payload: dict) -> tuple[int, dict]:
     return response.status_code, body
 
 
+async def get_preferred_lock(company_id: int) -> dict:
+    logger.info("GET /api/preferred-conversions/lock/%s", company_id)
+    response = await _request_with_retry("GET", f"/api/preferred-conversions/lock/{company_id}")
+    response.raise_for_status()
+    return response.json()
+
+
+async def acquire_preferred_lock(payload: dict) -> tuple[int, dict]:
+    client = _get_client()
+    logger.info("POST /api/preferred-conversions/lock companyId=%s owner=%s", payload.get("companyId"), payload.get("owner"))
+    response = await client.post("/api/preferred-conversions/lock", json=payload)
+    logger.info("  → %s", response.status_code)
+    try:
+        body = response.json()
+    except Exception:
+        body = {"message": response.text}
+    return response.status_code, body
+
+
+async def release_preferred_lock(payload: dict) -> tuple[int, dict]:
+    client = _get_client()
+    logger.info("POST /api/preferred-conversions/unlock companyId=%s owner=%s", payload.get("companyId"), payload.get("owner"))
+    response = await client.post("/api/preferred-conversions/unlock", json=payload)
+    logger.info("  → %s", response.status_code)
+    try:
+        body = response.json()
+    except Exception:
+        body = {"message": response.text}
+    return response.status_code, body
+
+
 async def reverse_preferred_batch(batch_ref: str) -> tuple[int, dict]:
     client = _get_client()
     logger.info("DELETE /api/preferred-conversions/batch/%s", batch_ref)

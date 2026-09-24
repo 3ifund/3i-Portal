@@ -41,6 +41,10 @@ class TradingObjectiveBody(BaseModel):
     objective: str
 
 
+class LockBody(BaseModel):
+    companyId: int
+
+
 @router.get("/companies")
 async def get_companies(admin: UserInfo = Depends(require_admin)):
     logger.info("GET /internal/preferred/companies by user=%s", admin.user_id)
@@ -119,6 +123,30 @@ async def get_company_preview(companyId: int, price: float, amount: float,
         # DTS rejects bad/partial params with 4xx — an expected, keystroke-driven condition, not an outage.
         logger.warning("preferred company-preview — DTS returned error: %s", exc)
         raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.get("/lock/{company_id}")
+async def get_lock(company_id: int, admin: UserInfo = Depends(require_admin)):
+    logger.info("GET /internal/preferred/lock/%s by user=%s", company_id, admin.user_id)
+    try:
+        return await onprem.get_preferred_lock(company_id)
+    except Exception as exc:
+        logger.error("preferred lock-state — DTS fetch FAILED: %s", exc, exc_info=True)
+        raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
+
+
+@router.post("/lock")
+async def acquire_lock(body: LockBody, admin: UserInfo = Depends(require_admin)):
+    logger.info("POST /internal/preferred/lock companyId=%s owner=%s", body.companyId, admin.user_id)
+    status, data = await onprem.acquire_preferred_lock({"companyId": body.companyId, "owner": admin.user_id})
+    return JSONResponse(status_code=status, content=data)
+
+
+@router.post("/unlock")
+async def release_lock(body: LockBody, admin: UserInfo = Depends(require_admin)):
+    logger.info("POST /internal/preferred/unlock companyId=%s owner=%s", body.companyId, admin.user_id)
+    status, data = await onprem.release_preferred_lock({"companyId": body.companyId, "owner": admin.user_id})
+    return JSONResponse(status_code=status, content=data)
 
 
 @router.post("/company-convert")
