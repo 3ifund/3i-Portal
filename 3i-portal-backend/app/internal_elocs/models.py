@@ -141,6 +141,9 @@ class InternalElocState(BaseModel):
     workflow_complete: bool = False
     modified_at: str | None = None
     steps: list[InternalElocWorkflowStep] = []
+    # Day-based (non-Intraday) period type + submitted share count, for PRM's Type/Shares columns.
+    period_type: str | None = None
+    shares: int | None = None
     # Intraday-only live progress — null for every other period type. This field is only the
     # snapshot as of the GET fetch (page load / WS reconnect); live mid-session updates arrive
     # separately as intraday_progress WS frames (app/workflows/router.py _handle_intraday_progress),

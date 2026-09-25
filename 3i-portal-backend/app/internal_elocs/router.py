@@ -95,6 +95,10 @@ async def list_included_states(admin: UserInfo = Depends(require_admin)):
             "workflow_complete": workflow_complete,
             "modified_at": str(modified_at) if modified_at else None,
             "steps": steps,
+            # Day-based (non-Intraday) period type ("OneDay"/"ThreeDay"/"FiveDay"/"Intraday") + the
+            # submitted share count, for PRM's Type/Shares columns.
+            "period_type": state.get("periodType"),
+            "shares": state.get("shares"),
             # Intraday-only — null for every other period type. Snapshot as of this fetch (page
             # load / WS reconnect) — live mid-session updates arrive separately as intraday_progress
             # WS frames (app/workflows/router.py _handle_intraday_progress), not through this GET.
