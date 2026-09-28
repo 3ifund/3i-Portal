@@ -36,6 +36,11 @@ class AllowTrueUpBody(BaseModel):
     allow: bool
 
 
+class Allow144Body(BaseModel):
+    companyId: int
+    allow: bool
+
+
 class TradingObjectiveBody(BaseModel):
     companyId: int
     objective: str
@@ -175,6 +180,14 @@ async def set_allow_true_up(body: AllowTrueUpBody, admin: UserInfo = Depends(req
     logger.info("POST /internal/preferred/true-ups/allow company=%s allow=%s by user=%s",
                 body.companyId, body.allow, admin.user_id)
     status, data = await onprem.set_preferred_allow_true_up({"companyId": body.companyId, "allow": body.allow})
+    return JSONResponse(status_code=status, content=data)
+
+
+@router.post("/rule144/allow")
+async def set_allow144(body: Allow144Body, admin: UserInfo = Depends(require_admin)):
+    logger.info("POST /internal/preferred/rule144/allow company=%s allow=%s by user=%s",
+                body.companyId, body.allow, admin.user_id)
+    status, data = await onprem.set_preferred_allow144({"companyId": body.companyId, "allow": body.allow})
     return JSONResponse(status_code=status, content=data)
 
 
