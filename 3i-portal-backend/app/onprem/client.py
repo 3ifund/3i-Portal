@@ -534,16 +534,15 @@ async def dts_reachable() -> bool:
         return False
 
 
-async def set_conversion_allow144(payload: dict) -> tuple[int, dict]:
+async def set_note_allow144(instrument_id: int, allow: bool) -> tuple[int, dict]:
     client = _get_client()
-    logger.info("POST /api/conversions/rule144/allow company=%s allow=%s", payload.get("company"), payload.get("allow"))
-    response = await client.post("/api/conversions/rule144/allow", json=payload)
+    logger.info("PUT /api/conversions/notes/%s/allow-144 allow=%s (write)", instrument_id, allow)
+    response = await client.put(f"/api/conversions/notes/{instrument_id}/allow-144", json={"allow": allow})
     logger.info("  → %s", response.status_code)
     try:
-        body = response.json()
+        return response.status_code, response.json()
     except Exception:
-        body = {"message": response.text}
-    return response.status_code, body
+        return response.status_code, {"message": response.text}
 
 
 async def get_brokers_with_accounts() -> list[dict]:
@@ -589,6 +588,17 @@ async def set_preferred_conversion_enabled(instrument_id: int, tranche_no: int, 
     client = _get_client()
     logger.info("PUT /api/preferred-series/%s/%s/conversion-enabled enabled=%s (write)", instrument_id, tranche_no, body.get("enabled"))
     response = await client.put(f"/api/preferred-series/{instrument_id}/{tranche_no}/conversion-enabled", json=body)
+    logger.info("  → %s", response.status_code)
+    try:
+        return response.status_code, response.json()
+    except Exception:
+        return response.status_code, {"message": response.text}
+
+
+async def set_preferred_series_allow144(instrument_id: int, tranche_no: int, allow: bool) -> tuple[int, dict]:
+    client = _get_client()
+    logger.info("PUT /api/preferred-series/%s/%s/allow-144 allow=%s (write)", instrument_id, tranche_no, allow)
+    response = await client.put(f"/api/preferred-series/{instrument_id}/{tranche_no}/allow-144", json={"enabled": allow})
     logger.info("  → %s", response.status_code)
     try:
         return response.status_code, response.json()

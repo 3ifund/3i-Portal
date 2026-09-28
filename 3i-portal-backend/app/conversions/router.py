@@ -26,7 +26,14 @@ class ConvertBody(BaseModel):
 
 
 class Allow144Body(BaseModel):
+    # NOTE: despite the name (a pre-existing artifact), this is a generic {company, allow} shape shared by the
+    # true-up toggles below (acceleration/installment/variable) - it has nothing to do with Rule 144 itself.
+    # The actual Rule 144 endpoint is now per-note; see NoteAllow144Body / set_note_allow144 below.
     company: str
+    allow: bool
+
+
+class NoteAllow144Body(BaseModel):
     allow: bool
 
 
@@ -103,11 +110,11 @@ async def get_rule144(admin: UserInfo = Depends(require_admin)):
         raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
 
 
-@router.post("/rule144/allow")
-async def set_allow144(body: Allow144Body, admin: UserInfo = Depends(require_admin)):
-    logger.info("POST /internal/conversions/rule144/allow company=%s allow=%s by user=%s",
-                body.company, body.allow, admin.user_id)
-    status, data = await onprem.set_conversion_allow144({"company": body.company, "allow": body.allow})
+@router.put("/notes/{instrument_id}/allow-144")
+async def set_note_allow144(instrument_id: int, body: NoteAllow144Body, admin: UserInfo = Depends(require_admin)):
+    logger.info("PUT /internal/conversions/notes/%s/allow-144 allow=%s by user=%s",
+                instrument_id, body.allow, admin.user_id)
+    status, data = await onprem.set_note_allow144(instrument_id, body.allow)
     return JSONResponse(status_code=status, content=data)
 
 
