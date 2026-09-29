@@ -1194,13 +1194,19 @@ async def get_intraday_eloc_live_progress(symbol: str) -> dict | None:
     return response.json()
 
 
-async def get_intraday_eloc_details(symbol: str) -> dict | None:
+async def get_intraday_eloc_details(symbol: str, eloc_id: str | None = None) -> dict | None:
     """Full snapshot for the PRM Details dialog — static submission-time fields plus the three trigger
     statuses and running VWAP/low, from IntradayElocPricingManager.GetDetailsAsync. None when there's no
     Intraday notice on record for the symbol at all (not the same as "not currently live" — that case
-    still returns a body, just with the live-only fields null)."""
-    logger.info("GET /api/intraday-eloc/%s/details", symbol)
-    response = await _request_with_retry("GET", f"/api/intraday-eloc/{symbol}/details")
+    still returns a body, just with the live-only fields null).
+
+    eloc_id: pass this whenever the caller has it (PRM always does) — without it DTS falls back to
+    "most-recent Intraday eloc_data for the symbol", which is the WRONG record once a symbol has 2+
+    Intraday ELOCs the same day (2026-09-29 fix). Only omitted by the Customer Portal's own Details
+    dialog, which has no elocId to give — a customer session is always exactly one company/symbol."""
+    logger.info("GET /api/intraday-eloc/%s/details%s", symbol, f"?elocId={eloc_id}" if eloc_id else "")
+    params = {"elocId": eloc_id} if eloc_id else None
+    response = await _request_with_retry("GET", f"/api/intraday-eloc/{symbol}/details", params=params)
     if response.status_code in (404, 503):
         logger.info("  → %s", response.status_code)
         return None
@@ -1209,12 +1215,15 @@ async def get_intraday_eloc_details(symbol: str) -> dict | None:
     return response.json()
 
 
-async def get_intraday_eloc_tick_history(symbol: str, since_utc: str) -> dict | None:
+async def get_intraday_eloc_tick_history(symbol: str, since_utc: str, eloc_id: str | None = None) -> dict | None:
     """Backfill for the Details dialog's time-and-sales feed — real trade prints since `since_utc`
     (ISO-8601), via GetTimeAndSalesAsync. Empty ticks list (not None) when the query itself succeeds but
-    finds nothing; None only on a hard failure/not-configured from DTS."""
-    logger.info("GET /api/intraday-eloc/%s/tick-history?sinceUtc=%s", symbol, since_utc)
-    response = await _request_with_retry("GET", f"/api/intraday-eloc/{symbol}/tick-history", params={"sinceUtc": since_utc})
+    finds nothing; None only on a hard failure/not-configured from DTS.
+
+    eloc_id: see get_intraday_eloc_details above — same reasoning, same 2026-09-29 fix."""
+    logger.info("GET /api/intraday-eloc/%s/tick-history?sinceUtc=%s%s", symbol, since_utc, f"&elocId={eloc_id}" if eloc_id else "")
+    params = {"sinceUtc": since_utc, **({"elocId": eloc_id} if eloc_id else {})}
+    response = await _request_with_retry("GET", f"/api/intraday-eloc/{symbol}/tick-history", params=params)
     if response.status_code in (404, 503):
         logger.info("  → %s", response.status_code)
         return None
