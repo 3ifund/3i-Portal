@@ -137,17 +137,25 @@ async def get_intraday_live_progress(
 
 @router.get("/intraday-details")
 async def get_intraday_details(
+    eloc_id: str | None = None,
     user: UserInfo = Depends(get_current_user),
 ):
     """Full snapshot for the Customer Portal's own Intraday Details dialog — same data PRM's admin-only
     Details dialog shows (static fields, the three trigger statuses, running VWAP/low), scoped to the
     caller's own company by using their JWT-carried company_symbol rather than an open {symbol} path
-    param — a customer session is always exactly one company/one symbol, so there is nothing to key off
-    of but their own."""
+    param.
+
+    eloc_id (query param, 2026-09-29): the Dashboard shows one card per historical Intraday ELOC for
+    this company, each with its own Details button carrying a specific eloc_id - a customer is scoped to
+    one company, but that company can easily have run 2+ Intraday ELOCs the same day, so "one company"
+    does NOT mean "one ELOC to key off of" the way the original version of this endpoint assumed.
+    Without it DTS falls back to "most-recent Intraday eloc_data for the symbol", the wrong record
+    whenever that happens - this was reported live as the Details dialog freezing AND always showing the
+    same (most recent) ELOC's data no matter which card's button was clicked."""
     if not user.company_symbol:
         raise HTTPException(status_code=400, detail="User has no company symbol assigned")
-    logger.info("GET /intraday-details — user=%s, company=%s, symbol=%s", user.user_id, user.company_name, user.company_symbol)
-    body = await onprem.get_intraday_eloc_details(user.company_symbol)
+    logger.info("GET /intraday-details — user=%s, company=%s, symbol=%s, eloc_id=%s", user.user_id, user.company_name, user.company_symbol, eloc_id or "(none)")
+    body = await onprem.get_intraday_eloc_details(user.company_symbol, eloc_id)
     if body is None:
         raise HTTPException(status_code=404, detail=f"No Intraday notice on record for {user.company_symbol}")
     return body
@@ -156,14 +164,15 @@ async def get_intraday_details(
 @router.get("/intraday-tick-history")
 async def get_intraday_tick_history(
     since_utc: str = Query(...),
+    eloc_id: str | None = None,
     user: UserInfo = Depends(get_current_user),
 ):
     """Backfill for the Customer Portal Details dialog's time-and-sales feed since `since_utc`
     (ISO-8601) — same underlying DTS query PRM's dialog uses, scoped to the caller's own company/symbol
-    the same way get_intraday_details is above."""
+    the same way get_intraday_details is above (see its eloc_id doc comment - same reasoning)."""
     if not user.company_symbol:
         raise HTTPException(status_code=400, detail="User has no company symbol assigned")
-    body = await onprem.get_intraday_eloc_tick_history(user.company_symbol, since_utc)
+    body = await onprem.get_intraday_eloc_tick_history(user.company_symbol, since_utc, eloc_id)
     if body is None:
         raise HTTPException(status_code=404, detail=f"No Intraday notice on record for {user.company_symbol}")
     return body
