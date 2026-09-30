@@ -846,7 +846,11 @@ const Dashboard = (() => {
             eidFieldRow('VWAP Purchase Percentage', fmtPct(d.purchasePercentage)),
             eidFieldRow('VWAP Purchase Volume Threshold', formatShares(d.volumeThreshold)),
             eidFieldRow('Minimum Price Threshold', fmtPrice(d.minimumPriceThreshold)),
-            eidFieldRow('Trading Start Time', fmtTime(d.tradingStartTime)),
+            // fmtTimeSec, not fmtTime — the configured start should read with the same second-level
+            // precision as Starting VWAP Volume's "(as of HH:MM:SS)" capture timestamp right below it;
+            // showing this one minute-only made the two look like they disagreed by however many seconds
+            // actually elapsed between the configured start and the moment volume capture fired.
+            eidFieldRow('Trading Start Time', fmtTimeSec(d.tradingStartTime)),
             eidFieldRow('Starting VWAP Volume', d.startingVwapVolume != null
                 ? `${formatShares(d.startingVwapVolume)} (as of ${fmtDateTime(d.startingVolumeTimeUtc)})`
                 : 'not yet captured'),
