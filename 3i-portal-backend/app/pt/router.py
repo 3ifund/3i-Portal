@@ -173,6 +173,49 @@ async def cancel_open_order(order_id: str, body: TraderActionBody | None = None,
         raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
 
 
+class ModifyOrderBody(BaseModel):
+    orderType: str
+    quantity: int
+    price: float
+    startTime: str | None = None
+    endTime: str | None = None
+    targetPercent: int = 0
+    maxPercent: int | None = None
+    userName: str | None = None
+
+
+@router.get("/open-orders/{order_id}/modify-info")
+async def get_modify_info(order_id: str, admin: UserInfo = Depends(require_admin)):
+    logger.info("GET /internal/pt/open-orders/%s/modify-info by user=%s", order_id, admin.user_id)
+    try:
+        status, data = await onprem.get_pt_modify_info(order_id)
+        if status >= 400:
+            raise HTTPException(status_code=status, detail=data.get("error") or data.get("message") or "DTS error")
+        return data
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("modify-info %s — DTS FAILED: %s", order_id, exc, exc_info=True)
+        raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
+
+
+@router.post("/open-orders/{order_id}/modify")
+async def modify_open_order(order_id: str, body: ModifyOrderBody, admin: UserInfo = Depends(require_admin)):
+    payload = body.model_dump()
+    payload["userName"] = payload.get("userName") or admin.user_id
+    logger.info("POST /internal/pt/open-orders/%s/modify by user=%s", order_id, admin.user_id)
+    try:
+        status, data = await onprem.modify_open_order(order_id, payload)
+        if status >= 400:
+            raise HTTPException(status_code=status, detail=data.get("error") or data.get("message") or "DTS error")
+        return data
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("open-order modify %s — DTS FAILED: %s", order_id, exc, exc_info=True)
+        raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
+
+
 @router.delete("/order-log/{order_id}")
 async def delete_order_log(order_id: str, admin: UserInfo = Depends(require_admin)):
     logger.info("DELETE /internal/pt/order-log/%s by user=%s", order_id, admin.user_id)

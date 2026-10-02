@@ -447,6 +447,27 @@ async def cancel_open_order(order_id: str, body: dict) -> tuple[int, dict]:
         return response.status_code, {"message": response.text}
 
 
+async def get_pt_modify_info(order_id: str) -> tuple[int, dict]:
+    """Current state of a working order for the Modify Order dialog — read, retried like other GETs."""
+    response = await _request_with_retry("GET", f"/api/pt/open-orders/{order_id}/modify-info")
+    try:
+        return response.status_code, response.json()
+    except Exception:
+        return response.status_code, {"message": response.text}
+
+
+async def modify_open_order(order_id: str, body: dict) -> tuple[int, dict]:
+    """Per-row modify of a single working order (sends a live EMSX modify) — write, single attempt, not retried."""
+    client = _get_client()
+    logger.info("POST /api/pt/open-orders/%s/modify (write) by %s", order_id, body.get("userName"))
+    response = await client.post(f"/api/pt/open-orders/{order_id}/modify", json=body)
+    logger.info("  → %s", response.status_code)
+    try:
+        return response.status_code, response.json()
+    except Exception:
+        return response.status_code, {"message": response.text}
+
+
 async def delete_order_log(order_id: str) -> tuple[int, dict]:
     """Per-row delete of an Order Log entry (removes the order's order_audit rows) — write, single attempt."""
     client = _get_client()
