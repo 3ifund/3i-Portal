@@ -175,7 +175,7 @@ async def cancel_open_order(order_id: str, body: TraderActionBody | None = None,
 
 class ModifyOrderBody(BaseModel):
     orderType: str
-    quantity: int
+    quantity: int | None = None  # null = user left the field untouched — see DTS's PtModifyOrderRequest.Quantity doc
     price: float
     startTime: str | None = None
     endTime: str | None = None
