@@ -98,8 +98,15 @@ a:hover {
     object-fit: contain;
 }
 
+/* Signed-in admin's name (populated by auth.js's populateHeaderUserName) shares one exact font treatment
+   with position_risk_management's and data-management-ui's equivalent header elements — same family,
+   size, weight, and letter-spacing literally repeated in each app's own stylesheet (no shared CSS file
+   across these three separate repos to centralize it in), so it reads identically everywhere an admin
+   moves between them. 2026-10-07: bumped from 1.2rem (~19px) to an explicit 20px here to land ABOVE the
+   two other apps' previous, smaller sizes once all three were unified. */
 .navbar-title {
-    font-size: 1.2rem;
+    font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Helvetica, Arial, sans-serif;
+    font-size: 20px;
     font-weight: 600;
     color: var(--text-primary);
     letter-spacing: 0.02em;

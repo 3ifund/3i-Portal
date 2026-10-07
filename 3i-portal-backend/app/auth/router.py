@@ -237,5 +237,22 @@ async def change_password(
 
 @router.get("/me", response_model=UserInfo)
 async def me(user: UserInfo = Depends(get_current_user)):
-    logger.debug("GET /me user_id=%s", user.user_id)
+    # 2026-10-07 fix: user_name (and role/company, while we're here) is a JWT claim, baked into the token
+    # at login/refresh time — a user who edits their OWN name (or an admin who changes their role/company)
+    # won't see it reflected here until their token happens to refresh, up to 8h later, even though the DB
+    # already has the new value. /auth/me is called once per page load, not per request like
+    # get_current_user's other callers, so a fresh DB read here is cheap and makes this endpoint always
+    # correct instead of only "correct as of last login." Falls back to the token's own claims (unchanged
+    # behavior) if the user has since been removed from portal_users entirely (e.g. a test-login account).
+    db_user = await users_repo.get_user_by_id(user.user_id)
+    if db_user:
+        user = UserInfo(
+            user_id=user.user_id,
+            role=db_user["role"],
+            company_id=str(db_user["company_id"]) if db_user["company_id"] else None,
+            company_name=db_user.get("company_name"),
+            company_symbol=db_user.get("company_symbol"),
+            user_name=db_user.get("user_name"),
+        )
+    logger.debug("GET /me user_id=%s role=%s user_name=%s", user.user_id, user.role, user.user_name)
     return user
