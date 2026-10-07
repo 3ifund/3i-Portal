@@ -418,12 +418,19 @@ const ParticipationPurchaseNotice = (() => {
         prefix.className = 'ppn-input-prefix';
         prefix.textContent = '$';
 
+        // Pre-Market has no upper bound (mirrors PortalIntradayPurchaseNoticeController's server-side
+        // check) — its referencePrice is the previous day's close, which by market open can be well
+        // below where the stock is actually about to trade, so capping the threshold to it blocked a
+        // realistic floor for the day ahead. Intraday-hours still caps at referencePrice (live last
+        // price). 2026-09-29.
+        const isPremarket = ctx.acceptanceWindow === 'Premarket';
+
         const input = document.createElement('input');
         input.type = 'number';
         input.className = 'form-input ppn-input';
         input.id = 'ppn-input-minprice';
         input.min = '0';
-        input.max = String(ctx.referencePrice);
+        if (!isPremarket) input.max = String(ctx.referencePrice);
         input.step = '0.0001';
         input.value = state.minPriceThreshold;
 
@@ -431,26 +438,31 @@ const ParticipationPurchaseNotice = (() => {
         // matches which reference price DTS actually used (referencePriceSource).
         const refLabel = ctx.referencePriceSource === 'LastPrice' ? 'last price' : 'previous close';
 
+        const hintText = (valid) => {
+            const defaultPart = `Default: $${roundTo(ctx.referencePrice * (1 - ctx.defaultPriceThresholdPct / 100), 4)} ` +
+                `(${refLabel} $${ctx.referencePrice} × (1 − ${ctx.defaultPriceThresholdPct}%)).`;
+            if (isPremarket) return valid ? `${defaultPart} No maximum during Pre-Market.` : 'Must be $0 or greater.';
+            return valid
+                ? `${defaultPart} Max $${ctx.referencePrice} (${refLabel}).`
+                : `Must be between $0 and $${ctx.referencePrice} (cannot exceed the ${refLabel})`;
+        };
+
         const hint = document.createElement('div');
         hint.className = 'ppn-hint';
         hint.id = 'ppn-hint-minprice';
-        hint.textContent = `Default: $${roundTo(ctx.referencePrice * (1 - ctx.defaultPriceThresholdPct / 100), 4)} ` +
-            `(${refLabel} $${ctx.referencePrice} × (1 − ${ctx.defaultPriceThresholdPct}%)). Max $${ctx.referencePrice} (${refLabel}).`;
+        hint.textContent = hintText(true);
 
         input.addEventListener('input', () => {
             let raw = parseFloat(input.value);
-            if (!isNaN(raw) && raw > ctx.referencePrice) {
-                // Hard cap — cannot exceed the reference price (previous close / last price).
+            if (!isPremarket && !isNaN(raw) && raw > ctx.referencePrice) {
+                // Hard cap — cannot exceed the reference price (last price). Pre-Market has none.
                 raw = ctx.referencePrice;
                 input.value = String(raw);
             }
-            const valid = !isNaN(raw) && raw >= 0 && raw <= ctx.referencePrice;
+            const valid = !isNaN(raw) && raw >= 0 && (isPremarket || raw <= ctx.referencePrice);
             state.minPriceThreshold = isNaN(raw) ? 0 : raw;
             setInvalid(input, !valid);
-            hint.textContent = valid
-                ? `Default: $${roundTo(ctx.referencePrice * (1 - ctx.defaultPriceThresholdPct / 100), 4)} ` +
-                  `(${refLabel} $${ctx.referencePrice} × (1 − ${ctx.defaultPriceThresholdPct}%)). Max $${ctx.referencePrice} (${refLabel}).`
-                : `Must be between $0 and $${ctx.referencePrice} (cannot exceed the ${refLabel})`;
+            hint.textContent = hintText(valid);
         });
 
         inputRow.appendChild(prefix);

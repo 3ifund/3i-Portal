@@ -447,6 +447,27 @@ async def cancel_open_order(order_id: str, body: dict) -> tuple[int, dict]:
         return response.status_code, {"message": response.text}
 
 
+async def get_pt_modify_info(order_id: str) -> tuple[int, dict]:
+    """Current state of a working order for the Modify Order dialog — read, retried like other GETs."""
+    response = await _request_with_retry("GET", f"/api/pt/open-orders/{order_id}/modify-info")
+    try:
+        return response.status_code, response.json()
+    except Exception:
+        return response.status_code, {"message": response.text}
+
+
+async def modify_open_order(order_id: str, body: dict) -> tuple[int, dict]:
+    """Per-row modify of a single working order (sends a live EMSX modify) — write, single attempt, not retried."""
+    client = _get_client()
+    logger.info("POST /api/pt/open-orders/%s/modify (write) by %s", order_id, body.get("userName"))
+    response = await client.post(f"/api/pt/open-orders/{order_id}/modify", json=body)
+    logger.info("  → %s", response.status_code)
+    try:
+        return response.status_code, response.json()
+    except Exception:
+        return response.status_code, {"message": response.text}
+
+
 async def delete_order_log(order_id: str) -> tuple[int, dict]:
     """Per-row delete of an Order Log entry (removes the order's order_audit rows) — write, single attempt."""
     client = _get_client()
@@ -534,16 +555,15 @@ async def dts_reachable() -> bool:
         return False
 
 
-async def set_conversion_allow144(payload: dict) -> tuple[int, dict]:
+async def set_note_allow144(instrument_id: int, allow: bool) -> tuple[int, dict]:
     client = _get_client()
-    logger.info("POST /api/conversions/rule144/allow company=%s allow=%s", payload.get("company"), payload.get("allow"))
-    response = await client.post("/api/conversions/rule144/allow", json=payload)
+    logger.info("PUT /api/conversions/notes/%s/allow-144 allow=%s (write)", instrument_id, allow)
+    response = await client.put(f"/api/conversions/notes/{instrument_id}/allow-144", json={"allow": allow})
     logger.info("  → %s", response.status_code)
     try:
-        body = response.json()
+        return response.status_code, response.json()
     except Exception:
-        body = {"message": response.text}
-    return response.status_code, body
+        return response.status_code, {"message": response.text}
 
 
 async def get_brokers_with_accounts() -> list[dict]:
@@ -589,6 +609,17 @@ async def set_preferred_conversion_enabled(instrument_id: int, tranche_no: int, 
     client = _get_client()
     logger.info("PUT /api/preferred-series/%s/%s/conversion-enabled enabled=%s (write)", instrument_id, tranche_no, body.get("enabled"))
     response = await client.put(f"/api/preferred-series/{instrument_id}/{tranche_no}/conversion-enabled", json=body)
+    logger.info("  → %s", response.status_code)
+    try:
+        return response.status_code, response.json()
+    except Exception:
+        return response.status_code, {"message": response.text}
+
+
+async def set_preferred_series_allow144(instrument_id: int, tranche_no: int, allow: bool) -> tuple[int, dict]:
+    client = _get_client()
+    logger.info("PUT /api/preferred-series/%s/%s/allow-144 allow=%s (write)", instrument_id, tranche_no, allow)
+    response = await client.put(f"/api/preferred-series/{instrument_id}/{tranche_no}/allow-144", json={"enabled": allow})
     logger.info("  → %s", response.status_code)
     try:
         return response.status_code, response.json()
@@ -1184,13 +1215,19 @@ async def get_intraday_eloc_live_progress(symbol: str) -> dict | None:
     return response.json()
 
 
-async def get_intraday_eloc_details(symbol: str) -> dict | None:
+async def get_intraday_eloc_details(symbol: str, eloc_id: str | None = None) -> dict | None:
     """Full snapshot for the PRM Details dialog — static submission-time fields plus the three trigger
     statuses and running VWAP/low, from IntradayElocPricingManager.GetDetailsAsync. None when there's no
     Intraday notice on record for the symbol at all (not the same as "not currently live" — that case
-    still returns a body, just with the live-only fields null)."""
-    logger.info("GET /api/intraday-eloc/%s/details", symbol)
-    response = await _request_with_retry("GET", f"/api/intraday-eloc/{symbol}/details")
+    still returns a body, just with the live-only fields null).
+
+    eloc_id: pass this whenever the caller has it (PRM always does) — without it DTS falls back to
+    "most-recent Intraday eloc_data for the symbol", which is the WRONG record once a symbol has 2+
+    Intraday ELOCs the same day (2026-09-29 fix). Only omitted by the Customer Portal's own Details
+    dialog, which has no elocId to give — a customer session is always exactly one company/symbol."""
+    logger.info("GET /api/intraday-eloc/%s/details%s", symbol, f"?elocId={eloc_id}" if eloc_id else "")
+    params = {"elocId": eloc_id} if eloc_id else None
+    response = await _request_with_retry("GET", f"/api/intraday-eloc/{symbol}/details", params=params)
     if response.status_code in (404, 503):
         logger.info("  → %s", response.status_code)
         return None
@@ -1199,12 +1236,15 @@ async def get_intraday_eloc_details(symbol: str) -> dict | None:
     return response.json()
 
 
-async def get_intraday_eloc_tick_history(symbol: str, since_utc: str) -> dict | None:
+async def get_intraday_eloc_tick_history(symbol: str, since_utc: str, eloc_id: str | None = None) -> dict | None:
     """Backfill for the Details dialog's time-and-sales feed — real trade prints since `since_utc`
     (ISO-8601), via GetTimeAndSalesAsync. Empty ticks list (not None) when the query itself succeeds but
-    finds nothing; None only on a hard failure/not-configured from DTS."""
-    logger.info("GET /api/intraday-eloc/%s/tick-history?sinceUtc=%s", symbol, since_utc)
-    response = await _request_with_retry("GET", f"/api/intraday-eloc/{symbol}/tick-history", params={"sinceUtc": since_utc})
+    finds nothing; None only on a hard failure/not-configured from DTS.
+
+    eloc_id: see get_intraday_eloc_details above — same reasoning, same 2026-09-29 fix."""
+    logger.info("GET /api/intraday-eloc/%s/tick-history?sinceUtc=%s%s", symbol, since_utc, f"&elocId={eloc_id}" if eloc_id else "")
+    params = {"sinceUtc": since_utc, **({"elocId": eloc_id} if eloc_id else {})}
+    response = await _request_with_retry("GET", f"/api/intraday-eloc/{symbol}/tick-history", params=params)
     if response.status_code in (404, 503):
         logger.info("  → %s", response.status_code)
         return None

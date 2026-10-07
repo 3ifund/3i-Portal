@@ -846,7 +846,11 @@ const Dashboard = (() => {
             eidFieldRow('VWAP Purchase Percentage', fmtPct(d.purchasePercentage)),
             eidFieldRow('VWAP Purchase Volume Threshold', formatShares(d.volumeThreshold)),
             eidFieldRow('Minimum Price Threshold', fmtPrice(d.minimumPriceThreshold)),
-            eidFieldRow('Trading Start Time', fmtTime(d.tradingStartTime)),
+            // fmtTimeSec, not fmtTime — the configured start should read with the same second-level
+            // precision as Starting VWAP Volume's "(as of HH:MM:SS)" capture timestamp right below it;
+            // showing this one minute-only made the two look like they disagreed by however many seconds
+            // actually elapsed between the configured start and the moment volume capture fired.
+            eidFieldRow('Trading Start Time', fmtTimeSec(d.tradingStartTime)),
             eidFieldRow('Starting VWAP Volume', d.startingVwapVolume != null
                 ? `${formatShares(d.startingVwapVolume)} (as of ${fmtDateTime(d.startingVolumeTimeUtc)})`
                 : 'not yet captured'),
@@ -956,7 +960,7 @@ const Dashboard = (() => {
 
     async function fetchAndRenderDetails() {
         try {
-            const d = await API.getIntradayDetails();
+            const d = await API.getIntradayDetails(intradayDetails.elocId);
             renderIntradayStatic(d);
             renderIntradayTriggers(d);
             return d;
@@ -972,10 +976,27 @@ const Dashboard = (() => {
     // triggering tick is always red, regardless of source.
     async function fetchTickHistory(sinceIso) {
         try {
-            const resp = await API.getIntradayTickHistory(sinceIso);
+            const resp = await API.getIntradayTickHistory(sinceIso, intradayDetails.elocId);
             const ticks = Array.isArray(resp && resp.ticks) ? resp.ticks : [];
             const baseColorClass = (resp && resp.source === 'market_data_query') ? 'eid-tick-repopulated' : 'eid-tick-live';
-            for (const t of ticks) appendTickRow(t, t.triggered ? 'eid-tick-triggered' : baseColorClass);
+            // Bulk-insert as ONE DOM write instead of calling appendTickRow per tick (2026-09-29 fix,
+            // same freeze PRM's eloc.js had). appendTickRow reads tape.scrollTop/scrollHeight (forces a
+            // synchronous layout) on every call — fine for one live WS tick at a time, but this backfill
+            // can be the session's entire tick history (TickLog caps at 20,000) once a session has
+            // finished pricing and Details is opened for the first time since — thousands of forced
+            // layouts in one tight loop is what froze the tab.
+            const tape = document.getElementById('eid-tape');
+            if (tape && ticks.length) {
+                const empty = tape.querySelector('.eid-tape-empty');
+                if (empty) empty.remove();
+                const html = ticks.map(t => tickRowHtml(t, t.triggered ? 'eid-tick-triggered' : baseColorClass)).join('');
+                tape.insertAdjacentHTML('beforeend', html);
+                tape.scrollTop = tape.scrollHeight;
+                intradayDetails.tickCount += ticks.length;
+                const lastTick = ticks[ticks.length - 1];
+                const lastT = lastTick && (lastTick.timeUtc || lastTick.time_utc);
+                if (lastT) intradayDetails.lastTickTimeUtc = lastT;
+            }
             return ticks.length;
         } catch (err) {
             console.warn('[Dashboard] tick history fetch failed:', err.message || err);

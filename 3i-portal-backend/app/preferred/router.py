@@ -36,6 +36,8 @@ class AllowTrueUpBody(BaseModel):
     allow: bool
 
 
+
+
 class TradingObjectiveBody(BaseModel):
     companyId: int
     objective: str
@@ -109,6 +111,14 @@ async def set_series_conversion_enabled(instrument_id: int, tranche_no: int, bod
     logger.info("PUT /internal/preferred/series/%s/%s/conversion-enabled enabled=%s by user=%s",
                 instrument_id, tranche_no, body.enabled, admin.user_id)
     status, data = await onprem.set_preferred_conversion_enabled(instrument_id, tranche_no, {"enabled": body.enabled})
+    return JSONResponse(status_code=status, content=data)
+
+
+@router.put("/series/{instrument_id}/{tranche_no}/allow-144")
+async def set_series_allow144(instrument_id: int, tranche_no: int, body: ConversionEnabledBody, admin: UserInfo = Depends(require_admin)):
+    logger.info("PUT /internal/preferred/series/%s/%s/allow-144 allow=%s by user=%s",
+                instrument_id, tranche_no, body.enabled, admin.user_id)
+    status, data = await onprem.set_preferred_series_allow144(instrument_id, tranche_no, body.enabled)
     return JSONResponse(status_code=status, content=data)
 
 

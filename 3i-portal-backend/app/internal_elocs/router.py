@@ -186,24 +186,28 @@ async def get_intraday_live_progress(symbol: str, admin: UserInfo = Depends(requ
 
 
 @router.get("/elocs/intraday-details/{symbol}")
-async def get_intraday_details(symbol: str, admin: UserInfo = Depends(require_admin)):
+async def get_intraday_details(symbol: str, eloc_id: str | None = None, admin: UserInfo = Depends(require_admin)):
     """Full snapshot for the PRM ELOC page's Details dialog — static submission-time fields plus the
     three trigger statuses and running VWAP/low. Backs the dialog's opening fetch; live updates after
-    that arrive via the intraday_tick/intraday_progress WS pushes, not repeated polling of this."""
-    body = await onprem.get_intraday_eloc_details(symbol)
+    that arrive via the intraday_tick/intraday_progress WS pushes, not repeated polling of this.
+
+    eloc_id (query param): PRM always has this (the row it opened the dialog from) and must send it —
+    without it DTS falls back to "most-recent Intraday eloc_data for the symbol", the wrong record once
+    2+ Intraday ELOCs share a symbol the same day (2026-09-29 fix)."""
+    body = await onprem.get_intraday_eloc_details(symbol, eloc_id)
     if body is None:
         raise HTTPException(status_code=404, detail=f"No Intraday notice on record for {symbol}")
     return body
 
 
 @router.get("/elocs/intraday-tick-history/{symbol}")
-async def get_intraday_tick_history(symbol: str, since_utc: str, admin: UserInfo = Depends(require_admin)):
+async def get_intraday_tick_history(symbol: str, since_utc: str, eloc_id: str | None = None, admin: UserInfo = Depends(require_admin)):
     """Backfill for the Details dialog's time-and-sales feed since `since_utc` (ISO-8601 query param).
     Transparent pass-through of DTS's response, which carries a top-level "source": "live_log" (this
     process's own live-observed ticks -- no DTS restart since since_utc) or "market_data_query" (a real
     gap -- DTS had to re-derive the window from the market data vendor). The dialog colors strictly by
     that field, not by whether this call happened on open vs. a reconnect."""
-    body = await onprem.get_intraday_eloc_tick_history(symbol, since_utc)
+    body = await onprem.get_intraday_eloc_tick_history(symbol, since_utc, eloc_id)
     if body is None:
         raise HTTPException(status_code=404, detail=f"No Intraday notice on record for {symbol}")
     return body

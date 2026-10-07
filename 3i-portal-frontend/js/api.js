@@ -426,19 +426,23 @@ const API = (() => {
     /**
      * GET /purchase-notices/intraday-details — full snapshot for the Intraday Details dialog (static
      * fields, the three trigger statuses, running VWAP/low). No {symbol} param — scoped server-side to
-     * the caller's own company via their JWT.
+     * the caller's own company via their JWT. elocId (2026-09-29): the Dashboard shows one card per
+     * historical Intraday ELOC, each with its own Details button — without it the server falls back to
+     * "most-recent Intraday record for this company", the WRONG one whenever 2+ exist the same day.
      */
-    async function getIntradayDetails() {
-        const response = await fetch(`${BASE_URL}/purchase-notices/intraday-details`, { headers: authHeaders() });
+    async function getIntradayDetails(elocId) {
+        const qs = elocId ? `?eloc_id=${encodeURIComponent(elocId)}` : '';
+        const response = await fetch(`${BASE_URL}/purchase-notices/intraday-details${qs}`, { headers: authHeaders() });
         return handleResponse(response);
     }
 
     /**
      * GET /purchase-notices/intraday-tick-history?since_utc=... — backfill for the Details dialog's
-     * time-and-sales feed. Same company-scoping as getIntradayDetails.
+     * time-and-sales feed. Same company-scoping as getIntradayDetails, same elocId reasoning.
      */
-    async function getIntradayTickHistory(sinceIso) {
-        const url = `${BASE_URL}/purchase-notices/intraday-tick-history?since_utc=${encodeURIComponent(sinceIso)}`;
+    async function getIntradayTickHistory(sinceIso, elocId) {
+        const elocQs = elocId ? `&eloc_id=${encodeURIComponent(elocId)}` : '';
+        const url = `${BASE_URL}/purchase-notices/intraday-tick-history?since_utc=${encodeURIComponent(sinceIso)}${elocQs}`;
         const response = await fetch(url, { headers: authHeaders() });
         return handleResponse(response);
     }
