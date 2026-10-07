@@ -70,9 +70,15 @@ const Auth = (() => {
     }
 
     /**
-     * Populate navbar with company name and attach logout handler.
+     * Populate navbar with company name and attach logout handler. Also fills the centered navbar-title
+     * slot with the signed-in admin's name (via /auth/me, not sessionStorage — sessionStorage's role/name
+     * are only ever (re)written at login, so a page opened in a new tab off just the localStorage refresh
+     * token, or a long-lived session that silently refreshed its access token, would otherwise show a
+     * stale or empty name; /auth/me reads straight off the current access token's own claims instead, no
+     * extra DB round trip). Admin-only: 'user' accounts never see their own name here (no navbar-title
+     * element exists on their pages anyway — dashboard.html etc. are out of scope for this).
      */
-    function initNavbar() {
+    async function initNavbar() {
         const companyEl = document.getElementById('company-name');
         if (companyEl) {
             companyEl.textContent = sessionStorage.getItem('company_name') || '';
@@ -81,6 +87,16 @@ const Auth = (() => {
         const logoutBtn = document.getElementById('logout-btn');
         if (logoutBtn) {
             logoutBtn.addEventListener('click', logout);
+        }
+
+        const titleEl = document.querySelector('.navbar-title');
+        if (titleEl) {
+            try {
+                const me = await API.getMe();
+                titleEl.textContent = (me.role === 'admin' && me.user_name) ? me.user_name : '';
+            } catch (err) {
+                console.warn('[Auth] initNavbar: /auth/me failed, leaving navbar-title blank:', err.message || err);
+            }
         }
     }
 

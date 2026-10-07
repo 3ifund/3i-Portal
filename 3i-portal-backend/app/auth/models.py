@@ -15,6 +15,7 @@ class LoginResponse(BaseModel):
     company_name: str | None = None
     company_symbol: str | None = None
     user_id: str
+    user_name: str | None = None
     must_change_password: bool = False
 
 
@@ -39,3 +40,4 @@ class UserInfo(BaseModel):
     company_id: str | None = None
     company_name: str | None = None
     company_symbol: str | None = None
+    user_name: str | None = None

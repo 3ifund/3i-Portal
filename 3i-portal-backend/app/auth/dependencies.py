@@ -29,6 +29,7 @@ async def get_current_user(
         company_id=payload.get("company_id"),
         company_name=payload.get("company_name"),
         company_symbol=payload.get("company_symbol"),
+        user_name=payload.get("user_name"),
     )
     logger.debug("Authenticated user_id=%s company_id=%s", user.user_id, user.company_id)
     return user

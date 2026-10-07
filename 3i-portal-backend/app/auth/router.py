@@ -70,13 +70,14 @@ async def login(request: LoginRequest):
             "company_id": str(db_user["company_id"]) if db_user["company_id"] else None,
             "company_name": db_user.get("company_name"),
             "company_symbol": db_user.get("company_symbol"),
+            "user_name": db_user.get("user_name"),
         }
         access_token = create_access_token(token_data)
         refresh_token = create_refresh_token(token_data)
 
         logger.info(
-            "Login OK (portal_users): user_id=%s role=%s company=%s",
-            user_id, db_user["role"], db_user.get("company_symbol"),
+            "Login OK (portal_users): user_id=%s role=%s company=%s user_name=%s",
+            user_id, db_user["role"], db_user.get("company_symbol"), db_user.get("user_name"),
         )
 
         return LoginResponse(
@@ -86,6 +87,7 @@ async def login(request: LoginRequest):
             company_name=db_user.get("company_name"),
             company_symbol=db_user.get("company_symbol"),
             user_id=user_id,
+            user_name=db_user.get("user_name"),
             must_change_password=db_user["must_change_password"],
         )
 
@@ -125,6 +127,7 @@ async def login(request: LoginRequest):
         "company_id": str(company["company_id"]),
         "company_name": company["name"],
         "company_symbol": company["symbol"],
+        "user_name": None,
     }
     access_token = create_access_token(token_data)
     refresh_token = create_refresh_token(token_data)
@@ -141,6 +144,7 @@ async def login(request: LoginRequest):
         company_name=company["name"],
         company_symbol=company["symbol"],
         user_id=user_id,
+        user_name=None,
         must_change_password=False,
     )
 
@@ -171,6 +175,7 @@ async def refresh(request: RefreshRequest):
             "company_id": str(db_user["company_id"]) if db_user["company_id"] else None,
             "company_name": db_user.get("company_name"),
             "company_symbol": db_user.get("company_symbol"),
+            "user_name": db_user.get("user_name"),
         }
     else:
         if not settings.allow_test_login:
@@ -185,6 +190,7 @@ async def refresh(request: RefreshRequest):
             "company_id": payload.get("company_id"),
             "company_name": payload.get("company_name"),
             "company_symbol": payload.get("company_symbol"),
+            "user_name": payload.get("user_name"),
         }
 
     access_token = create_access_token(token_data)
