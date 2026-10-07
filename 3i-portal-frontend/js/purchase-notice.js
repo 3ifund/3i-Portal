@@ -176,8 +176,8 @@ const PurchaseNotice = (() => {
         const selectEl = document.getElementById('pn-signatory-select');
         if (selectEl) selectEl.style.display = 'none';
 
-        if (sig && sig.signatory_name) {
-            setText('pn-signatory-name', sig.signatory_name || '');
+        if (sig && sig.user_name) {
+            setText('pn-signatory-name', sig.user_name || '');
             setText('pn-signatory-title', sig.signatory_title || '');
             setText('pn-signatory-address', sig.signatory_address || '');
             if (nameVal) nameVal.style.display = '';

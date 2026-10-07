@@ -382,11 +382,11 @@
         const selectEl = document.getElementById('pc-signatory-select');
         if (selectEl) selectEl.style.display = 'none';
 
-        if (sig && sig.signatory_name) {
+        if (sig && sig.user_name) {
             const nameEl = document.getElementById('pc-signatory-name');
             const titleEl = document.getElementById('pc-signatory-title');
 
-            nameEl.textContent = sig.signatory_name;
+            nameEl.textContent = sig.user_name;
             nameEl.style.display = 'inline';
             document.getElementById('pc-signatory-name-line').style.display = 'none';
 

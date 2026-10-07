@@ -280,7 +280,7 @@ const Admin = (() => {
                     <td>${escapeHtml(u.user_id)}</td>
                     <td>${escapeHtml(u.role)}</td>
                     <td>${escapeHtml(u.company_name || u.company_symbol || '—')}</td>
-                    <td>${escapeHtml(u.signatory_name || '—')}</td>
+                    <td>${escapeHtml(u.user_name || '—')}</td>
                     <td><span class="eloc-card-status ${statusClass}">${statusLabel}</span></td>
                     <td><span class="eloc-card-status ${mustChangeClass}">${mustChangeLabel}</span></td>
                     <td>${escapeHtml(formatDateTime(u.created_at))}</td>
@@ -352,6 +352,18 @@ const Admin = (() => {
     }
 
     /**
+     * The name field is shown (and required) for every role now, but what it's FOR differs: for a 'user'
+     * account it's the legal signatory name used on documents (purchase notices, countersign records); for
+     * an 'admin' it's just a plain display name — admins have no company and never sign anything. One field,
+     * one column (portal_users.user_name), label text just reflects which meaning applies.
+     */
+    function updateSignatoryLabel(role) {
+        const label = document.getElementById('user-modal-signatory-label');
+        if (!label) return;
+        label.textContent = role === 'admin' ? 'Name' : 'Signatory Name (legal name for documents)';
+    }
+
+    /**
      * Open the user modal for creating a new user.
      */
     function openCreateUserModal() {
@@ -364,8 +376,8 @@ const Admin = (() => {
         document.getElementById('user-modal-password-group').style.display = '';
         document.getElementById('user-modal-role').value = 'user';
         document.getElementById('user-modal-company-group').style.display = '';
-        document.getElementById('user-modal-signatory-group').style.display = '';
         document.getElementById('user-modal-signatory-name').value = '';
+        updateSignatoryLabel('user');
         document.getElementById('user-modal-active-group').style.display = 'none';
         document.getElementById('user-modal-status').className = 'modal-status';
         document.getElementById('user-modal-status').textContent = '';
@@ -395,8 +407,8 @@ const Admin = (() => {
 
         const showCompany = user.role !== 'admin';
         document.getElementById('user-modal-company-group').style.display = showCompany ? '' : 'none';
-        document.getElementById('user-modal-signatory-group').style.display = showCompany ? '' : 'none';
-        document.getElementById('user-modal-signatory-name').value = user.signatory_name || '';
+        document.getElementById('user-modal-signatory-name').value = user.user_name || '';
+        updateSignatoryLabel(user.role);
         populateCompanyDropdown(user.company_id);
 
         document.getElementById('user-modal-overlay').classList.add('visible');
@@ -423,8 +435,13 @@ const Admin = (() => {
             const companyId = document.getElementById('user-modal-company').value;
             const isActive = document.getElementById('user-modal-active').value === 'true';
 
-            const signatoryName = document.getElementById('user-modal-signatory-name').value.trim();
-            const updateData = { role, is_active: isActive, signatory_name: signatoryName };
+            const userName = document.getElementById('user-modal-signatory-name').value.trim();
+            if (!userName) {
+                statusEl.className = 'modal-status error';
+                statusEl.textContent = 'Name is required.';
+                return;
+            }
+            const updateData = { role, is_active: isActive, user_name: userName };
             if (role === 'user' && companyId) {
                 updateData.company_id = parseInt(companyId);
             }
@@ -470,12 +487,17 @@ const Admin = (() => {
                 return;
             }
 
-            const signatoryName = document.getElementById('user-modal-signatory-name').value.trim();
+            const userName = document.getElementById('user-modal-signatory-name').value.trim();
+            if (!userName) {
+                statusEl.className = 'modal-status error';
+                statusEl.textContent = 'Name is required.';
+                return;
+            }
             const createData = {
                 user_id: userId,
                 password,
                 role,
-                signatory_name: signatoryName,
+                user_name: userName,
             };
             if (role === 'user' && companyId) {
                 createData.company_id = parseInt(companyId);
@@ -608,7 +630,7 @@ const Admin = (() => {
             roleSelect.addEventListener('change', () => {
                 const isAdmin = roleSelect.value === 'admin';
                 document.getElementById('user-modal-company-group').style.display = isAdmin ? 'none' : '';
-                document.getElementById('user-modal-signatory-group').style.display = isAdmin ? 'none' : '';
+                updateSignatoryLabel(roleSelect.value);
             });
         }
 

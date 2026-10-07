@@ -23,7 +23,7 @@ async def ensure_table_exists() -> None:
             company_id          INTEGER         NULL REFERENCES company(company_id),
             must_change_password BOOLEAN        NOT NULL DEFAULT TRUE,
             is_active           BOOLEAN         NOT NULL DEFAULT TRUE,
-            signatory_name      VARCHAR(255)    NOT NULL DEFAULT '',
+            user_name           VARCHAR(255)    NOT NULL DEFAULT '',
             signatory_title     VARCHAR(255)    NOT NULL DEFAULT '',
             signatory_address   TEXT            NOT NULL DEFAULT '',
             signatory_phone_number VARCHAR(50)  NOT NULL DEFAULT '',
@@ -34,7 +34,7 @@ async def ensure_table_exists() -> None:
     """)
 
     for col, typ in [
-        ("signatory_name", "VARCHAR(255) NOT NULL DEFAULT ''"),
+        ("user_name", "VARCHAR(255) NOT NULL DEFAULT ''"),
         ("signatory_title", "VARCHAR(255) NOT NULL DEFAULT ''"),
         ("signatory_address", "TEXT NOT NULL DEFAULT ''"),
         ("signatory_phone_number", "VARCHAR(50) NOT NULL DEFAULT ''"),
@@ -86,7 +86,7 @@ async def get_user_by_id(user_id: str) -> dict | None:
         """
         SELECT u.user_id, u.password_hash, u.role, u.company_id,
                u.must_change_password, u.is_active,
-               u.signatory_name, u.signatory_title, u.signatory_address,
+               u.user_name, u.signatory_title, u.signatory_address,
                u.signatory_phone_number, u.signatory_signature_image,
                u.created_at, u.updated_at,
                c.name AS company_name, c.symbol AS company_symbol
@@ -104,22 +104,22 @@ async def create_user(
     password_hash: str | None,
     role: str = "user",
     company_id: int | None = None,
-    signatory_name: str = "",
+    user_name: str = "",
 ) -> dict:
     pool = get_pool()
     row = await pool.fetchrow(
         """
         INSERT INTO portal_users
-            (user_id, password_hash, role, company_id, signatory_name, must_change_password, is_active)
+            (user_id, password_hash, role, company_id, user_name, must_change_password, is_active)
         VALUES ($1, $2, $3, $4, $5, TRUE, TRUE)
-        RETURNING user_id, role, company_id, signatory_name, must_change_password, is_active,
+        RETURNING user_id, role, company_id, user_name, must_change_password, is_active,
                   created_at, updated_at
         """,
         user_id.strip().lower(),
         password_hash,
         role,
         company_id,
-        signatory_name,
+        user_name,
     )
     return dict(row)
 
@@ -130,7 +130,7 @@ async def update_user(
     company_id: int | None = None,
     is_active: bool | None = None,
     clear_company: bool = False,
-    signatory_name: str | None = None,
+    user_name: str | None = None,
 ) -> dict | None:
     pool = get_pool()
 
@@ -155,9 +155,9 @@ async def update_user(
         params.append(is_active)
         idx += 1
 
-    if signatory_name is not None:
-        sets.append(f"signatory_name = ${idx}")
-        params.append(signatory_name)
+    if user_name is not None:
+        sets.append(f"user_name = ${idx}")
+        params.append(user_name)
         idx += 1
 
     params.append(user_id)
@@ -165,7 +165,7 @@ async def update_user(
         UPDATE portal_users
         SET {', '.join(sets)}
         WHERE LOWER(user_id) = LOWER(${idx})
-        RETURNING user_id, role, company_id, signatory_name, must_change_password, is_active,
+        RETURNING user_id, role, company_id, user_name, must_change_password, is_active,
                   created_at, updated_at
     """
     row = await pool.fetchrow(query, *params)
@@ -228,7 +228,7 @@ async def list_users() -> list[dict]:
         """
         SELECT u.user_id, u.role, u.company_id,
                u.must_change_password, u.is_active,
-               u.signatory_name, u.signatory_title, u.signatory_address,
+               u.user_name, u.signatory_title, u.signatory_address,
                u.signatory_phone_number,
                u.created_at, u.updated_at,
                c.name AS company_name, c.symbol AS company_symbol
@@ -275,7 +275,7 @@ async def get_user_signatory(user_id: str) -> dict | None:
     pool = get_pool()
     row = await pool.fetchrow(
         """
-        SELECT user_id, signatory_name, signatory_title, signatory_address,
+        SELECT user_id, user_name, signatory_title, signatory_address,
                signatory_phone_number, signatory_signature_image
         FROM portal_users
         WHERE LOWER(user_id) = LOWER($1)
@@ -295,7 +295,7 @@ async def get_company_users_with_phone(company_id: int) -> list[dict]:
     pool = get_pool()
     rows = await pool.fetch(
         """
-        SELECT user_id, signatory_name, signatory_phone_number
+        SELECT user_id, user_name, signatory_phone_number
         FROM portal_users
         WHERE company_id = $1
           AND is_active = TRUE

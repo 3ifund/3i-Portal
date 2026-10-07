@@ -669,7 +669,7 @@ async def _trigger_countersign_sms(eloc_id: str, state: dict):
             token_result = await create_countersign_token(
                 group_id=group_id,
                 signatory_id=u["user_id"],
-                signatory_name=u["signatory_name"],
+                signatory_name=u["user_name"],
                 signatory_phone=u["signatory_phone_number"],
                 company_name=company_name,
                 eloc_id=eloc_id,
@@ -677,10 +677,10 @@ async def _trigger_countersign_sms(eloc_id: str, state: dict):
             full_url = f"{settings.approval_base_url}{token_result['url']}"
             await send_countersign_sms(u["signatory_phone_number"], company_name, full_url)
             logger.info("Countersign SMS sent to %s (%s) for %s",
-                        u["signatory_name"], u["signatory_phone_number"], eloc_id)
+                        u["user_name"], u["signatory_phone_number"], eloc_id)
         except Exception as sms_exc:
             logger.error("Countersign SMS failed for %s (%s): %s",
-                         u["signatory_name"], u["signatory_phone_number"], sms_exc)
+                         u["user_name"], u["signatory_phone_number"], sms_exc)
 
 
 async def _handle_eloc_added(msg: dict):

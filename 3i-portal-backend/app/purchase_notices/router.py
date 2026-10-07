@@ -69,7 +69,7 @@ async def get_my_signatory(user: UserInfo = Depends(get_current_user)):
     if not sig:
         raise HTTPException(status_code=404, detail="User not found")
     logger.info("GET /my-signatory — name=%s, has_title=%s, has_signature=%s",
-                sig.get("signatory_name"), bool(sig.get("signatory_title")),
+                sig.get("user_name"), bool(sig.get("signatory_title")),
                 bool(sig.get("signatory_signature_image")))
     return sig
 
@@ -183,14 +183,14 @@ async def submit_intraday_purchase_notice(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="User has no company assigned")
 
     sig = await users_repo.get_user_signatory(user.user_id)
-    if not sig or not sig.get("signatory_name"):
+    if not sig or not sig.get("user_name"):
         logger.info("POST /intraday-submit — user=%s has no on-file signatory; submitting with a blank company signature block", user.user_id)
         sig = {}
 
     payload = {
         **request.model_dump(),
         "submittedBy": user.user_id,
-        "companySignatoryName": sig.get("signatory_name"),
+        "companySignatoryName": sig.get("user_name"),
         "companySignatoryTitle": sig.get("signatory_title"),
         "companySignatoryAddress": sig.get("signatory_address"),
         "companySignatorySignatureImage": sig.get("signatory_signature_image"),
@@ -311,7 +311,7 @@ async def get_prefill(
     signatory = await users_repo.get_user_signatory(user.user_id)
     logger.info("Prefill %s/%d: user signatory name=%s has_title=%s has_signature=%s",
                 symbol, pricing_period_id,
-                signatory.get("signatory_name") if signatory else None,
+                signatory.get("user_name") if signatory else None,
                 bool(signatory.get("signatory_title")) if signatory else False,
                 bool(signatory.get("signatory_signature_image")) if signatory else False)
 
@@ -344,7 +344,7 @@ async def submit_portal_purchase_notice(
         )
 
     sig = await users_repo.get_user_signatory(user.user_id)
-    if not sig or not sig.get("signatory_name"):
+    if not sig or not sig.get("user_name"):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Signatory name not set — contact your administrator",
@@ -353,7 +353,7 @@ async def submit_portal_purchase_notice(
     logger.info(
         "POST /submit — user=%s symbol=%s period=%d shares=%d signatory=%s company_id=%s",
         user.user_id, request.symbol, request.pricing_period_id,
-        request.shares, sig.get("signatory_name"), user.company_id,
+        request.shares, sig.get("user_name"), user.company_id,
     )
 
     payload = {
@@ -361,7 +361,7 @@ async def submit_portal_purchase_notice(
         "company_id": int(user.company_id),
         "company_name": user.company_name or "",
         "submitted_by": user.user_id,
-        "signatory_name": sig.get("signatory_name", ""),
+        "signatory_name": sig.get("user_name", ""),
         "signatory_title": sig.get("signatory_title", ""),
         "signatory_address": sig.get("signatory_address", ""),
         "signatory_signature_image": sig.get("signatory_signature_image"),
@@ -704,7 +704,7 @@ async def get_confirmation_prefill(
     signatory = await users_repo.get_user_signatory(user.user_id)
     logger.info("Confirmation prefill %s: user signatory name=%s has_title=%s has_signature=%s",
                 eloc_id,
-                signatory.get("signatory_name") if signatory else None,
+                signatory.get("user_name") if signatory else None,
                 bool(signatory.get("signatory_title")) if signatory else False,
                 bool(signatory.get("signatory_signature_image")) if signatory else False)
 
@@ -774,7 +774,7 @@ async def get_confirmation_prefill(
         "dts_call_ms=%.1f, dts_outcome=%s, response_bytes=%d",
         eloc_id, symbol, eloc_data.get("vwap_purchase_price"),
         bool(_breakdown), len(_breakdown.get("days", [])) if isinstance(_breakdown, dict) else 0,
-        signatory.get("signatory_name") if signatory else None,
+        signatory.get("user_name") if signatory else None,
         to_name, to_name_source, to_email, to_email_source,
         firm_signature.get("email"), firm_signature_source,
         dts_call_elapsed_ms, dts_call_outcome, response_size_bytes,
@@ -796,10 +796,10 @@ async def submit_countersign(
     await _verify_eloc_ownership(eloc_id, user)
 
     sig = await users_repo.get_user_signatory(user.user_id)
-    if not sig or not sig.get("signatory_name"):
+    if not sig or not sig.get("user_name"):
         raise HTTPException(status_code=400, detail="Signatory name not set — contact your administrator")
 
-    signatory_name = sig.get("signatory_name", "")
+    signatory_name = sig.get("user_name", "")
     signatory_title = sig.get("signatory_title", "")
     signatory_signature_image = sig.get("signatory_signature_image")
 

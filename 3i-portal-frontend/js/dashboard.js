@@ -1433,12 +1433,12 @@ const Dashboard = (() => {
 
         try {
             const sig = await API.getMySignatory();
-            editingSignatoryName = sig.signatory_name || '';
+            editingSignatoryName = sig.user_name || '';
 
-            document.getElementById('signatory-form-title').textContent = sig.signatory_name
-                ? `My Signatory: ${sig.signatory_name}`
+            document.getElementById('signatory-form-title').textContent = sig.user_name
+                ? `My Signatory: ${sig.user_name}`
                 : 'My Signatory';
-            document.getElementById('sig-name-display').textContent = sig.signatory_name || '(not set by admin)';
+            document.getElementById('sig-name-display').textContent = sig.user_name || '(not set by admin)';
             document.getElementById('sig-title').value = sig.signatory_title || '';
             document.getElementById('sig-address').value = sig.signatory_address || '';
             document.getElementById('sig-phone').value = sig.signatory_phone_number || '';
@@ -1551,9 +1551,9 @@ const Dashboard = (() => {
         console.log('[Dashboard] Checking if user has complete signatory...');
         try {
             const sig = await API.getMySignatory();
-            hasSignatories = sig && sig.signatory_name && sig.signatory_title && sig.signatory_signature_image;
+            hasSignatories = sig && sig.user_name && sig.signatory_title && sig.signatory_signature_image;
             console.log('[Dashboard] hasSignatories=%s (name=%s, title=%s, hasSig=%s)',
-                hasSignatories, sig?.signatory_name || '', sig?.signatory_title || '',
+                hasSignatories, sig?.user_name || '', sig?.signatory_title || '',
                 !!sig?.signatory_signature_image);
 
             const warning = document.getElementById('signatory-warning');

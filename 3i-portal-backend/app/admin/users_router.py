@@ -36,8 +36,8 @@ async def create_user(
     admin: UserInfo = Depends(require_admin),
 ):
     user_id = request.user_id.strip().lower()
-    logger.info("POST /admin/users by admin=%s: creating user_id=%s role=%s company_id=%s",
-                admin.user_id, user_id, request.role, request.company_id)
+    logger.info("POST /admin/users by admin=%s: creating user_id=%s role=%s company_id=%s user_name=%s",
+                admin.user_id, user_id, request.role, request.company_id, request.user_name)
 
     if not user_id:
         raise HTTPException(
@@ -57,6 +57,13 @@ async def create_user(
             detail="Company is required for user accounts",
         )
 
+    user_name = (request.user_name or "").strip()
+    if not user_name:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Name is required",
+        )
+
     if len(request.password) < 8:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -72,9 +79,8 @@ async def create_user(
 
     password_hash = bcrypt.hashpw(request.password.encode(), bcrypt.gensalt()).decode()
     company_id = request.company_id if request.role == "user" else None
-    signatory_name = request.signatory_name if request.role == "user" else ""
 
-    created = await users_repo.create_user(user_id, password_hash, request.role, company_id, signatory_name)
+    created = await users_repo.create_user(user_id, password_hash, request.role, company_id, user_name)
     if created.get("created_at"):
         created["created_at"] = str(created["created_at"])
     if created.get("updated_at"):
@@ -106,7 +112,18 @@ async def update_user(
 
     clear_company = request.role == "admin"
 
-    signatory_name = request.signatory_name if request.role != "admin" else None
+    # user_name is required for every role now (it's no longer just "signatory name for documents" —
+    # admins need a real name too), so an explicit change to blank is rejected outright. request.user_name
+    # is None when the field was omitted entirely (meaning "don't touch it"), which this correctly leaves
+    # alone — only a present-but-blank value is an error.
+    user_name = request.user_name
+    if user_name is not None:
+        user_name = user_name.strip()
+        if not user_name:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Name is required",
+            )
 
     updated = await users_repo.update_user(
         user_id,
@@ -114,7 +131,7 @@ async def update_user(
         company_id=request.company_id,
         is_active=request.is_active,
         clear_company=clear_company,
-        signatory_name=signatory_name,
+        user_name=user_name,
     )
     if not updated:
         raise HTTPException(
