@@ -124,7 +124,7 @@ async def get_conversion_aggregates() -> list[dict]:
     return response.json()
 
 
-async def get_conversion_preview(company: str, price: float, amount: float, include_pdf: bool = False, discount: float | None = None, pre_delivery_shares: int = 0) -> dict:
+async def get_conversion_preview(company: str, price: float, amount: float, include_pdf: bool = False, discount: float | None = None, pre_delivery_shares: int = 0, requested_shares: int | None = None) -> dict:
     # Single attempt, no retry: this is a read-only, idempotent, disposable preview fired on every debounced
     # keystroke in the CONV UI. Retrying through the backoff ladder would stack stale in-flight calls and delay
     # the UI's response by seconds when a newer keystroke has already superseded this one.
@@ -141,6 +141,8 @@ async def get_conversion_preview(company: str, price: float, amount: float, incl
         _params["discount"] = discount
     if pre_delivery_shares:
         _params["preDeliveryShares"] = pre_delivery_shares
+    if requested_shares:
+        _params["requestedShares"] = requested_shares
     response = await client.get(
         "/api/conversion-notices/preview",
         params=_params,

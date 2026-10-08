@@ -23,6 +23,11 @@ class ConvertBody(BaseModel):
     amount: float
     pre_delivery_shares: int = 0
     discount: float | None = None
+    # The user's exact whole-share target, when the Convert dialog's Shares field drove this submission
+    # (amount is still sent too, kept in sync with shares client-side) - DTS uses this to derive each
+    # bucket's take FROM whole shares instead of re-deriving shares from the dollar amount, so rounding
+    # (e.g. CEILING) can't silently add an extra share the dollar-only path would produce on its own.
+    requested_shares: int | None = None
 
 
 class Allow144Body(BaseModel):
@@ -68,10 +73,10 @@ async def get_convertible_tranches(symbol: str, admin: UserInfo = Depends(requir
 
 
 @router.get("/preview")
-async def get_preview(company: str, price: float, amount: float, discount: float | None = None, preDeliveryShares: int = 0, admin: UserInfo = Depends(require_admin)):
+async def get_preview(company: str, price: float, amount: float, discount: float | None = None, preDeliveryShares: int = 0, requestedShares: int | None = None, admin: UserInfo = Depends(require_admin)):
     logger.info(
-        "GET /internal/conversions/preview company=%s price=%s amount=%s preDeliveryShares=%s by user=%s",
-        company, price, amount, preDeliveryShares, admin.user_id,
+        "GET /internal/conversions/preview company=%s price=%s amount=%s preDeliveryShares=%s requestedShares=%s by user=%s",
+        company, price, amount, preDeliveryShares, requestedShares, admin.user_id,
     )
     if price <= 0 or amount <= 0:
         # This endpoint is fired on every debounced keystroke; a zero/negative amount or price is a normal
@@ -79,7 +84,7 @@ async def get_preview(company: str, price: float, amount: float, discount: float
         logger.info("preview — skipped (price=%s amount=%s not both > 0)", price, amount)
         raise HTTPException(status_code=422, detail="price and amount must both be greater than 0")
     try:
-        return await onprem.get_conversion_preview(company, price, amount, include_pdf=False, discount=discount, pre_delivery_shares=preDeliveryShares)
+        return await onprem.get_conversion_preview(company, price, amount, include_pdf=False, discount=discount, pre_delivery_shares=preDeliveryShares, requested_shares=requestedShares)
     except httpx.HTTPStatusError as exc:
         # DTS rejected the input (bad/partial params) — an expected, keystroke-driven condition, not a server
         # failure. Pass the real status/message through so the UI can show an inline hint, and log at info (no trace).
@@ -224,7 +229,8 @@ async def convert(body: ConvertBody, admin: UserInfo = Depends(require_admin)):
     )
     status, data = await onprem.convert_basic(
         {"company": body.company, "price": body.price, "amount": body.amount, "owner": admin.user_id,
-         "preDeliveryShares": body.pre_delivery_shares, "discount": body.discount}
+         "preDeliveryShares": body.pre_delivery_shares, "discount": body.discount,
+         "requestedShares": body.requested_shares}
     )
     return JSONResponse(status_code=status, content=data)
 
