@@ -303,6 +303,75 @@ async def list_convertible(company_id: int = Query(...), admin: UserInfo = Depen
     return await _list_positions("convertible", company_id, onprem.get_prm_convertible_positions, admin)
 
 
+@router.get("/positions/external")
+async def list_external(company_id: int = Query(...), admin: UserInfo = Depends(require_admin)):
+    return await _list_positions("external", company_id, onprem.get_prm_external_positions, admin)
+
+
+class SyntheticExternalFillBody(BaseModel):
+    """Manual adjustment to the EMSX Gateway's external-order/fill mirror tables — inserts into
+    externalfill (source=SYNTHETIC, reserved negative emsx_sequence/emsx_fill_id), never a direct
+    edit of firmcommonstockpositionexternal/accountpositioncommonstockexternal/
+    primepositioncommonstockexternal. See DTS's ExecuteSyntheticExternalFillAsync."""
+    symbol: str
+    company_id: int | None = None
+    is_buy: bool
+    quantity: int
+    price: float = 0
+    account_id: int
+    broker_id: int
+    include_dto: bool = False
+
+
+@router.post("/synthetic-external-fill")
+async def execute_synthetic_external_fill(
+    body: SyntheticExternalFillBody,
+    admin: UserInfo = Depends(require_admin),
+):
+    t_start = time.monotonic()
+    side = "BUY" if body.is_buy else "SELL"
+    logger.info(
+        "POST /internal/prm/synthetic-external-fill by user=%s — %s %s %s @ %s acct=%s broker=%s includeDto=%s — START",
+        admin.user_id, side, body.quantity, body.symbol, body.price, body.account_id, body.broker_id, body.include_dto,
+    )
+    if body.quantity <= 0:
+        raise HTTPException(status_code=400, detail="quantity must be > 0")
+    if body.account_id <= 0 or body.broker_id <= 0:
+        raise HTTPException(status_code=400, detail="account_id and broker_id are required")
+
+    payload = {
+        "symbol": body.symbol,
+        "companyId": body.company_id,
+        "isBuy": body.is_buy,
+        "quantity": body.quantity,
+        "price": body.price,
+        "accountId": body.account_id,
+        "brokerId": body.broker_id,
+        "includeDto": body.include_dto,
+    }
+
+    try:
+        status_code, result = await onprem.post_prm_synthetic_external_fill(payload)
+    except Exception as exc:
+        logger.error("POST /internal/prm/synthetic-external-fill — DTS call FAILED: %s", exc, exc_info=True)
+        raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
+
+    t_total = (time.monotonic() - t_start) * 1000
+    if status_code == 200:
+        logger.info(
+            "POST /internal/prm/synthetic-external-fill — DONE in %.1fms (user=%s, %s, fillId=%s)",
+            t_total, admin.user_id, result.get("message"), result.get("fillId"),
+        )
+        return result
+
+    msg = (result or {}).get("message") or "Synthetic external fill failed"
+    if status_code == 400:
+        logger.warning("POST /internal/prm/synthetic-external-fill — REJECTED (%.1fms): %s", t_total, msg)
+        raise HTTPException(status_code=400, detail=msg)
+    logger.error("POST /internal/prm/synthetic-external-fill — DTS status=%s: %s", status_code, msg)
+    raise HTTPException(status_code=502, detail=f"DTS error ({status_code}): {msg}")
+
+
 @router.post("/derivative-trade")
 async def execute_derivative_trade(body: DerivativeTradeBody, admin: UserInfo = Depends(require_admin)):
     t_start = time.monotonic()

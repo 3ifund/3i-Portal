@@ -1020,6 +1020,45 @@ async def get_prm_convertible_positions(company_id: int) -> list[dict]:
     return response.json()
 
 
+async def get_prm_external_positions(company_id: int) -> list[dict]:
+    logger.info("GET /api/prm/positions/external?companyId=%s", company_id)
+    response = await _request_with_retry("GET", "/api/prm/positions/external", params={"companyId": company_id})
+    logger.info("  → %s (%d bytes)", response.status_code, len(response.content))
+    response.raise_for_status()
+    return response.json()
+
+
+async def get_external_position_brokers(symbol: str) -> dict:
+    logger.info("GET /api/pt/positions/external/%s/brokers", symbol)
+    response = await _request_with_retry("GET", f"/api/pt/positions/external/{symbol}/brokers")
+    logger.info("  → %s (%d bytes)", response.status_code, len(response.content))
+    response.raise_for_status()
+    return response.json()
+
+
+async def get_external_position_accounts(symbol: str, broker_id: int) -> dict:
+    logger.info("GET /api/pt/positions/external/%s/accounts?brokerId=%s", symbol, broker_id)
+    response = await _request_with_retry("GET", f"/api/pt/positions/external/{symbol}/accounts", params={"brokerId": broker_id})
+    logger.info("  → %s (%d bytes)", response.status_code, len(response.content))
+    response.raise_for_status()
+    return response.json()
+
+
+async def post_prm_synthetic_external_fill(payload: dict) -> tuple[int, dict]:
+    client = _get_client()
+    logger.info(
+        "POST /api/prm/positions/synthetic-external-fill %s %s qty=%s (single attempt — write)",
+        payload.get("symbol"), "BUY" if payload.get("isBuy") else "SELL", payload.get("quantity"),
+    )
+    response = await client.post("/api/prm/positions/synthetic-external-fill", json=payload)
+    logger.info("  → %s (%d bytes)", response.status_code, len(response.content))
+    try:
+        body = response.json()
+    except Exception:
+        body = {"message": response.text}
+    return response.status_code, body
+
+
 async def post_prm_derivative_trade(payload: dict) -> tuple[int, dict]:
     client = _get_client()
     logger.info("POST /api/prm/positions/derivative-trade %s %s %s qty=%s (single attempt — write)",
