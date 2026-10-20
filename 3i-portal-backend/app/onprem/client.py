@@ -653,6 +653,18 @@ async def set_conversion_use_event_of_default(payload: dict) -> tuple[int, dict]
     return response.status_code, body
 
 
+async def set_conversion_allow_accrual_after_maturity(payload: dict) -> tuple[int, dict]:
+    client = _get_client()
+    logger.info("POST /api/conversions/accrual-after-maturity/allow company=%s allow=%s", payload.get("company"), payload.get("allow"))
+    response = await client.post("/api/conversions/accrual-after-maturity/allow", json=payload)
+    logger.info("  → %s", response.status_code)
+    try:
+        body = response.json()
+    except Exception:
+        body = {"message": response.text}
+    return response.status_code, body
+
+
 async def set_conversion_installment_true_ups(payload: dict) -> tuple[int, dict]:
     client = _get_client()
     logger.info("POST /api/conversions/installment-true-ups/allow company=%s allow=%s", payload.get("company"), payload.get("allow"))

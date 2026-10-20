@@ -165,6 +165,14 @@ async def set_use_event_of_default(body: EventOfDefaultBody, admin: UserInfo = D
     return JSONResponse(status_code=status, content=data)
 
 
+@router.post("/accrual-after-maturity/allow")
+async def set_allow_accrual_after_maturity(body: Allow144Body, admin: UserInfo = Depends(require_admin)):
+    logger.info("POST /internal/conversions/accrual-after-maturity/allow company=%s allow=%s by user=%s",
+                body.company, body.allow, admin.user_id)
+    status, data = await onprem.set_conversion_allow_accrual_after_maturity({"company": body.company, "allow": body.allow})
+    return JSONResponse(status_code=status, content=data)
+
+
 @router.post("/acceleration-true-ups/allow")
 async def set_acceleration_true_ups(body: Allow144Body, admin: UserInfo = Depends(require_admin)):
     logger.info("POST /internal/conversions/acceleration-true-ups/allow company=%s allow=%s by user=%s",
