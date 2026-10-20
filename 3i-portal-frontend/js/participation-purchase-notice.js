@@ -150,7 +150,7 @@ const ParticipationPurchaseNotice = (() => {
             state = {
                 shareAmount: ctx.maxShareAmount,
                 percentagePct: ctx.defaultPurchasePercentagePct,
-                minPriceThreshold: roundTo(ctx.referencePrice * (1 - ctx.defaultPriceThresholdPct / 100), 4),
+                minPriceThreshold: roundTo(ctx.referencePrice * (1 - ctx.defaultPriceThresholdPct / 100), 2),
             };
 
             renderNotice();
@@ -431,7 +431,7 @@ const ParticipationPurchaseNotice = (() => {
         input.id = 'ppn-input-minprice';
         input.min = '0';
         if (!isPremarket) input.max = String(ctx.referencePrice);
-        input.step = '0.0001';
+        input.step = '0.01';
         input.value = state.minPriceThreshold;
 
         // "previous close" during the Pre-Market window, "last price" during Intraday-hours —
@@ -439,7 +439,7 @@ const ParticipationPurchaseNotice = (() => {
         const refLabel = ctx.referencePriceSource === 'LastPrice' ? 'last price' : 'previous close';
 
         const hintText = (valid) => {
-            const defaultPart = `Default: $${roundTo(ctx.referencePrice * (1 - ctx.defaultPriceThresholdPct / 100), 4)} ` +
+            const defaultPart = `Default: $${roundTo(ctx.referencePrice * (1 - ctx.defaultPriceThresholdPct / 100), 2)} ` +
                 `(${refLabel} $${ctx.referencePrice} × (1 − ${ctx.defaultPriceThresholdPct}%)).`;
             if (isPremarket) return valid ? `${defaultPart} No maximum during Pre-Market.` : 'Must be $0 or greater.';
             return valid
@@ -458,6 +458,13 @@ const ParticipationPurchaseNotice = (() => {
                 // Hard cap — cannot exceed the reference price (last price). Pre-Market has none.
                 raw = ctx.referencePrice;
                 input.value = String(raw);
+            }
+            if (!isNaN(raw)) {
+                const rounded = roundTo(raw, 2);
+                if (rounded !== raw) {
+                    raw = rounded;
+                    input.value = String(raw);
+                }
             }
             const valid = !isNaN(raw) && raw >= 0 && (isPremarket || raw <= ctx.referencePrice);
             state.minPriceThreshold = isNaN(raw) ? 0 : raw;
@@ -583,7 +590,7 @@ const ParticipationPurchaseNotice = (() => {
         ctx.defaultPriceThresholdPct = detail.defaultPriceThresholdPercentage;
         ctx.maxShareAmount = detail.maxShareAmount;
 
-        state.minPriceThreshold = roundTo(detail.minimumPriceThresholdDefault, 4);
+        state.minPriceThreshold = roundTo(detail.minimumPriceThresholdDefault, 2);
         state.shareAmount = Math.min(state.shareAmount, ctx.maxShareAmount);
 
         renderNotice();
