@@ -880,6 +880,7 @@ const Dashboard = (() => {
         intradayDetails.clockSyncEtSeconds = parseTimeOfDaySeconds(d.currentTimeEt);
         intradayDetails.clockSyncCapturedAtMs = Date.now();
         intradayDetails.tradingEndLabel = endLabel;
+        intradayDetails.tradingEndSeconds = parseTimeOfDaySeconds(d.tradingEndTime);
         intradayDetails.timeThresholdCrossed = d.timeThresholdCrossed;
 
         const lowLabel = d.runningLowPrice != null ? fmtPrice(d.runningLowPrice) : 'no trades yet';
@@ -919,7 +920,15 @@ const Dashboard = (() => {
         const card = document.getElementById('eid-trig-time');
         if (!card) return;
         const elapsedSec = (Date.now() - intradayDetails.clockSyncCapturedAtMs) / 1000;
-        const nowLabel = fmtSecondsOfDay(intradayDetails.clockSyncEtSeconds + elapsedSec);
+        // Never extrapolate past the actual end time — the server itself can briefly keep reporting a
+        // live "now" past the cutoff while Trigger 3 is in the middle of claiming termination (see
+        // IntradayElocPricingManager.GetDetailsAsync), and without this clamp this purely-local tick
+        // would keep climbing well past that too, in between the 5s polls that eventually correct it.
+        let nowSeconds = intradayDetails.clockSyncEtSeconds + elapsedSec;
+        if (intradayDetails.tradingEndSeconds != null && nowSeconds > intradayDetails.tradingEndSeconds) {
+            nowSeconds = intradayDetails.tradingEndSeconds;
+        }
+        const nowLabel = fmtSecondsOfDay(nowSeconds);
         const valueEl = card.querySelector('.eid-trigger-value');
         if (valueEl) valueEl.innerHTML = `${escapeHtml(nowLabel)} &gt; ${escapeHtml(intradayDetails.tradingEndLabel)}`;
     }
