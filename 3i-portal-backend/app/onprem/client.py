@@ -287,6 +287,13 @@ async def get_pt_otw_audit(company_id: int | None, from_date: str | None, to_dat
     return response.json()
 
 
+async def get_eloc_scheduled_tasks() -> dict:
+    logger.info("GET /api/eloc-scheduled-tasks")
+    response = await _request_with_retry("GET", "/api/eloc-scheduled-tasks")
+    response.raise_for_status()
+    return response.json()
+
+
 async def get_pt_break_reports(limit: int = 60) -> dict:
     params = {"limit": limit}
     logger.info("GET /api/pt/break-reports params=%s", params)

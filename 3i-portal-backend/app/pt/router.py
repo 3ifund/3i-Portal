@@ -496,6 +496,16 @@ class BreakAcknowledgeBody(BaseModel):
     comment: str | None = None
 
 
+@router.get("/eloc-scheduled-tasks")
+async def get_eloc_scheduled_tasks(admin: UserInfo = Depends(require_admin)):
+    logger.info("GET /internal/pt/eloc-scheduled-tasks by user=%s", admin.user_id)
+    try:
+        return await onprem.get_eloc_scheduled_tasks()
+    except Exception as exc:
+        logger.error("eloc-scheduled-tasks — DTS fetch FAILED: %s", exc, exc_info=True)
+        raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
+
+
 @router.get("/break-reports")
 async def get_break_reports(limit: int = 60, admin: UserInfo = Depends(require_admin)):
     logger.info("GET /internal/pt/break-reports limit=%s by user=%s", limit, admin.user_id)
