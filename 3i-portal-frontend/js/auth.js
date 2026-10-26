@@ -30,6 +30,27 @@ const Auth = (() => {
     }
 
     /**
+     * Same as postLoginDestination, but first checks for a stashed deep link — set by a PRM page's
+     * handleAuthFailure (shared/api.js) right before it bounced an unauthenticated click here, so a
+     * link that arrived while signed out (e.g. an Action Item / email alert) still lands exactly where
+     * it meant to once the user signs in, instead of PRM's generic landing page. Only honored for an
+     * admin login that isn't itself blocked on a forced password change — that still has to win, same
+     * as postLoginDestination's own priority. The key is read-and-cleared either way so a login days
+     * from now never resumes a stale link.
+     */
+    function resolvePostLoginDestination(role, mustChangePassword) {
+        let stored = null;
+        try {
+            stored = sessionStorage.getItem('post_login_redirect');
+            sessionStorage.removeItem('post_login_redirect');
+        } catch {}
+        if (stored && role === 'admin' && !mustChangePassword) {
+            return stored;
+        }
+        return postLoginDestination(role, mustChangePassword);
+    }
+
+    /**
      * If already authenticated, redirect away from login page.
      */
     function redirectIfAuthenticated() {
@@ -37,7 +58,7 @@ const Auth = (() => {
         if (token) {
             const role = sessionStorage.getItem('user_role');
             const mustChange = sessionStorage.getItem('must_change_password') === 'true';
-            const dest = postLoginDestination(role, mustChange);
+            const dest = resolvePostLoginDestination(role, mustChange);
             window.location.href = mustChange ? dest + '?change_password=1' : dest;
         }
     }
@@ -125,7 +146,7 @@ const Auth = (() => {
                 const data = await API.login(userId, password);
                 storeAuth(data);
 
-                const dest = postLoginDestination(data.role, data.must_change_password);
+                const dest = resolvePostLoginDestination(data.role, data.must_change_password);
                 window.location.href = data.must_change_password ? dest + '?change_password=1' : dest;
             } catch (err) {
                 errorEl.textContent = err.message || 'Invalid User ID or password.';
