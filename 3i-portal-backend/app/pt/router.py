@@ -485,6 +485,84 @@ async def get_otw_audit(
         raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
 
 
+class BreakAcknowledgeBody(BaseModel):
+    userName: str
+    kind: str | None = None
+    sourceRef: str | None = None
+    eventDate: str | None = None
+    eventQty: float | None = None
+    confidence: str | None = None
+    detail: str | None = None
+    comment: str | None = None
+
+
+@router.get("/break-reports")
+async def get_break_reports(limit: int = 60, admin: UserInfo = Depends(require_admin)):
+    logger.info("GET /internal/pt/break-reports limit=%s by user=%s", limit, admin.user_id)
+    try:
+        return await onprem.get_pt_break_reports(limit)
+    except Exception as exc:
+        logger.error("break-reports — DTS fetch FAILED: %s", exc, exc_info=True)
+        raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
+
+
+@router.get("/break-reports/{report_id}")
+async def get_break_report(report_id: int, admin: UserInfo = Depends(require_admin)):
+    logger.info("GET /internal/pt/break-reports/%s by user=%s", report_id, admin.user_id)
+    try:
+        return await onprem.get_pt_break_report(report_id)
+    except Exception as exc:
+        logger.error("break-report %s — DTS fetch FAILED: %s", report_id, exc, exc_info=True)
+        raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
+
+
+@router.get("/break-reports/{report_id}/explain")
+async def explain_break_report(
+    report_id: int,
+    windowDays: int = 45,
+    admin: UserInfo = Depends(require_admin),
+):
+    logger.info("GET /internal/pt/break-reports/%s/explain windowDays=%s by user=%s",
+                report_id, windowDays, admin.user_id)
+    try:
+        return await onprem.get_pt_break_report_explain(report_id, windowDays)
+    except Exception as exc:
+        logger.error("break-report %s explain — DTS fetch FAILED: %s", report_id, exc, exc_info=True)
+        raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
+
+
+@router.get("/break-reports/rows/{row_id}/explain")
+async def explain_break_row(
+    row_id: int,
+    windowDays: int = 45,
+    admin: UserInfo = Depends(require_admin),
+):
+    logger.info("GET /internal/pt/break-reports/rows/%s/explain windowDays=%s by user=%s",
+                row_id, windowDays, admin.user_id)
+    try:
+        return await onprem.get_pt_break_row_explain(row_id, windowDays)
+    except Exception as exc:
+        logger.error("break-row %s explain — DTS fetch FAILED: %s", row_id, exc, exc_info=True)
+        raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
+
+
+@router.post("/break-reports/rows/{row_id}/acknowledge")
+async def acknowledge_break_row(
+    row_id: int,
+    body: BreakAcknowledgeBody,
+    admin: UserInfo = Depends(require_admin),
+):
+    payload = body.model_dump(exclude_none=True)
+    payload["userName"] = body.userName or admin.user_id
+    logger.info("POST /internal/pt/break-reports/rows/%s/acknowledge kind=%s sourceRef=%s by user=%s",
+                row_id, body.kind, body.sourceRef, admin.user_id)
+    try:
+        return await onprem.acknowledge_pt_break_row(row_id, payload)
+    except Exception as exc:
+        logger.error("break-row %s acknowledge — DTS write FAILED: %s", row_id, exc, exc_info=True)
+        raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
+
+
 class AutoAllocationTraderBody(BaseModel):
     traderId: int
     enabled: bool = False

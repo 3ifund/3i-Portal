@@ -287,6 +287,46 @@ async def get_pt_otw_audit(company_id: int | None, from_date: str | None, to_dat
     return response.json()
 
 
+async def get_pt_break_reports(limit: int = 60) -> dict:
+    params = {"limit": limit}
+    logger.info("GET /api/pt/break-reports params=%s", params)
+    response = await _request_with_retry("GET", "/api/pt/break-reports", params=params)
+    response.raise_for_status()
+    return response.json()
+
+
+async def get_pt_break_report(report_id: int) -> dict:
+    logger.info("GET /api/pt/break-reports/%s", report_id)
+    response = await _request_with_retry("GET", f"/api/pt/break-reports/{report_id}")
+    response.raise_for_status()
+    return response.json()
+
+
+async def get_pt_break_report_explain(report_id: int, window_days: int = 45) -> dict:
+    params = {"windowDays": window_days}
+    logger.info("GET /api/pt/break-reports/%s/explain params=%s", report_id, params)
+    response = await _request_with_retry("GET", f"/api/pt/break-reports/{report_id}/explain", params=params)
+    response.raise_for_status()
+    return response.json()
+
+
+async def get_pt_break_row_explain(row_id: int, window_days: int = 45) -> dict:
+    params = {"windowDays": window_days}
+    logger.info("GET /api/pt/break-reports/rows/%s/explain params=%s", row_id, params)
+    response = await _request_with_retry("GET", f"/api/pt/break-reports/rows/{row_id}/explain", params=params)
+    response.raise_for_status()
+    return response.json()
+
+
+async def acknowledge_pt_break_row(row_id: int, body: dict) -> dict:
+    logger.info("POST /api/pt/break-reports/rows/%s/acknowledge (single attempt — write) by %s kind=%s",
+                row_id, body.get("userName"), body.get("kind"))
+    client = _get_client()
+    response = await client.post(f"/api/pt/break-reports/rows/{row_id}/acknowledge", json=body)
+    response.raise_for_status()
+    return response.json()
+
+
 async def get_pt_traders(company_id: int | None = None) -> dict:
     params = {"companyId": company_id} if company_id is not None else None
     response = await _request_with_retry("GET", "/api/pt/traders", params=params)
