@@ -469,6 +469,30 @@ async def get_allocation_log(
         raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
 
 
+@router.get("/trader-connection-status/traders")
+async def get_trader_connection_names(admin: UserInfo = Depends(require_admin)):
+    logger.info("GET /internal/pt/trader-connection-status/traders by user=%s", admin.user_id)
+    try:
+        return await onprem.get_pt_trader_connection_names()
+    except Exception as exc:
+        logger.error("trader-connection-status/traders — DTS fetch FAILED: %s", exc, exc_info=True)
+        raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
+
+
+@router.get("/trader-connection-status")
+async def get_trader_connection_status(
+    traderName: str,
+    sinceUtc: str | None = None,
+    admin: UserInfo = Depends(require_admin),
+):
+    logger.info("GET /internal/pt/trader-connection-status traderName=%s sinceUtc=%s by user=%s", traderName, sinceUtc, admin.user_id)
+    try:
+        return await onprem.get_pt_trader_connection_status(traderName, sinceUtc)
+    except Exception as exc:
+        logger.error("trader-connection-status — DTS fetch FAILED: %s", exc, exc_info=True)
+        raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
+
+
 @router.get("/companies/otw-audit")
 async def get_otw_audit(
     companyId: int | None = None,

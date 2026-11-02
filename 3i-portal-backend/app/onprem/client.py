@@ -273,6 +273,23 @@ async def get_pt_allocation_log(company_id: int | None, from_date: str | None, t
     return response.json()
 
 
+async def get_pt_trader_connection_names() -> dict:
+    logger.info("GET /api/pt/trader-connection-status/traders")
+    response = await _request_with_retry("GET", "/api/pt/trader-connection-status/traders")
+    response.raise_for_status()
+    return response.json()
+
+
+async def get_pt_trader_connection_status(trader_name: str, since_utc: str | None) -> dict:
+    params: dict = {"traderName": trader_name}
+    if since_utc:
+        params["sinceUtc"] = since_utc
+    logger.info("GET /api/pt/trader-connection-status params=%s", params)
+    response = await _request_with_retry("GET", "/api/pt/trader-connection-status", params=params)
+    response.raise_for_status()
+    return response.json()
+
+
 async def get_pt_otw_audit(company_id: int | None, from_date: str | None, to_date: str | None, limit: int = 500) -> dict:
     params: dict = {"limit": limit}
     if company_id is not None:
