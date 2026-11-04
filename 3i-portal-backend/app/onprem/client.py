@@ -116,6 +116,17 @@ async def get_prm_position_accounts(position_id: int) -> list[dict]:
     return response.json()
 
 
+async def get_all_instruments_conversion_availability(symbol: str, tranche: int = 1) -> list[dict]:
+    logger.info("GET /api/all-instruments/conversion-pricing/by-symbol/%s/availability?tranche=%s", symbol, tranche)
+    response = await _request_with_retry(
+        "GET", f"/api/all-instruments/conversion-pricing/by-symbol/{symbol}/availability", params={"tranche": tranche})
+    logger.info("  → %s (%d bytes)", response.status_code, len(response.content))
+    if response.status_code >= 400:
+        logger.warning("  → DTS all-instruments availability error (%s): %s", response.status_code, response.text[:500])
+    response.raise_for_status()
+    return response.json()
+
+
 async def get_conversion_aggregates() -> list[dict]:
     logger.info("GET /api/conversions/aggregates")
     response = await _request_with_retry("GET", "/api/conversions/aggregates")

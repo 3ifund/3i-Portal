@@ -62,6 +62,16 @@ async def get_aggregates(admin: UserInfo = Depends(require_admin)):
         raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
 
 
+@router.get("/all-instruments/{symbol}/availability")
+async def get_all_instruments_conversion_availability(symbol: str, tranche: int = 1, admin: UserInfo = Depends(require_admin)):
+    logger.info("GET /internal/conversions/all-instruments/%s/availability tranche=%s by user=%s", symbol, tranche, admin.user_id)
+    try:
+        return await onprem.get_all_instruments_conversion_availability(symbol, tranche)
+    except Exception as exc:
+        logger.error("all-instruments availability — DTS fetch FAILED: %s", exc, exc_info=True)
+        raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
+
+
 @router.get("/convertible-tranches")
 async def get_convertible_tranches(symbol: str, admin: UserInfo = Depends(require_admin)):
     logger.info("GET /internal/conversions/convertible-tranches symbol=%s by user=%s", symbol, admin.user_id)
