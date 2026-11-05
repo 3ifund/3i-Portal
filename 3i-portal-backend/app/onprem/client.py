@@ -178,6 +178,27 @@ async def set_all_instruments_broker_account(symbol: str, tranche: int, broker_i
     return response.json()
 
 
+async def get_firm_signatures() -> list[dict]:
+    logger.info("GET /api/firm-signatures")
+    response = await _request_with_retry("GET", "/api/firm-signatures")
+    logger.info("  → %s (%d bytes)", response.status_code, len(response.content))
+    response.raise_for_status()
+    return response.json()
+
+
+async def set_all_instruments_firm_signature(symbol: str, tranche: int, firm_signature_id: int | None) -> dict:
+    logger.info("PUT /api/all-instruments/convertible-note/firm-signature?symbol=%s&tranche=%s firmSignatureId=%s (write)", symbol, tranche, firm_signature_id)
+    response = await _request_with_retry(
+        "PUT", "/api/all-instruments/convertible-note/firm-signature",
+        params={"symbol": symbol, "tranche": tranche},
+        json={"firmSignatureId": firm_signature_id})
+    logger.info("  → %s (%d bytes)", response.status_code, len(response.content))
+    if response.status_code >= 400:
+        logger.warning("  → DTS all-instruments firm-signature error (%s): %s", response.status_code, response.text[:500])
+    response.raise_for_status()
+    return response.json()
+
+
 async def get_conversion_aggregates() -> list[dict]:
     logger.info("GET /api/conversions/aggregates")
     response = await _request_with_retry("GET", "/api/conversions/aggregates")

@@ -57,6 +57,10 @@ class SetAllInstrumentsBrokerAccountBody(BaseModel):
     accountId: int | None = None
 
 
+class SetAllInstrumentsFirmSignatureBody(BaseModel):
+    firmSignatureId: int | None = None
+
+
 @router.get("/aggregates")
 async def get_aggregates(admin: UserInfo = Depends(require_admin)):
     logger.info("GET /internal/conversions/aggregates by user=%s", admin.user_id)
@@ -114,6 +118,26 @@ async def set_all_instruments_broker_account(symbol: str, body: SetAllInstrument
         return await onprem.set_all_instruments_broker_account(symbol, tranche, body.brokerId, body.accountId)
     except Exception as exc:
         logger.error("all-instruments broker-account — DTS write FAILED: %s", exc, exc_info=True)
+        raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
+
+
+@router.get("/firm-signatures")
+async def get_firm_signatures(admin: UserInfo = Depends(require_admin)):
+    logger.info("GET /internal/conversions/firm-signatures by user=%s", admin.user_id)
+    try:
+        return await onprem.get_firm_signatures()
+    except Exception as exc:
+        logger.error("firm-signatures — DTS fetch FAILED: %s", exc, exc_info=True)
+        raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
+
+
+@router.put("/all-instruments/{symbol}/firm-signature")
+async def set_all_instruments_firm_signature(symbol: str, body: SetAllInstrumentsFirmSignatureBody, tranche: int = 1, admin: UserInfo = Depends(require_admin)):
+    logger.info("PUT /internal/conversions/all-instruments/%s/firm-signature tranche=%s firmSignatureId=%s by user=%s", symbol, tranche, body.firmSignatureId, admin.user_id)
+    try:
+        return await onprem.set_all_instruments_firm_signature(symbol, tranche, body.firmSignatureId)
+    except Exception as exc:
+        logger.error("all-instruments firm-signature — DTS write FAILED: %s", exc, exc_info=True)
         raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
 
 
