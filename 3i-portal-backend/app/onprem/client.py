@@ -1840,3 +1840,47 @@ async def retry_action_item(item_id: int) -> tuple[int, dict]:
     logger.info("  → %s (%d bytes)", response.status_code, len(response.content))
     body = response.json() if response.content else {}
     return response.status_code, body
+
+
+async def submit_all_instruments_conversion(parameter_id: int, tranche: int = 1, dollars: float | None = None, shares: float | None = None) -> tuple[int, dict]:
+    logger.info("POST /api/all-instruments/conversion-pricing/%s/submit?tranche=%s dollars=%s shares=%s (write)", parameter_id, tranche, dollars, shares)
+    client = _get_client()
+    response = await client.post(
+        f"/api/all-instruments/conversion-pricing/{parameter_id}/submit",
+        params={"tranche": tranche},
+        json={"dollars": dollars, "shares": shares})
+    logger.info("  → %s (%d bytes)", response.status_code, len(response.content))
+    body = response.json() if response.content else {}
+    return response.status_code, body
+
+
+async def get_all_instruments_completed_conversions(symbol: str) -> list[dict]:
+    logger.info("GET /api/all-instruments/conversion-pricing/by-symbol/%s/completed", symbol)
+    response = await _request_with_retry("GET", f"/api/all-instruments/conversion-pricing/by-symbol/{symbol}/completed")
+    response.raise_for_status()
+    return response.json()
+
+
+async def get_all_instruments_conversion(conversion_id: str) -> dict:
+    logger.info("GET /api/all-instruments/conversion-pricing/conversion/%s", conversion_id)
+    response = await _request_with_retry("GET", f"/api/all-instruments/conversion-pricing/conversion/{conversion_id}")
+    response.raise_for_status()
+    return response.json()
+
+
+async def remove_all_instruments_conversion(conversion_id: str) -> tuple[int, dict]:
+    logger.info("POST /api/all-instruments/conversion-pricing/conversion/%s/remove (write)", conversion_id)
+    client = _get_client()
+    response = await client.post(f"/api/all-instruments/conversion-pricing/conversion/{conversion_id}/remove")
+    logger.info("  → %s", response.status_code)
+    body = response.json() if response.content else {}
+    return response.status_code, body
+
+
+async def delete_all_instruments_conversion(conversion_id: str) -> tuple[int, dict]:
+    logger.info("DELETE /api/all-instruments/conversion-pricing/conversion/%s (write)", conversion_id)
+    client = _get_client()
+    response = await client.delete(f"/api/all-instruments/conversion-pricing/conversion/{conversion_id}")
+    logger.info("  → %s", response.status_code)
+    body = response.json() if response.content else {}
+    return response.status_code, body

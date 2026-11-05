@@ -155,6 +155,59 @@ async def set_all_instruments_sharepoint_path(symbol: str, body: SetAllInstrumen
         raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
 
 
+class SubmitAllInstrumentsConversionBody(BaseModel):
+    dollars: float | None = None
+    shares: float | None = None
+
+
+@router.post("/all-instruments/{parameter_id}/submit")
+async def submit_all_instruments_conversion(parameter_id: int, body: SubmitAllInstrumentsConversionBody, tranche: int = 1, admin: UserInfo = Depends(require_admin)):
+    logger.info("POST /internal/conversions/all-instruments/%s/submit tranche=%s dollars=%s shares=%s by user=%s", parameter_id, tranche, body.dollars, body.shares, admin.user_id)
+    status, data = await onprem.submit_all_instruments_conversion(parameter_id, tranche, body.dollars, body.shares)
+    if status >= 400:
+        logger.warning("all-instruments submit — DTS error (%s): %s", status, data)
+        return JSONResponse(status_code=status, content=data)
+    return data
+
+
+@router.get("/all-instruments/{symbol}/completed")
+async def get_all_instruments_completed_conversions(symbol: str, admin: UserInfo = Depends(require_admin)):
+    logger.info("GET /internal/conversions/all-instruments/%s/completed by user=%s", symbol, admin.user_id)
+    try:
+        return await onprem.get_all_instruments_completed_conversions(symbol)
+    except Exception as exc:
+        logger.error("all-instruments completed — DTS fetch FAILED: %s", exc, exc_info=True)
+        raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
+
+
+@router.get("/all-instruments/conversion/{conversion_id}")
+async def get_all_instruments_conversion(conversion_id: str, admin: UserInfo = Depends(require_admin)):
+    logger.info("GET /internal/conversions/all-instruments/conversion/%s by user=%s", conversion_id, admin.user_id)
+    try:
+        return await onprem.get_all_instruments_conversion(conversion_id)
+    except Exception as exc:
+        logger.error("all-instruments conversion detail — DTS fetch FAILED: %s", exc, exc_info=True)
+        raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
+
+
+@router.post("/all-instruments/conversion/{conversion_id}/remove")
+async def remove_all_instruments_conversion(conversion_id: str, admin: UserInfo = Depends(require_admin)):
+    logger.info("POST /internal/conversions/all-instruments/conversion/%s/remove by user=%s", conversion_id, admin.user_id)
+    status, data = await onprem.remove_all_instruments_conversion(conversion_id)
+    if status >= 400:
+        return JSONResponse(status_code=status, content=data)
+    return data
+
+
+@router.delete("/all-instruments/conversion/{conversion_id}")
+async def delete_all_instruments_conversion(conversion_id: str, admin: UserInfo = Depends(require_admin)):
+    logger.info("DELETE /internal/conversions/all-instruments/conversion/%s by user=%s", conversion_id, admin.user_id)
+    status, data = await onprem.delete_all_instruments_conversion(conversion_id)
+    if status >= 400:
+        return JSONResponse(status_code=status, content=data)
+    return data
+
+
 @router.get("/convertible-tranches")
 async def get_convertible_tranches(symbol: str, admin: UserInfo = Depends(require_admin)):
     logger.info("GET /internal/conversions/convertible-tranches symbol=%s by user=%s", symbol, admin.user_id)
