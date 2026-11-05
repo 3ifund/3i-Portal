@@ -154,6 +154,30 @@ async def preview_all_instruments_conversion_notice(parameter_id: int, tranche: 
     return response.json()
 
 
+async def get_all_instruments_note(symbol: str, tranche: int = 1) -> dict:
+    logger.info("GET /api/all-instruments/convertible-note?symbol=%s&tranche=%s", symbol, tranche)
+    response = await _request_with_retry(
+        "GET", "/api/all-instruments/convertible-note", params={"symbol": symbol, "tranche": tranche})
+    logger.info("  → %s (%d bytes)", response.status_code, len(response.content))
+    if response.status_code >= 400:
+        logger.warning("  → DTS all-instruments note error (%s): %s", response.status_code, response.text[:500])
+    response.raise_for_status()
+    return response.json()
+
+
+async def set_all_instruments_broker_account(symbol: str, tranche: int, broker_id: int | None, account_id: int | None) -> dict:
+    logger.info("PUT /api/all-instruments/convertible-note/broker-account?symbol=%s&tranche=%s brokerId=%s accountId=%s (write)", symbol, tranche, broker_id, account_id)
+    response = await _request_with_retry(
+        "PUT", "/api/all-instruments/convertible-note/broker-account",
+        params={"symbol": symbol, "tranche": tranche},
+        json={"brokerId": broker_id, "accountId": account_id})
+    logger.info("  → %s (%d bytes)", response.status_code, len(response.content))
+    if response.status_code >= 400:
+        logger.warning("  → DTS all-instruments broker-account error (%s): %s", response.status_code, response.text[:500])
+    response.raise_for_status()
+    return response.json()
+
+
 async def get_conversion_aggregates() -> list[dict]:
     logger.info("GET /api/conversions/aggregates")
     response = await _request_with_retry("GET", "/api/conversions/aggregates")

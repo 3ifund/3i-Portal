@@ -52,6 +52,11 @@ class EventOfDefaultBody(BaseModel):
     use: bool
 
 
+class SetAllInstrumentsBrokerAccountBody(BaseModel):
+    brokerId: int | None = None
+    accountId: int | None = None
+
+
 @router.get("/aggregates")
 async def get_aggregates(admin: UserInfo = Depends(require_admin)):
     logger.info("GET /internal/conversions/aggregates by user=%s", admin.user_id)
@@ -89,6 +94,26 @@ async def preview_all_instruments_conversion_notice(parameter_id: int, tranche: 
         return await onprem.preview_all_instruments_conversion_notice(parameter_id, tranche, dollars, shares)
     except Exception as exc:
         logger.error("all-instruments preview — DTS fetch FAILED: %s", exc, exc_info=True)
+        raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
+
+
+@router.get("/all-instruments/{symbol}/note")
+async def get_all_instruments_note(symbol: str, tranche: int = 1, admin: UserInfo = Depends(require_admin)):
+    logger.info("GET /internal/conversions/all-instruments/%s/note tranche=%s by user=%s", symbol, tranche, admin.user_id)
+    try:
+        return await onprem.get_all_instruments_note(symbol, tranche)
+    except Exception as exc:
+        logger.error("all-instruments note — DTS fetch FAILED: %s", exc, exc_info=True)
+        raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
+
+
+@router.put("/all-instruments/{symbol}/broker-account")
+async def set_all_instruments_broker_account(symbol: str, body: SetAllInstrumentsBrokerAccountBody, tranche: int = 1, admin: UserInfo = Depends(require_admin)):
+    logger.info("PUT /internal/conversions/all-instruments/%s/broker-account tranche=%s broker=%s account=%s by user=%s", symbol, tranche, body.brokerId, body.accountId, admin.user_id)
+    try:
+        return await onprem.set_all_instruments_broker_account(symbol, tranche, body.brokerId, body.accountId)
+    except Exception as exc:
+        logger.error("all-instruments broker-account — DTS write FAILED: %s", exc, exc_info=True)
         raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
 
 
