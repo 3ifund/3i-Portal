@@ -127,6 +127,17 @@ async def get_all_instruments_conversion_availability(symbol: str, tranche: int 
     return response.json()
 
 
+async def compute_all_instruments_conversion_pricing(parameter_id: int, tranche: int = 1) -> dict:
+    logger.info("POST /api/all-instruments/conversion-pricing/%s/compute?tranche=%s", parameter_id, tranche)
+    response = await _request_with_retry(
+        "POST", f"/api/all-instruments/conversion-pricing/{parameter_id}/compute", params={"tranche": tranche})
+    logger.info("  → %s (%d bytes)", response.status_code, len(response.content))
+    if response.status_code >= 400:
+        logger.warning("  → DTS all-instruments compute error (%s): %s", response.status_code, response.text[:500])
+    response.raise_for_status()
+    return response.json()
+
+
 async def get_conversion_aggregates() -> list[dict]:
     logger.info("GET /api/conversions/aggregates")
     response = await _request_with_retry("GET", "/api/conversions/aggregates")
