@@ -235,12 +235,36 @@ async def get_conversion_recalc_window() -> dict:
     return response.json()
 
 
+async def get_all_instruments_notice_classes() -> list[dict]:
+    logger.info("GET /api/all-instruments/convertible-note/notice-classes")
+    response = await _request_with_retry("GET", "/api/all-instruments/convertible-note/notice-classes")
+    logger.info("  → %s (%d bytes)", response.status_code, len(response.content))
+    response.raise_for_status()
+    return response.json()
+
+
 async def get_conversion_notice_classes() -> list[dict]:
     logger.info("GET /api/convertible-notes/notice-classes")
     response = await _request_with_retry("GET", "/api/convertible-notes/notice-classes")
     logger.info("  → %s (%d bytes)", response.status_code, len(response.content))
     response.raise_for_status()
-    return response.json()
+    legacy_companies = response.json()
+
+    try:
+        ai_companies = await get_all_instruments_notice_classes()
+    except Exception:
+        logger.warning("all-instruments notice-classes fetch failed — showing legacy companies only", exc_info=True)
+        return legacy_companies
+
+    by_company_id = {c["companyId"]: c for c in legacy_companies}
+    for ai in ai_companies:
+        existing = by_company_id.get(ai["companyId"])
+        if existing:
+            existing["tranches"].extend(ai["tranches"])
+        else:
+            by_company_id[ai["companyId"]] = ai
+            legacy_companies.append(ai)
+    return legacy_companies
 
 
 async def get_preferred_notice_classes() -> list[dict]:
