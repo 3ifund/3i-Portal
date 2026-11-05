@@ -138,6 +138,22 @@ async def compute_all_instruments_conversion_pricing(parameter_id: int, tranche:
     return response.json()
 
 
+async def preview_all_instruments_conversion_notice(parameter_id: int, tranche: int = 1, dollars: float | None = None, shares: float | None = None) -> dict:
+    logger.info("GET /api/all-instruments/conversion-pricing/%s/preview?tranche=%s&dollars=%s&shares=%s", parameter_id, tranche, dollars, shares)
+    params = {"tranche": tranche}
+    if dollars is not None:
+        params["dollars"] = dollars
+    if shares is not None:
+        params["shares"] = shares
+    response = await _request_with_retry(
+        "GET", f"/api/all-instruments/conversion-pricing/{parameter_id}/preview", params=params)
+    logger.info("  → %s (%d bytes)", response.status_code, len(response.content))
+    if response.status_code >= 400:
+        logger.warning("  → DTS all-instruments preview error (%s): %s", response.status_code, response.text[:500])
+    response.raise_for_status()
+    return response.json()
+
+
 async def get_conversion_aggregates() -> list[dict]:
     logger.info("GET /api/conversions/aggregates")
     response = await _request_with_retry("GET", "/api/conversions/aggregates")

@@ -82,6 +82,16 @@ async def compute_all_instruments_conversion_pricing(parameter_id: int, tranche:
         raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
 
 
+@router.get("/all-instruments/{parameter_id}/preview")
+async def preview_all_instruments_conversion_notice(parameter_id: int, tranche: int = 1, dollars: float | None = None, shares: float | None = None, admin: UserInfo = Depends(require_admin)):
+    logger.info("GET /internal/conversions/all-instruments/%s/preview tranche=%s dollars=%s shares=%s by user=%s", parameter_id, tranche, dollars, shares, admin.user_id)
+    try:
+        return await onprem.preview_all_instruments_conversion_notice(parameter_id, tranche, dollars, shares)
+    except Exception as exc:
+        logger.error("all-instruments preview — DTS fetch FAILED: %s", exc, exc_info=True)
+        raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
+
+
 @router.get("/convertible-tranches")
 async def get_convertible_tranches(symbol: str, admin: UserInfo = Depends(require_admin)):
     logger.info("GET /internal/conversions/convertible-tranches symbol=%s by user=%s", symbol, admin.user_id)
