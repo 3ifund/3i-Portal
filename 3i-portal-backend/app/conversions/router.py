@@ -141,6 +141,20 @@ async def set_all_instruments_firm_signature(symbol: str, body: SetAllInstrument
         raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
 
 
+class SetAllInstrumentsSharePointPathBody(BaseModel):
+    sharepointPath: str | None = None
+
+
+@router.put("/all-instruments/{symbol}/sharepoint-path")
+async def set_all_instruments_sharepoint_path(symbol: str, body: SetAllInstrumentsSharePointPathBody, tranche: int = 1, admin: UserInfo = Depends(require_admin)):
+    logger.info("PUT /internal/conversions/all-instruments/%s/sharepoint-path tranche=%s path=%s by user=%s", symbol, tranche, body.sharepointPath, admin.user_id)
+    try:
+        return await onprem.set_all_instruments_sharepoint_path(symbol, tranche, body.sharepointPath)
+    except Exception as exc:
+        logger.error("all-instruments sharepoint-path — DTS write FAILED: %s", exc, exc_info=True)
+        raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
+
+
 @router.get("/convertible-tranches")
 async def get_convertible_tranches(symbol: str, admin: UserInfo = Depends(require_admin)):
     logger.info("GET /internal/conversions/convertible-tranches symbol=%s by user=%s", symbol, admin.user_id)

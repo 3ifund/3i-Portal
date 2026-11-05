@@ -199,6 +199,19 @@ async def set_all_instruments_firm_signature(symbol: str, tranche: int, firm_sig
     return response.json()
 
 
+async def set_all_instruments_sharepoint_path(symbol: str, tranche: int, sharepoint_path: str | None) -> dict:
+    logger.info("PUT /api/all-instruments/convertible-note/sharepoint-path?symbol=%s&tranche=%s path=%s (write)", symbol, tranche, sharepoint_path)
+    response = await _request_with_retry(
+        "PUT", "/api/all-instruments/convertible-note/sharepoint-path",
+        params={"symbol": symbol, "tranche": tranche},
+        json={"sharepointPath": sharepoint_path})
+    logger.info("  → %s (%d bytes)", response.status_code, len(response.content))
+    if response.status_code >= 400:
+        logger.warning("  → DTS all-instruments sharepoint-path error (%s): %s", response.status_code, response.text[:500])
+    response.raise_for_status()
+    return response.json()
+
+
 async def get_conversion_aggregates() -> list[dict]:
     logger.info("GET /api/conversions/aggregates")
     response = await _request_with_retry("GET", "/api/conversions/aggregates")
