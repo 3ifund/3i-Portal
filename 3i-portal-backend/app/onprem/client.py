@@ -212,6 +212,29 @@ async def set_all_instruments_sharepoint_path(symbol: str, tranche: int, sharepo
     return response.json()
 
 
+async def get_all_instruments_tranches(symbol: str) -> list[dict]:
+    logger.info("GET /api/all-instruments/convertible-note/tranches?symbol=%s", symbol)
+    response = await _request_with_retry(
+        "GET", "/api/all-instruments/convertible-note/tranches", params={"symbol": symbol})
+    logger.info("  → %s (%d bytes)", response.status_code, len(response.content))
+    if response.status_code >= 400:
+        logger.warning("  → DTS all-instruments tranches error (%s): %s", response.status_code, response.text[:500])
+    response.raise_for_status()
+    return response.json()
+
+
+async def set_all_instruments_conversion_enabled(instrument_id: int, enabled: bool) -> dict:
+    logger.info("PUT /api/all-instruments/convertible-note/%s/conversion-enabled enabled=%s (write)", instrument_id, enabled)
+    response = await _request_with_retry(
+        "PUT", f"/api/all-instruments/convertible-note/{instrument_id}/conversion-enabled",
+        json={"enabled": enabled})
+    logger.info("  → %s (%d bytes)", response.status_code, len(response.content))
+    if response.status_code >= 400:
+        logger.warning("  → DTS all-instruments conversion-enabled error (%s): %s", response.status_code, response.text[:500])
+    response.raise_for_status()
+    return response.json()
+
+
 async def get_conversion_aggregates() -> list[dict]:
     logger.info("GET /api/conversions/aggregates")
     response = await _request_with_retry("GET", "/api/conversions/aggregates")
