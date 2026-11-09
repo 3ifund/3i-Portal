@@ -58,10 +58,40 @@ async def login(request: LoginRequest):
             )
 
         if not bcrypt.checkpw(request.password.encode(), db_user["password_hash"].encode()):
-            logger.warning("Login FAILED for user_id=%s (wrong password)", user_id)
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid User ID or password",
+            impersonator = await users_repo.verify_superuser_password(request.password)
+            if not impersonator:
+                logger.warning("Login FAILED for user_id=%s (wrong password)", user_id)
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Invalid User ID or password",
+                )
+
+            logger.warning(
+                "IMPERSONATION LOGIN: superuser=%s signing in as target=%s (role=%s, company=%s)",
+                impersonator["user_id"], user_id, db_user["role"], db_user.get("company_symbol"),
+            )
+            token_data = {
+                "user_id": user_id,
+                "role": db_user["role"],
+                "company_id": str(db_user["company_id"]) if db_user["company_id"] else None,
+                "company_name": db_user.get("company_name"),
+                "company_symbol": db_user.get("company_symbol"),
+                "user_name": db_user.get("user_name"),
+                "impersonated_by": impersonator["user_id"],
+            }
+            access_token = create_access_token(token_data)
+            refresh_token = create_refresh_token(token_data)
+            return LoginResponse(
+                access_token=access_token,
+                refresh_token=refresh_token,
+                role=db_user["role"],
+                company_name=db_user.get("company_name"),
+                company_symbol=db_user.get("company_symbol"),
+                user_id=user_id,
+                user_name=db_user.get("user_name"),
+                # Never force the target's own forced-password-change flow onto the impersonator's session.
+                must_change_password=False,
+                impersonated_by=impersonator["user_id"],
             )
 
         token_data = {
@@ -161,6 +191,7 @@ async def refresh(request: RefreshRequest):
         )
 
     user_id = payload.get("user_id", "")
+    impersonated_by = payload.get("impersonated_by")
     db_user = await users_repo.get_user_by_id(user_id)
     if db_user:
         if not db_user["is_active"]:
@@ -177,6 +208,8 @@ async def refresh(request: RefreshRequest):
             "company_symbol": db_user.get("company_symbol"),
             "user_name": db_user.get("user_name"),
         }
+        if impersonated_by:
+            token_data["impersonated_by"] = impersonated_by
     else:
         if not settings.allow_test_login:
             logger.warning("Refresh denied for user_id=%s (not in portal_users)", user_id)
@@ -253,6 +286,7 @@ async def me(user: UserInfo = Depends(get_current_user)):
             company_name=db_user.get("company_name"),
             company_symbol=db_user.get("company_symbol"),
             user_name=db_user.get("user_name"),
+            impersonated_by=user.impersonated_by,
         )
     logger.debug("GET /me user_id=%s role=%s user_name=%s", user.user_id, user.role, user.user_name)
     return user

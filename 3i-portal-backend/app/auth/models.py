@@ -17,6 +17,7 @@ class LoginResponse(BaseModel):
     user_id: str
     user_name: str | None = None
     must_change_password: bool = False
+    impersonated_by: str | None = None
 
 
 class RefreshRequest(BaseModel):
@@ -41,3 +42,4 @@ class UserInfo(BaseModel):
     company_name: str | None = None
     company_symbol: str | None = None
     user_name: str | None = None
+    impersonated_by: str | None = None

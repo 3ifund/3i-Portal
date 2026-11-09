@@ -30,8 +30,12 @@ async def get_current_user(
         company_name=payload.get("company_name"),
         company_symbol=payload.get("company_symbol"),
         user_name=payload.get("user_name"),
+        impersonated_by=payload.get("impersonated_by"),
     )
-    logger.debug("Authenticated user_id=%s company_id=%s", user.user_id, user.company_id)
+    if user.impersonated_by:
+        logger.info("IMPERSONATED REQUEST: acting_as=%s impersonated_by=%s", user.user_id, user.impersonated_by)
+    else:
+        logger.debug("Authenticated user_id=%s company_id=%s", user.user_id, user.company_id)
     return user
 
 

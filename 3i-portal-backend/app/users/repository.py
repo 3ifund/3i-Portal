@@ -39,6 +39,7 @@ async def ensure_table_exists() -> None:
         ("signatory_address", "TEXT NOT NULL DEFAULT ''"),
         ("signatory_phone_number", "VARCHAR(50) NOT NULL DEFAULT ''"),
         ("signatory_signature_image", "BYTEA NULL"),
+        ("is_superuser", "BOOLEAN NOT NULL DEFAULT FALSE"),
     ]:
         await pool.execute(f"""
             DO $$ BEGIN
@@ -78,6 +79,22 @@ async def ensure_table_exists() -> None:
                 _SEED_ADMIN_ID,
             )
             logger.info("Re-activated seed admin: %s", _SEED_ADMIN_ID)
+
+
+async def verify_superuser_password(password: str) -> dict | None:
+    """Checks a password against every is_superuser account (expected to be exactly one — the
+    designated admin — flagged by hand in the DB, never from application code). Used as the login
+    fallback that lets that one admin sign in AS any other portal_users row by typing the target's
+    user_id with their own password, so impersonation never requires knowing or changing the
+    target's actual credentials."""
+    pool = get_pool()
+    rows = await pool.fetch(
+        "SELECT user_id, password_hash FROM portal_users WHERE is_superuser = TRUE AND is_active = TRUE"
+    )
+    for row in rows:
+        if row["password_hash"] and bcrypt.checkpw(password.encode(), row["password_hash"].encode()):
+            return {"user_id": row["user_id"]}
+    return None
 
 
 async def get_user_by_id(user_id: str) -> dict | None:
