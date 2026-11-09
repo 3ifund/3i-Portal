@@ -611,7 +611,10 @@ async def acknowledge_break_row(
 async def ai_analyze_break_report(report_id: int, admin: UserInfo = Depends(require_admin)):
     logger.info("POST /internal/pt/break-reports/%s/ai-analyze by user=%s", report_id, admin.user_id)
     try:
-        return await onprem.ai_analyze_pt_break_report(report_id)
+        result = await onprem.ai_analyze_pt_break_report(report_id)
+        logger.info("break-report %s ai-analyze -> DTS returned keys=%s",
+                     report_id, list(result.keys()) if isinstance(result, dict) else type(result))
+        return result
     except Exception as exc:
         logger.error("break-report %s ai-analyze — DTS call FAILED: %s", report_id, exc, exc_info=True)
         raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
@@ -621,7 +624,10 @@ async def ai_analyze_break_report(report_id: int, admin: UserInfo = Depends(requ
 async def get_ai_suggestions(report_id: int, admin: UserInfo = Depends(require_admin)):
     logger.info("GET /internal/pt/break-reports/%s/ai-suggestions by user=%s", report_id, admin.user_id)
     try:
-        return await onprem.get_pt_ai_suggestions(report_id)
+        result = await onprem.get_pt_ai_suggestions(report_id)
+        count = len(result) if isinstance(result, list) else (len(result.get("suggestions", [])) if isinstance(result, dict) else "?")
+        logger.info("break-report %s ai-suggestions -> %s suggestion(s)", report_id, count)
+        return result
     except Exception as exc:
         logger.error("break-report %s ai-suggestions — DTS fetch FAILED: %s", report_id, exc, exc_info=True)
         raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
@@ -636,9 +642,12 @@ async def preview_resolve_break_suggestions(body: BreakResolveBody, admin: UserI
     except Exception as exc:
         logger.error("break-reports preview-resolve — DTS call FAILED: %s", exc, exc_info=True)
         raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
+    logger.info("break-reports preview-resolve DTS result=%s", result)
     # DTS's own rejection (success:false) — return it flat with a 400, not wrapped under FastAPI's "detail" key,
     # so the frontend's error-body parsing (which expects DTS's exact shape) still finds conflictingResolutionIds.
     if isinstance(result, dict) and result.get("success") is False:
+        logger.warning("break-reports preview-resolve REJECTED by DTS: error=%s conflictingResolutionIds=%s",
+                        result.get("error"), result.get("conflictingResolutionIds"))
         return JSONResponse(status_code=400, content=result)
     return result
 
@@ -654,7 +663,10 @@ async def resolve_break_suggestions(body: BreakResolveBody, admin: UserInfo = De
     except Exception as exc:
         logger.error("break-reports resolve — DTS write FAILED: %s", exc, exc_info=True)
         raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
+    logger.info("break-reports resolve DTS result=%s", result)
     if isinstance(result, dict) and result.get("success") is False:
+        logger.warning("break-reports resolve REJECTED by DTS: error=%s conflictingResolutionIds=%s",
+                        result.get("error"), result.get("conflictingResolutionIds"))
         return JSONResponse(status_code=400, content=result)
     return result
 
@@ -663,7 +675,10 @@ async def resolve_break_suggestions(body: BreakResolveBody, admin: UserInfo = De
 async def get_break_resolution(resolution_id: int, admin: UserInfo = Depends(require_admin)):
     logger.info("GET /internal/pt/break-reports/resolutions/%s by user=%s", resolution_id, admin.user_id)
     try:
-        return await onprem.get_pt_break_resolution(resolution_id)
+        result = await onprem.get_pt_break_resolution(resolution_id)
+        logger.info("break-resolution %s -> verificationStatus=%s",
+                     resolution_id, result.get("verificationStatus") if isinstance(result, dict) else "?")
+        return result
     except Exception as exc:
         logger.error("break-resolution %s — DTS fetch FAILED: %s", resolution_id, exc, exc_info=True)
         raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
@@ -674,10 +689,15 @@ async def reverse_break_resolution(resolution_id: int, body: BreakReverseBody, a
     payload = {"userName": body.userName or admin.user_id}
     logger.info("POST /internal/pt/break-reports/resolutions/%s/reverse by user=%s", resolution_id, admin.user_id)
     try:
-        return await onprem.reverse_pt_break_resolution(resolution_id, payload)
+        result = await onprem.reverse_pt_break_resolution(resolution_id, payload)
     except Exception as exc:
         logger.error("break-resolution %s reverse — DTS write FAILED: %s", resolution_id, exc, exc_info=True)
         raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
+    logger.info("break-resolution %s reverse DTS result=%s", resolution_id, result)
+    if isinstance(result, dict) and result.get("success") is False:
+        logger.warning("break-resolution %s reverse REJECTED by DTS: error=%s", resolution_id, result.get("error"))
+        return JSONResponse(status_code=400, content=result)
+    return result
 
 
 class AutoAllocationTraderBody(BaseModel):

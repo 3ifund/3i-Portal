@@ -500,6 +500,7 @@ async def ai_analyze_pt_break_report(report_id: int) -> dict:
     logger.info("POST /api/pt/break-reports/%s/ai-analyze (single attempt — calls Claude, extended timeout)", report_id)
     client = _get_client()
     response = await client.post(f"/api/pt/break-reports/{report_id}/ai-analyze", timeout=150.0)
+    logger.info("break-report %s ai-analyze DTS responded status=%s", report_id, response.status_code)
     response.raise_for_status()
     return response.json()
 
@@ -507,6 +508,7 @@ async def ai_analyze_pt_break_report(report_id: int) -> dict:
 async def get_pt_ai_suggestions(report_id: int) -> dict:
     logger.info("GET /api/pt/break-reports/%s/ai-suggestions", report_id)
     response = await _request_with_retry("GET", f"/api/pt/break-reports/{report_id}/ai-suggestions")
+    logger.info("break-report %s ai-suggestions DTS responded status=%s", report_id, response.status_code)
     response.raise_for_status()
     return response.json()
 
@@ -514,6 +516,7 @@ async def get_pt_ai_suggestions(report_id: int) -> dict:
 async def preview_resolve_pt_break_suggestions(body: dict) -> dict:
     logger.info("POST /api/pt/break-reports/preview-resolve (read-only) suggestionIds=%s", body.get("suggestionIds"))
     response = await _request_with_retry("POST", "/api/pt/break-reports/preview-resolve", json=body)
+    logger.info("break-reports preview-resolve DTS responded status=%s body=%s", response.status_code, response.text)
     # DTS's 400 here is a deliberate rejection (e.g. the duplicate-resolution guard), carrying structured fields
     # (conflictingResolutionIds) the frontend acts on — pass the body through as-is rather than letting
     # raise_for_status() turn it into a generic 502 that loses those fields. Anything else still raises.
@@ -528,6 +531,7 @@ async def resolve_pt_break_suggestions(body: dict) -> dict:
                 body.get("suggestionIds"), body.get("userName"))
     client = _get_client()
     response = await client.post("/api/pt/break-reports/resolve", json=body)
+    logger.info("break-reports resolve DTS responded status=%s body=%s", response.status_code, response.text)
     if response.status_code == 400:
         return response.json()
     response.raise_for_status()
@@ -537,6 +541,7 @@ async def resolve_pt_break_suggestions(body: dict) -> dict:
 async def get_pt_break_resolution(resolution_id: int) -> dict:
     logger.info("GET /api/pt/break-reports/resolutions/%s", resolution_id)
     response = await _request_with_retry("GET", f"/api/pt/break-reports/resolutions/{resolution_id}")
+    logger.info("break-resolution %s DTS responded status=%s", resolution_id, response.status_code)
     response.raise_for_status()
     return response.json()
 
@@ -546,6 +551,12 @@ async def reverse_pt_break_resolution(resolution_id: int, body: dict) -> dict:
                 resolution_id, body.get("userName"))
     client = _get_client()
     response = await client.post(f"/api/pt/break-reports/resolutions/{resolution_id}/reverse", json=body)
+    logger.info("break-resolution %s reverse DTS responded status=%s body=%s", resolution_id, response.status_code, response.text)
+    # Same lesson as preview-resolve/resolve: DTS's 400 here (already reversed, nothing to reverse) is a
+    # deliberate rejection, not an upstream failure — pass it through instead of letting raise_for_status()
+    # swallow it into a generic 502.
+    if response.status_code == 400:
+        return response.json()
     response.raise_for_status()
     return response.json()
 
