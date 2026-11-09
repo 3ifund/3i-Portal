@@ -494,6 +494,39 @@ async def acknowledge_pt_break_row(row_id: int, body: dict) -> dict:
     return response.json()
 
 
+async def ai_analyze_pt_break_report(report_id: int) -> dict:
+    # Two sequential Claude calls (firm, then account) behind this one request — the default
+    # onprem_timeout_seconds (30s) is sized for ordinary DTS calls, not this one.
+    logger.info("POST /api/pt/break-reports/%s/ai-analyze (single attempt — calls Claude, extended timeout)", report_id)
+    client = _get_client()
+    response = await client.post(f"/api/pt/break-reports/{report_id}/ai-analyze", timeout=150.0)
+    response.raise_for_status()
+    return response.json()
+
+
+async def get_pt_ai_suggestions(report_id: int) -> dict:
+    logger.info("GET /api/pt/break-reports/%s/ai-suggestions", report_id)
+    response = await _request_with_retry("GET", f"/api/pt/break-reports/{report_id}/ai-suggestions")
+    response.raise_for_status()
+    return response.json()
+
+
+async def resolve_pt_break_suggestions(body: dict) -> dict:
+    logger.info("POST /api/pt/break-reports/resolve (single attempt — write) suggestionIds=%s by %s",
+                body.get("suggestionIds"), body.get("userName"))
+    client = _get_client()
+    response = await client.post("/api/pt/break-reports/resolve", json=body)
+    response.raise_for_status()
+    return response.json()
+
+
+async def get_pt_break_resolution(resolution_id: int) -> dict:
+    logger.info("GET /api/pt/break-reports/resolutions/%s", resolution_id)
+    response = await _request_with_retry("GET", f"/api/pt/break-reports/resolutions/{resolution_id}")
+    response.raise_for_status()
+    return response.json()
+
+
 async def get_pt_traders(company_id: int | None = None) -> dict:
     params = {"companyId": company_id} if company_id is not None else None
     response = await _request_with_retry("GET", "/api/pt/traders", params=params)

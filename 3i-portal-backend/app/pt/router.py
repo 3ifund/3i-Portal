@@ -520,6 +520,11 @@ class BreakAcknowledgeBody(BaseModel):
     comment: str | None = None
 
 
+class BreakResolveBody(BaseModel):
+    suggestionIds: list[int]
+    userName: str | None = None
+
+
 @router.get("/eloc-scheduled-tasks")
 async def get_eloc_scheduled_tasks(admin: UserInfo = Depends(require_admin)):
     logger.info("GET /internal/pt/eloc-scheduled-tasks by user=%s", admin.user_id)
@@ -594,6 +599,49 @@ async def acknowledge_break_row(
         return await onprem.acknowledge_pt_break_row(row_id, payload)
     except Exception as exc:
         logger.error("break-row %s acknowledge — DTS write FAILED: %s", row_id, exc, exc_info=True)
+        raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
+
+
+@router.post("/break-reports/{report_id}/ai-analyze")
+async def ai_analyze_break_report(report_id: int, admin: UserInfo = Depends(require_admin)):
+    logger.info("POST /internal/pt/break-reports/%s/ai-analyze by user=%s", report_id, admin.user_id)
+    try:
+        return await onprem.ai_analyze_pt_break_report(report_id)
+    except Exception as exc:
+        logger.error("break-report %s ai-analyze — DTS call FAILED: %s", report_id, exc, exc_info=True)
+        raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
+
+
+@router.get("/break-reports/{report_id}/ai-suggestions")
+async def get_ai_suggestions(report_id: int, admin: UserInfo = Depends(require_admin)):
+    logger.info("GET /internal/pt/break-reports/%s/ai-suggestions by user=%s", report_id, admin.user_id)
+    try:
+        return await onprem.get_pt_ai_suggestions(report_id)
+    except Exception as exc:
+        logger.error("break-report %s ai-suggestions — DTS fetch FAILED: %s", report_id, exc, exc_info=True)
+        raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
+
+
+@router.post("/break-reports/resolve")
+async def resolve_break_suggestions(body: BreakResolveBody, admin: UserInfo = Depends(require_admin)):
+    payload = body.model_dump(exclude_none=True)
+    payload["userName"] = body.userName or admin.user_id
+    logger.info("POST /internal/pt/break-reports/resolve suggestionIds=%s by user=%s",
+                body.suggestionIds, admin.user_id)
+    try:
+        return await onprem.resolve_pt_break_suggestions(payload)
+    except Exception as exc:
+        logger.error("break-reports resolve — DTS write FAILED: %s", exc, exc_info=True)
+        raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
+
+
+@router.get("/break-reports/resolutions/{resolution_id}")
+async def get_break_resolution(resolution_id: int, admin: UserInfo = Depends(require_admin)):
+    logger.info("GET /internal/pt/break-reports/resolutions/%s by user=%s", resolution_id, admin.user_id)
+    try:
+        return await onprem.get_pt_break_resolution(resolution_id)
+    except Exception as exc:
+        logger.error("break-resolution %s — DTS fetch FAILED: %s", resolution_id, exc, exc_info=True)
         raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
 
 
