@@ -514,6 +514,11 @@ async def get_pt_ai_suggestions(report_id: int) -> dict:
 async def preview_resolve_pt_break_suggestions(body: dict) -> dict:
     logger.info("POST /api/pt/break-reports/preview-resolve (read-only) suggestionIds=%s", body.get("suggestionIds"))
     response = await _request_with_retry("POST", "/api/pt/break-reports/preview-resolve", json=body)
+    # DTS's 400 here is a deliberate rejection (e.g. the duplicate-resolution guard), carrying structured fields
+    # (conflictingResolutionIds) the frontend acts on — pass the body through as-is rather than letting
+    # raise_for_status() turn it into a generic 502 that loses those fields. Anything else still raises.
+    if response.status_code == 400:
+        return response.json()
     response.raise_for_status()
     return response.json()
 
@@ -523,6 +528,8 @@ async def resolve_pt_break_suggestions(body: dict) -> dict:
                 body.get("suggestionIds"), body.get("userName"))
     client = _get_client()
     response = await client.post("/api/pt/break-reports/resolve", json=body)
+    if response.status_code == 400:
+        return response.json()
     response.raise_for_status()
     return response.json()
 

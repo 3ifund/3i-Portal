@@ -1,6 +1,7 @@
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from app.auth.dependencies import require_admin
@@ -631,10 +632,15 @@ async def preview_resolve_break_suggestions(body: BreakResolveBody, admin: UserI
     logger.info("POST /internal/pt/break-reports/preview-resolve suggestionIds=%s by user=%s",
                 body.suggestionIds, admin.user_id)
     try:
-        return await onprem.preview_resolve_pt_break_suggestions(body.model_dump(exclude_none=True))
+        result = await onprem.preview_resolve_pt_break_suggestions(body.model_dump(exclude_none=True))
     except Exception as exc:
         logger.error("break-reports preview-resolve — DTS call FAILED: %s", exc, exc_info=True)
         raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
+    # DTS's own rejection (success:false) — return it flat with a 400, not wrapped under FastAPI's "detail" key,
+    # so the frontend's error-body parsing (which expects DTS's exact shape) still finds conflictingResolutionIds.
+    if isinstance(result, dict) and result.get("success") is False:
+        return JSONResponse(status_code=400, content=result)
+    return result
 
 
 @router.post("/break-reports/resolve")
@@ -644,10 +650,13 @@ async def resolve_break_suggestions(body: BreakResolveBody, admin: UserInfo = De
     logger.info("POST /internal/pt/break-reports/resolve suggestionIds=%s by user=%s",
                 body.suggestionIds, admin.user_id)
     try:
-        return await onprem.resolve_pt_break_suggestions(payload)
+        result = await onprem.resolve_pt_break_suggestions(payload)
     except Exception as exc:
         logger.error("break-reports resolve — DTS write FAILED: %s", exc, exc_info=True)
         raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
+    if isinstance(result, dict) and result.get("success") is False:
+        return JSONResponse(status_code=400, content=result)
+    return result
 
 
 @router.get("/break-reports/resolutions/{resolution_id}")
