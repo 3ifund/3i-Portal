@@ -622,6 +622,17 @@ async def get_ai_suggestions(report_id: int, admin: UserInfo = Depends(require_a
         raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
 
 
+@router.post("/break-reports/preview-resolve")
+async def preview_resolve_break_suggestions(body: BreakResolveBody, admin: UserInfo = Depends(require_admin)):
+    logger.info("POST /internal/pt/break-reports/preview-resolve suggestionIds=%s by user=%s",
+                body.suggestionIds, admin.user_id)
+    try:
+        return await onprem.preview_resolve_pt_break_suggestions(body.model_dump(exclude_none=True))
+    except Exception as exc:
+        logger.error("break-reports preview-resolve — DTS call FAILED: %s", exc, exc_info=True)
+        raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
+
+
 @router.post("/break-reports/resolve")
 async def resolve_break_suggestions(body: BreakResolveBody, admin: UserInfo = Depends(require_admin)):
     payload = body.model_dump(exclude_none=True)

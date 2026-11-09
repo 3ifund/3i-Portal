@@ -511,6 +511,13 @@ async def get_pt_ai_suggestions(report_id: int) -> dict:
     return response.json()
 
 
+async def preview_resolve_pt_break_suggestions(body: dict) -> dict:
+    logger.info("POST /api/pt/break-reports/preview-resolve (read-only) suggestionIds=%s", body.get("suggestionIds"))
+    response = await _request_with_retry("POST", "/api/pt/break-reports/preview-resolve", json=body)
+    response.raise_for_status()
+    return response.json()
+
+
 async def resolve_pt_break_suggestions(body: dict) -> dict:
     logger.info("POST /api/pt/break-reports/resolve (single attempt — write) suggestionIds=%s by %s",
                 body.get("suggestionIds"), body.get("userName"))
