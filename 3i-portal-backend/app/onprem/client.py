@@ -534,6 +534,15 @@ async def get_pt_break_resolution(resolution_id: int) -> dict:
     return response.json()
 
 
+async def reverse_pt_break_resolution(resolution_id: int, body: dict) -> dict:
+    logger.info("POST /api/pt/break-reports/resolutions/%s/reverse (single attempt — write) by %s",
+                resolution_id, body.get("userName"))
+    client = _get_client()
+    response = await client.post(f"/api/pt/break-reports/resolutions/{resolution_id}/reverse", json=body)
+    response.raise_for_status()
+    return response.json()
+
+
 async def get_pt_traders(company_id: int | None = None) -> dict:
     params = {"companyId": company_id} if company_id is not None else None
     response = await _request_with_retry("GET", "/api/pt/traders", params=params)

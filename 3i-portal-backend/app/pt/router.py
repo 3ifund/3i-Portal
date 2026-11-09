@@ -525,6 +525,10 @@ class BreakResolveBody(BaseModel):
     userName: str | None = None
 
 
+class BreakReverseBody(BaseModel):
+    userName: str | None = None
+
+
 @router.get("/eloc-scheduled-tasks")
 async def get_eloc_scheduled_tasks(admin: UserInfo = Depends(require_admin)):
     logger.info("GET /internal/pt/eloc-scheduled-tasks by user=%s", admin.user_id)
@@ -653,6 +657,17 @@ async def get_break_resolution(resolution_id: int, admin: UserInfo = Depends(req
         return await onprem.get_pt_break_resolution(resolution_id)
     except Exception as exc:
         logger.error("break-resolution %s — DTS fetch FAILED: %s", resolution_id, exc, exc_info=True)
+        raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
+
+
+@router.post("/break-reports/resolutions/{resolution_id}/reverse")
+async def reverse_break_resolution(resolution_id: int, body: BreakReverseBody, admin: UserInfo = Depends(require_admin)):
+    payload = {"userName": body.userName or admin.user_id}
+    logger.info("POST /internal/pt/break-reports/resolutions/%s/reverse by user=%s", resolution_id, admin.user_id)
+    try:
+        return await onprem.reverse_pt_break_resolution(resolution_id, payload)
+    except Exception as exc:
+        logger.error("break-resolution %s reverse — DTS write FAILED: %s", resolution_id, exc, exc_info=True)
         raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
 
 
