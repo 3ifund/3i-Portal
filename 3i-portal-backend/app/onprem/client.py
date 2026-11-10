@@ -1932,13 +1932,13 @@ async def retry_action_item(item_id: int) -> tuple[int, dict]:
     return response.status_code, body
 
 
-async def submit_all_instruments_conversion(parameter_id: int, tranche: int = 1, dollars: float | None = None, shares: float | None = None) -> tuple[int, dict]:
-    logger.info("POST /api/all-instruments/conversion-pricing/%s/submit?tranche=%s dollars=%s shares=%s (write)", parameter_id, tranche, dollars, shares)
+async def submit_all_instruments_conversion(parameter_id: int, tranche: int = 1, preview_id: str | None = None) -> tuple[int, dict]:
+    logger.info("POST /api/all-instruments/conversion-pricing/%s/submit?tranche=%s previewId=%s (write)", parameter_id, tranche, preview_id)
     client = _get_client()
     response = await client.post(
         f"/api/all-instruments/conversion-pricing/{parameter_id}/submit",
         params={"tranche": tranche},
-        json={"dollars": dollars, "shares": shares})
+        json={"previewId": preview_id})
     logger.info("  → %s (%d bytes)", response.status_code, len(response.content))
     body = response.json() if response.content else {}
     return response.status_code, body

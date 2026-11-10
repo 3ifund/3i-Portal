@@ -180,14 +180,15 @@ async def set_all_instruments_conversion_enabled(instrument_id: int, body: SetAl
 
 
 class SubmitAllInstrumentsConversionBody(BaseModel):
+    previewId: str | None = None
     dollars: float | None = None
     shares: float | None = None
 
 
 @router.post("/all-instruments/{parameter_id}/submit")
 async def submit_all_instruments_conversion(parameter_id: int, body: SubmitAllInstrumentsConversionBody, tranche: int = 1, admin: UserInfo = Depends(require_admin)):
-    logger.info("POST /internal/conversions/all-instruments/%s/submit tranche=%s dollars=%s shares=%s by user=%s", parameter_id, tranche, body.dollars, body.shares, admin.user_id)
-    status, data = await onprem.submit_all_instruments_conversion(parameter_id, tranche, body.dollars, body.shares)
+    logger.info("POST /internal/conversions/all-instruments/%s/submit tranche=%s previewId=%s by user=%s", parameter_id, tranche, body.previewId, admin.user_id)
+    status, data = await onprem.submit_all_instruments_conversion(parameter_id, tranche, body.previewId)
     if status >= 400:
         logger.warning("all-instruments submit — DTS error (%s): %s", status, data)
         return JSONResponse(status_code=status, content=data)
