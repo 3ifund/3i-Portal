@@ -155,6 +155,16 @@ async def set_all_instruments_sharepoint_path(symbol: str, body: SetAllInstrumen
         raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
 
 
+@router.get("/all-instruments/notes")
+async def get_all_instruments_notes(admin: UserInfo = Depends(require_admin)):
+    logger.info("GET /internal/conversions/all-instruments/notes by user=%s", admin.user_id)
+    try:
+        return await onprem.get_all_instruments_notes()
+    except Exception as exc:
+        logger.error("all-instruments notes — DTS fetch FAILED: %s", exc, exc_info=True)
+        raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
+
+
 @router.get("/all-instruments/{symbol}/tranches")
 async def get_all_instruments_tranches(symbol: str, admin: UserInfo = Depends(require_admin)):
     logger.info("GET /internal/conversions/all-instruments/%s/tranches by user=%s", symbol, admin.user_id)

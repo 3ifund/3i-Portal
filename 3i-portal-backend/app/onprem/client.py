@@ -212,6 +212,16 @@ async def set_all_instruments_sharepoint_path(symbol: str, tranche: int, sharepo
     return response.json()
 
 
+async def get_all_instruments_notes() -> list[dict]:
+    logger.info("GET /api/all-instruments/convertible-note/notes")
+    response = await _request_with_retry("GET", "/api/all-instruments/convertible-note/notes")
+    logger.info("  → %s (%d bytes)", response.status_code, len(response.content))
+    if response.status_code >= 400:
+        logger.warning("  → DTS all-instruments notes error (%s): %s", response.status_code, response.text[:500])
+    response.raise_for_status()
+    return response.json()
+
+
 async def get_all_instruments_tranches(symbol: str) -> list[dict]:
     logger.info("GET /api/all-instruments/convertible-note/tranches?symbol=%s", symbol)
     response = await _request_with_retry(
