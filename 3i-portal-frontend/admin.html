@@ -56,7 +56,7 @@
                 <button class="subtab active" data-subtab="templates">Notice Templates</button>
                 <button class="subtab" data-subtab="backward-templates">Notice Templates (Backward)</button>
                 <button class="subtab" data-subtab="confirm-templates">Confirmation Templates</button>
-                <button class="subtab" data-subtab="participation-templates">Participation Templates</button>
+                <button class="subtab" data-subtab="participation-templates">Intraday Templates</button>
                 <button class="subtab" data-subtab="verification">Verification Settings</button>
             </div>
 
@@ -313,10 +313,11 @@
             </div>
 
             <!-- Verification Settings Panel -->
-            <!-- Participation Templates Panel -->
+            <!-- Intraday Templates Panel (internally still "participation-templates" — Participation is the
+                 backing template system name, used only for Intraday ELOCs; see PortalElocController.cs) -->
             <div id="participation-templates-panel" style="display:none;">
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; flex-wrap:wrap; gap:0.75rem;">
-                    <h2 style="font-size:1.15rem; font-weight:600; margin:0;">Participation Templates</h2>
+                    <h2 style="font-size:1.15rem; font-weight:600; margin:0;">Intraday Templates</h2>
                     <div style="display:flex; align-items:center; gap:0.75rem; flex-wrap:wrap;">
                         <select id="participation-doctype-filter" class="form-input" style="width:auto; min-width:200px;">
                             <option value="PurchaseNotice">Purchase Notice</option>
