@@ -103,10 +103,81 @@ const ParticipationPurchaseNotice = (() => {
         document.getElementById('ppn-back-btn').addEventListener('click', () => {
             window.location.href = 'dashboard.html';
         });
-        document.getElementById('ppn-send-btn').addEventListener('click', submitNotice);
+        // Send button opens the confirmation dialog first — it no longer submits directly. This
+        // was the gap that let an Intraday notice submit with no terms-acknowledgment step at all
+        // (the day-based flow in purchase-notice.js always had this gate; Intraday never did).
+        document.getElementById('ppn-send-btn').addEventListener('click', openConfirmDialog);
         document.getElementById('ppn-alert-btn').addEventListener('click', () => {
             window.location.href = 'dashboard.html';
         });
+
+        // Confirmation dialog controls (mirrors purchase-notice.js's #pn-confirm-* wiring exactly)
+        document.getElementById('ppn-confirm-checkbox').addEventListener('change', (e) => {
+            document.getElementById('ppn-confirm-accept').disabled = !e.target.checked;
+            console.log('[ParticipationPurchaseNotice] Confirm checkbox changed: checked=%s', e.target.checked);
+        });
+        document.getElementById('ppn-confirm-reject').addEventListener('click', closeConfirmDialog);
+        document.getElementById('ppn-confirm-accept').addEventListener('click', handleAcceptAndSubmit);
+    }
+
+    // ---- Confirmation Dialog (mirrors purchase-notice.js's openConfirmDialog/closeConfirmDialog/
+    // handleAcceptAndSubmit — same scroll-to-bottom-enables-checkbox gate before Accept and Submit
+    // can be clicked) ----
+
+    function _onDisclaimerScroll(e) {
+        const el = e.target;
+        const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 10;
+        if (atBottom) {
+            const checkbox = document.getElementById('ppn-confirm-checkbox');
+            const checkboxLabel = document.getElementById('ppn-confirm-checkbox-label');
+            checkbox.disabled = false;
+            checkboxLabel.style.opacity = '1';
+            checkboxLabel.style.pointerEvents = 'auto';
+            console.log('[ParticipationPurchaseNotice] Disclaimer scrolled to bottom — checkbox enabled');
+        }
+    }
+
+    function openConfirmDialog() {
+        console.log('[ParticipationPurchaseNotice] openConfirmDialog: symbol=%s shareAmount=%s percentagePct=%s minPriceThreshold=%s',
+            ctx.symbol, state.shareAmount, state.percentagePct, state.minPriceThreshold);
+
+        const companyName = sessionStorage.getItem('company_name') || ctx.companyName || '';
+        setText('ppn-confirm-company', companyName);
+        setText('ppn-confirm-company2', companyName);
+        setText('ppn-confirm-shares', formatNumber(state.shareAmount) + ' shares of Common Stock');
+        setText('ppn-confirm-percentage', state.percentagePct + '%');
+        setText('ppn-confirm-threshold', '$' + roundTo(state.minPriceThreshold, 2).toFixed(2));
+
+        // Reset checkbox/button state and require a fresh full scroll every time the dialog opens —
+        // same as the day-based flow, so a customer can't accept terms they didn't actually scroll
+        // through on this particular submission.
+        const checkbox = document.getElementById('ppn-confirm-checkbox');
+        const checkboxLabel = document.getElementById('ppn-confirm-checkbox-label');
+        checkbox.checked = false;
+        checkbox.disabled = true;
+        checkboxLabel.style.opacity = '0.5';
+        checkboxLabel.style.pointerEvents = 'none';
+        document.getElementById('ppn-confirm-accept').disabled = true;
+
+        const scrollArea = document.querySelector('#ppn-confirm-overlay .pn-confirm-scroll');
+        if (scrollArea) {
+            scrollArea.scrollTop = 0;
+            scrollArea.removeEventListener('scroll', _onDisclaimerScroll);
+            scrollArea.addEventListener('scroll', _onDisclaimerScroll);
+        }
+
+        document.getElementById('ppn-confirm-overlay').style.display = 'flex';
+    }
+
+    function closeConfirmDialog() {
+        console.log('[ParticipationPurchaseNotice] closeConfirmDialog');
+        document.getElementById('ppn-confirm-overlay').style.display = 'none';
+    }
+
+    async function handleAcceptAndSubmit() {
+        console.log('[ParticipationPurchaseNotice] User accepted terms — proceeding to submit');
+        closeConfirmDialog();
+        await submitNotice();
     }
 
     // ---- Data Loading ----
@@ -523,6 +594,7 @@ const ParticipationPurchaseNotice = (() => {
     // ---- Submission ----
 
     async function submitNotice() {
+        console.log('[ParticipationPurchaseNotice] submitNotice: terms-acknowledgment confirmed — proceeding with actual submission for symbol=%s', ctx.symbol);
         const sendBtn = document.getElementById('ppn-send-btn');
         hideBanner('ppn-window-changed-banner');
         hideBanner('ppn-submit-error-banner');

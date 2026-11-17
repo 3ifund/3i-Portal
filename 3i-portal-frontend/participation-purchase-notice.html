@@ -160,6 +160,72 @@
             </div>
         </div>
 
+        <!-- Legal Disclaimer Confirmation Dialog (matches purchase-notice.html's #pn-confirm-overlay —
+             same scroll-to-enable-checkbox pattern, terms adapted for the Intraday editable fields) -->
+        <div class="modal-overlay" id="ppn-confirm-overlay" style="display:none;">
+            <div class="modal pn-confirm-modal">
+                <div class="modal-header">
+                    <h2 class="modal-title">Intraday VWAP Purchase Notice</h2>
+                </div>
+                <div class="modal-body">
+                    <div class="pn-confirm-scroll">
+                        <p class="pn-confirm-warning">PLEASE READ CAREFULLY BEFORE SUBMITTING</p>
+
+                        <p>By clicking "Accept and Submit" below, you are submitting an Intraday VWAP Purchase
+                        Notice under the Common Stock Purchase Agreement (the "Agreement") between
+                        <strong id="ppn-confirm-company"></strong> (the "Company") and Tumim Stone Capital, LLC, a
+                        Delaware limited liability company (the "Investor"). Capitalized terms used but not
+                        defined herein have the meanings ascribed to them in the Agreement.</p>
+
+                        <h4>Terms of This Purchase Notice</h4>
+                        <table class="pn-confirm-terms">
+                            <tr><td>VWAP Purchase Share Amount:</td><td id="ppn-confirm-shares"></td></tr>
+                            <tr><td>VWAP Purchase Percentage:</td><td id="ppn-confirm-percentage"></td></tr>
+                            <tr><td>Minimum Price Threshold:</td><td id="ppn-confirm-threshold"></td></tr>
+                            <tr><td>Pricing:</td><td>As determined per the Agreement less applicable discount</td></tr>
+                        </table>
+
+                        <h4>Binding Agreement and Irrevocability</h4>
+                        <p>This Purchase Notice, once submitted, constitutes an <strong>irrevocable instruction</strong>
+                        to sell shares of the Company's Common Stock to the Investor at the VWAP Purchase Price
+                        determined during the valuation period, subject to the terms and conditions of the
+                        Agreement. This Purchase Notice <strong>cannot be withdrawn, cancelled, or modified</strong>
+                        after submission.</p>
+
+                        <h4>Representations and Warranties</h4>
+                        <p>By submitting this Purchase Notice, you represent and warrant on behalf of the Company that, as of the date hereof:</p>
+                        <ol class="pn-confirm-list">
+                            <li>All representations and warranties of the Company contained in the Agreement are true and correct in all material respects;</li>
+                            <li>The Company is in compliance with all covenants and agreements contained in the Agreement;</li>
+                            <li>No event constituting a Material Adverse Effect has occurred;</li>
+                            <li>The Registration Statement is effective and available for the resale of the shares subject to this Purchase Notice;</li>
+                            <li>Trading of the Company's Common Stock has not been suspended by the SEC or the applicable exchange; and</li>
+                            <li>No condition exists that would prevent the consummation of the purchase of shares pursuant to this Purchase Notice or the subsequent resale of such shares by the Investor in accordance with the Agreement and the Registration Statement.</li>
+                        </ol>
+
+                        <h4>Electronic Signature and Consent</h4>
+                        <p>In accordance with the Electronic Signatures in Global and National Commerce Act
+                        (15 U.S.C. &sect; 7001 et seq.) and applicable state law, your electronic submission of this
+                        Purchase Notice shall have the same legal force and effect as a manually executed and
+                        delivered written notice. You acknowledge that your electronic submission constitutes your
+                        electronic signature, you consent to electronic execution and delivery, and you have the
+                        authority to bind the Company to the obligations set forth herein.</p>
+                    </div>
+
+                    <label class="pn-confirm-checkbox-label" id="ppn-confirm-checkbox-label" style="opacity:0.5; pointer-events:none;">
+                        <input type="checkbox" id="ppn-confirm-checkbox" disabled>
+                        <span>I have read and understand the above terms. I confirm that I am authorized to submit
+                        this Purchase Notice on behalf of <strong id="ppn-confirm-company2"></strong> and that
+                        submission constitutes a binding and irrevocable obligation of the Company under the Agreement.</span>
+                    </label>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-danger" id="ppn-confirm-reject">Reject</button>
+                    <button class="btn btn-accept" id="ppn-confirm-accept" disabled>Accept and Submit</button>
+                </div>
+            </div>
+        </div>
+
     </div><!-- /page-container -->
 
     <script>var _v = Date.now();</script>
