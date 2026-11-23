@@ -276,7 +276,11 @@
     // New York (America/New_York) local time, DST-aware, "yyyy-MM-dd HH:mm:ss ET" — matches the PDF.
     function elocEtTime(iso) {
         if (!iso) return '';
-        const d = new Date(iso);
+        // Server sends naive timestamps that are UTC by convention (no trailing Z/offset) — without
+        // the Z, new Date() parses a date-time string as LOCAL browser time instead of UTC, so the
+        // explicit timeZone below would convert the wrong instant. Force UTC parsing first.
+        const hasZone = /Z$|[+-]\d{2}:?\d{2}$/.test(iso);
+        const d = new Date(hasZone ? iso : `${iso}Z`);
         if (isNaN(d.getTime())) return '';
         try {
             const parts = new Intl.DateTimeFormat('en-US', {

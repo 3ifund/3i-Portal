@@ -814,9 +814,14 @@ const Dashboard = (() => {
     function fmtDateTime(iso) {
         if (!iso) return '—';
         try {
-            const d = new Date(iso);
+            // Server sends naive timestamps that are UTC by convention (no trailing Z/offset) —
+            // without the Z, new Date() parses a date-time string as LOCAL time instead of UTC,
+            // silently skipping the UTC->Eastern conversion entirely. Force UTC parsing, then
+            // render in Eastern explicitly so it doesn't depend on the viewer's own timezone.
+            const hasZone = /Z$|[+-]\d{2}:?\d{2}$/.test(iso);
+            const d = new Date(hasZone ? iso : `${iso}Z`);
             if (isNaN(d.getTime())) return String(iso);
-            return d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true });
+            return d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true, timeZone: 'America/New_York' });
         } catch { return String(iso); }
     }
 
