@@ -1266,6 +1266,19 @@ async def set_preferred_trading_objective(payload: dict) -> tuple[int, dict]:
     return response.status_code, body
 
 
+async def set_preferred_is_144_eligible(payload: dict) -> tuple[int, dict]:
+    client = _get_client()
+    logger.info("PUT /api/company-preferred-conversions/is-144-eligible company=%s eligible=%s",
+                payload.get("companyId"), payload.get("eligible"))
+    response = await client.put("/api/company-preferred-conversions/is-144-eligible", json=payload)
+    logger.info("  → %s", response.status_code)
+    try:
+        body = response.json()
+    except Exception:
+        body = {"message": response.text}
+    return response.status_code, body
+
+
 async def post_prm_synthetic_trade(payload: dict) -> tuple[int, dict]:
     client = _get_client()
     logger.info(

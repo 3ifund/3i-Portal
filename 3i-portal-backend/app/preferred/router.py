@@ -36,6 +36,9 @@ class AllowTrueUpBody(BaseModel):
     allow: bool
 
 
+class Is144EligibleBody(BaseModel):
+    companyId: int
+    eligible: bool
 
 
 class TradingObjectiveBody(BaseModel):
@@ -193,6 +196,14 @@ async def set_trading_objective(body: TradingObjectiveBody, admin: UserInfo = De
     logger.info("POST /internal/preferred/trading-objective company=%s objective=%s by user=%s",
                 body.companyId, body.objective, admin.user_id)
     status, data = await onprem.set_preferred_trading_objective({"companyId": body.companyId, "objective": body.objective})
+    return JSONResponse(status_code=status, content=data)
+
+
+@router.post("/is-144-eligible")
+async def set_is_144_eligible(body: Is144EligibleBody, admin: UserInfo = Depends(require_admin)):
+    logger.info("POST /internal/preferred/is-144-eligible company=%s eligible=%s by user=%s",
+                body.companyId, body.eligible, admin.user_id)
+    status, data = await onprem.set_preferred_is_144_eligible({"companyId": body.companyId, "eligible": body.eligible})
     return JSONResponse(status_code=status, content=data)
 
 
