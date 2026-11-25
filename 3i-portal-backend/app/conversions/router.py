@@ -155,6 +155,24 @@ async def set_all_instruments_sharepoint_path(symbol: str, body: SetAllInstrumen
         raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
 
 
+@router.get("/all-instruments/rule144")
+async def get_all_instruments_rule144(admin: UserInfo = Depends(require_admin)):
+    logger.info("GET /internal/conversions/all-instruments/rule144 by user=%s", admin.user_id)
+    try:
+        return await onprem.get_all_instruments_rule144()
+    except Exception as exc:
+        logger.error("all-instruments rule144 — DTS fetch FAILED: %s", exc, exc_info=True)
+        raise HTTPException(status_code=502, detail=f"DTS upstream error: {exc}")
+
+
+@router.put("/all-instruments/{instrument_id}/allow-144")
+async def set_all_instruments_note_allow144(instrument_id: int, body: NoteAllow144Body, admin: UserInfo = Depends(require_admin)):
+    logger.info("PUT /internal/conversions/all-instruments/%s/allow-144 allow=%s by user=%s",
+                instrument_id, body.allow, admin.user_id)
+    status, data = await onprem.set_all_instruments_note_allow144(instrument_id, body.allow)
+    return JSONResponse(status_code=status, content=data)
+
+
 @router.get("/all-instruments/notes")
 async def get_all_instruments_notes(admin: UserInfo = Depends(require_admin)):
     logger.info("GET /internal/conversions/all-instruments/notes by user=%s", admin.user_id)

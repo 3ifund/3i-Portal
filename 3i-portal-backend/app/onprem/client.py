@@ -245,6 +245,25 @@ async def set_all_instruments_conversion_enabled(instrument_id: int, enabled: bo
     return response.json()
 
 
+async def get_all_instruments_rule144() -> list[dict]:
+    logger.info("GET /api/all-instruments/convertible-note/rule144")
+    response = await _request_with_retry("GET", "/api/all-instruments/convertible-note/rule144")
+    logger.info("  → %s (%d bytes)", response.status_code, len(response.content))
+    response.raise_for_status()
+    return response.json()
+
+
+async def set_all_instruments_note_allow144(instrument_id: int, allow: bool) -> tuple[int, dict]:
+    client = _get_client()
+    logger.info("PUT /api/all-instruments/convertible-note/%s/allow-144 allow=%s (write)", instrument_id, allow)
+    response = await client.put(f"/api/all-instruments/convertible-note/{instrument_id}/allow-144", json={"allow": allow})
+    logger.info("  → %s", response.status_code)
+    try:
+        return response.status_code, response.json()
+    except Exception:
+        return response.status_code, {"message": response.text}
+
+
 async def get_conversion_aggregates() -> list[dict]:
     logger.info("GET /api/conversions/aggregates")
     response = await _request_with_retry("GET", "/api/conversions/aggregates")
